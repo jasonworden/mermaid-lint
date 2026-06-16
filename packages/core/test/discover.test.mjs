@@ -1,8 +1,8 @@
-import { describe, it, expect } from 'vitest';
-import { discoverFiles } from '../src/discover.mjs';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { describe, expect, it } from 'vitest';
+import { discoverFiles } from '../src/discover.mjs';
 
 describe('discoverFiles', () => {
   it('returns explicit paths that exist', () => {
@@ -23,7 +23,7 @@ describe('discoverFiles', () => {
     writeFileSync(join(tmp, 'c.txt'), 'not md');
     const result = discoverFiles({ root: tmp, all: true });
     expect(result).toHaveLength(2);
-    expect(result.every(p => p.endsWith('.md'))).toBe(true);
+    expect(result.every((p) => p.endsWith('.md'))).toBe(true);
   });
 
   it('skips node_modules with all:true', () => {
@@ -33,7 +33,7 @@ describe('discoverFiles', () => {
     mkdirSync(nm);
     writeFileSync(join(nm, 'ignored.md'), '# ignored');
     const result = discoverFiles({ root: tmp, all: true });
-    expect(result.some(p => p.includes('node_modules'))).toBe(false);
+    expect(result.some((p) => p.includes('node_modules'))).toBe(false);
   });
 
   it('returns empty array when git ls-files fails (not a git repo)', () => {

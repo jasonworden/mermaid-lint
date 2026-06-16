@@ -1,15 +1,27 @@
 #!/usr/bin/env node
 import { readFileSync } from 'node:fs';
-import { discoverFiles, extractMermaidBlocks, validateBlock } from '@mermaid-lint/core';
+import {
+  discoverFiles,
+  extractMermaidBlocks,
+  validateBlock,
+} from '@mermaid-lint/core';
 
 function parseArgs(argv) {
-  const args = { quiet: false, all: false, paths: [], help: false, error: null };
+  const args = {
+    quiet: false,
+    all: false,
+    paths: [],
+    help: false,
+    error: null,
+  };
   for (const a of argv) {
     if (a === '--quiet') args.quiet = true;
     else if (a === '--all') args.all = true;
     else if (a === '--help' || a === '-h') args.help = true;
-    else if (a.startsWith('--')) { args.error = `unknown flag: ${a}`; break; }
-    else args.paths.push(a);
+    else if (a.startsWith('--')) {
+      args.error = `unknown flag: ${a}`;
+      break;
+    } else args.paths.push(a);
   }
   return args;
 }
@@ -31,10 +43,20 @@ Exit codes:
 
 async function main(argv) {
   const args = parseArgs(argv);
-  if (args.help) { printHelp(); return 0; }
-  if (args.error) { process.stderr.write(`${args.error}\n`); printHelp(); return 2; }
+  if (args.help) {
+    printHelp();
+    return 0;
+  }
+  if (args.error) {
+    process.stderr.write(`${args.error}\n`);
+    printHelp();
+    return 2;
+  }
 
-  const files = discoverFiles({ all: args.all, paths: args.paths.length ? args.paths : undefined });
+  const files = discoverFiles({
+    all: args.all,
+    paths: args.paths.length ? args.paths : undefined,
+  });
 
   if (files.length === 0) {
     process.stderr.write(
@@ -57,7 +79,9 @@ async function main(argv) {
       text = readFileSync(file, 'utf8');
     } catch (err) {
       failures++;
-      process.stdout.write(`${file}:0:0: parse error: cannot read file: ${err.message}\n`);
+      process.stdout.write(
+        `${file}:0:0: parse error: cannot read file: ${err.message}\n`,
+      );
       continue;
     }
     const blocks = extractMermaidBlocks(file, text);
@@ -68,7 +92,9 @@ async function main(argv) {
         failures++;
         const loc = r.error.line != null ? `:${r.error.line}` : '';
         const msg = r.error.message.replace(/\s*\n\s*/g, ' | ');
-        process.stdout.write(`${block.path}:${block.line}:${block.col}${loc}: parse error: ${msg}\n`);
+        process.stdout.write(
+          `${block.path}:${block.line}:${block.col}${loc}: parse error: ${msg}\n`,
+        );
       }
     }
   }
