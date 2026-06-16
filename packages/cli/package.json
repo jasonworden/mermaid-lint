@@ -1,0 +1,14 @@
+{
+  "name": "mermaid-lint",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Validate Mermaid diagrams in Markdown files",
+  "bin": {
+    "mermaid-lint": "./bin/mermaid-lint.mjs"
+  },
+  "files": ["bin"],
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "@mermaid-lint/core": "workspace:*"
+  }
+}

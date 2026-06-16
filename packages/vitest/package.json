@@ -1,0 +1,17 @@
+{
+  "name": "@mermaid-lint/vitest",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Vitest adapter for mermaid-lint",
+  "exports": {
+    ".": "./index.mjs"
+  },
+  "files": ["index.mjs"],
+  "engines": { "node": ">=20" },
+  "peerDependencies": {
+    "vitest": ">=1.0.0"
+  },
+  "dependencies": {
+    "@mermaid-lint/core": "workspace:*"
+  }
+}

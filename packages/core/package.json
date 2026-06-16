@@ -1,0 +1,16 @@
+{
+  "name": "@mermaid-lint/core",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Core extraction, validation, and discovery utilities for mermaid-lint",
+  "exports": {
+    ".": "./index.mjs"
+  },
+  "files": ["src", "index.mjs"],
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "dompurify": "^3.2.6",
+    "jsdom": "^26.1.0",
+    "mermaid": "^11.8.1"
+  }
+}
