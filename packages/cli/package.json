@@ -1,5 +1,5 @@
 {
-  "name": "mermaid-lint",
+  "name": "@mermaid-lint/cli",
   "version": "0.1.0",
   "type": "module",
   "description": "Validate Mermaid diagrams in Markdown files",
