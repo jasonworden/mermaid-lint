@@ -1,6 +1,10 @@
 import { readFileSync } from 'node:fs';
+import {
+  discoverFiles,
+  extractMermaidBlocks,
+  validateBlock,
+} from '@mermaid-lint/core';
 import { describe, expect, it } from 'vitest';
-import { discoverFiles, extractMermaidBlocks, validateBlock } from '@mermaid-lint/core';
 
 export function defineMermaidTests(opts = {}) {
   const files = discoverFiles(opts);
@@ -17,7 +21,10 @@ export function defineMermaidTests(opts = {}) {
 
     it.each(blocks)('$path:$line is valid', async ({ path, line, body }) => {
       const result = await validateBlock(body);
-      expect(result.ok, `${path}:${line}: ${result.ok ? '' : result.error.message}`).toBe(true);
+      expect(
+        result.ok,
+        `${path}:${line}: ${result.ok ? '' : result.error.message}`,
+      ).toBe(true);
     });
   });
 }

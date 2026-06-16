@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { extractMermaidBlocks } from '../src/extract.mjs';
 
 describe('extractMermaidBlocks', () => {
@@ -27,7 +27,8 @@ describe('extractMermaidBlocks', () => {
   });
 
   it('extracts multiple blocks in order', () => {
-    const md = '```mermaid\nflowchart LR\n  A-->B\n```\n\n```mermaid\nsequenceDiagram\n  A->>B: hi\n```\n';
+    const md =
+      '```mermaid\nflowchart LR\n  A-->B\n```\n\n```mermaid\nsequenceDiagram\n  A->>B: hi\n```\n';
     const blocks = extractMermaidBlocks('test.md', md);
     expect(blocks).toHaveLength(2);
     expect(blocks[0].body).toContain('flowchart');
