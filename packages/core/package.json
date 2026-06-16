@@ -4,13 +4,23 @@
   "type": "module",
   "description": "Core extraction, validation, and discovery utilities for mermaid-lint",
   "exports": {
-    ".": "./index.mjs"
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
   },
-  "files": ["src", "index.mjs"],
+  "types": "./dist/index.d.ts",
+  "files": ["dist", "src", "index.ts"],
   "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "tsc"
+  },
   "dependencies": {
     "dompurify": "^3.2.6",
     "jsdom": "^26.1.0",
     "mermaid": "^11.8.1"
+  },
+  "devDependencies": {
+    "@types/jsdom": "^21.0.0"
   }
 }

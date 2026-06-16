@@ -4,12 +4,16 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
+    "build": "pnpm -r build",
+    "pretest": "pnpm -r build",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "biome check ."
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
     "vitest": "^2.0.0"
   }
 }

@@ -4,10 +4,13 @@
   "type": "module",
   "description": "Validate Mermaid diagrams in Markdown files",
   "bin": {
-    "mermaid-lint": "./bin/mermaid-lint.mjs"
+    "mermaid-lint": "./dist/cli.js"
   },
-  "files": ["bin"],
+  "files": ["dist", "src"],
   "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "tsc"
+  },
   "dependencies": {
     "@mermaid-lint/core": "workspace:*"
   }

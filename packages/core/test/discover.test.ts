@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { discoverFiles } from '../src/discover.mjs';
+import { discoverFiles } from '../src/discover.js';
 
 describe('discoverFiles', () => {
   it('returns explicit paths that exist', () => {

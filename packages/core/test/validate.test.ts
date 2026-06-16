@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { validateBlock } from '../src/validate.mjs';
+import { validateBlock } from '../src/validate.js';
 
 describe('validateBlock', () => {
   it('accepts a valid flowchart', async () => {
@@ -15,13 +15,13 @@ describe('validateBlock', () => {
   it('rejects an empty block', async () => {
     const result = await validateBlock('');
     expect(result.ok).toBe(false);
-    expect(result.error.message).toContain('empty');
+    if (!result.ok) expect(result.error.message).toContain('empty');
   });
 
   it('rejects the unclosed fence sentinel', async () => {
     const result = await validateBlock('__UNCLOSED_FENCE__');
     expect(result.ok).toBe(false);
-    expect(result.error.message).toContain('unclosed');
+    if (!result.ok) expect(result.error.message).toContain('unclosed');
   });
 
   it('rejects invalid mermaid syntax', async () => {

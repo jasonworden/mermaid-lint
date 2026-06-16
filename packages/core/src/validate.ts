@@ -1,9 +1,19 @@
+export interface ValidationError {
+  message: string;
+  line?: number;
+  col?: number;
+}
+
+export type ValidationResult =
+  | { ok: true }
+  | { ok: false; error: ValidationError };
+
 // Mermaid v11 calls DOMPurify.sanitize during parse for some diagram types.
 // DOMPurify requires a DOM window at module-evaluation time, so we bootstrap
 // jsdom lazily before the first mermaid import via a dynamic import chain.
-let _mermaidPromise = null;
+let _mermaidPromise: Promise<unknown> | null = null;
 
-async function loadMermaid() {
+async function loadMermaid(): Promise<unknown> {
   if (!globalThis.window) {
     const { JSDOM } = await import('jsdom');
     const { window } = new JSDOM('');
@@ -20,7 +30,7 @@ async function loadMermaid() {
     // sequenceDiagram `box` parser references bare `Option` (HTMLOptionElement),
     // which jsdom attaches to window but not globalThis.
     Object.defineProperty(globalThis, 'Option', {
-      value: window.Option,
+      value: (window as unknown as Window & typeof globalThis).Option,
       writable: true,
       configurable: true,
     });
@@ -30,12 +40,12 @@ async function loadMermaid() {
   return mermaid;
 }
 
-function getMermaid() {
+function getMermaid(): Promise<unknown> {
   if (!_mermaidPromise) _mermaidPromise = loadMermaid();
   return _mermaidPromise;
 }
 
-export async function validateBlock(body) {
+export async function validateBlock(body: string): Promise<ValidationResult> {
   if (body === '__UNCLOSED_FENCE__') {
     return {
       ok: false,
@@ -47,16 +57,18 @@ export async function validateBlock(body) {
   }
   try {
     const mermaid = await getMermaid();
-    await mermaid.parse(body, { suppressErrors: false });
+    await (mermaid as { parse(text: string, opts: object): Promise<unknown> }).parse(body, {
+      suppressErrors: false,
+    });
     return { ok: true };
-  } catch (err) {
-    const message = err?.message ?? String(err);
-    const line =
-      typeof err?.hash?.line === 'number' ? err.hash.line : undefined;
+  } catch (err: unknown) {
+    const e = err as Record<string, unknown>;
+    const message = typeof e?.message === 'string' ? e.message : String(err);
+    const hash = e?.hash as Record<string, unknown> | undefined;
+    const line = typeof hash?.line === 'number' ? hash.line : undefined;
+    const loc = hash?.loc as Record<string, unknown> | undefined;
     const col =
-      typeof err?.hash?.loc?.first_column === 'number'
-        ? err.hash.loc.first_column + 1
-        : undefined;
+      typeof loc?.first_column === 'number' ? loc.first_column + 1 : undefined;
     return { ok: false, error: { message, line, col } };
   }
 }

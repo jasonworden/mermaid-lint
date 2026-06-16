@@ -3,12 +3,14 @@ import {
   discoverFiles,
   extractMermaidBlocks,
   validateBlock,
+  type Block,
+  type DiscoverOptions,
 } from '@mermaid-lint/core';
 import { describe, expect, it } from 'vitest';
 
-export function defineMermaidTests(opts = {}) {
+export function defineMermaidTests(opts: DiscoverOptions = {}): void {
   const files = discoverFiles(opts);
-  const blocks = [];
+  const blocks: Block[] = [];
   for (const file of files) {
     const text = readFileSync(file, 'utf8');
     blocks.push(...extractMermaidBlocks(file, text));
