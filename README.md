@@ -45,8 +45,24 @@ Requires `NODE_OPTIONS=--experimental-vm-modules` (Jest + native ESM).
 
 ## How it works
 
-- **Discovery:** `git ls-files -- '*.md'` by default; `--all` falls back to recursive filesystem scan
-- **Extraction:** Parses fenced ` ```mermaid ``` ` blocks (handles CRLF, info-strings, unclosed fences)
+```mermaid
+flowchart LR
+    src[".md / .mdx / .mmd files"]
+    discover["discoverFiles()"]
+    extract["extractMermaidBlocks()"]
+    validate["validateBlock()"]
+    ok(["✓ valid"])
+    err(["✗ error + location"])
+
+    src --> discover
+    discover --> extract
+    extract --> validate
+    validate --> ok
+    validate --> err
+```
+
+- **Discovery:** `git ls-files -- '*.md' '*.mdx' '*.markdown' '*.mmd'` by default; `--all` falls back to recursive filesystem scan
+- **Extraction:** Parses fenced ` ```mermaid ``` ` blocks (handles CRLF, indentation, info-strings, unclosed fences); `.mmd` files treated as a single diagram
 - **Validation:** Calls `mermaid.parse()` via a lazily-bootstrapped jsdom window — same parser your renderer uses
 
 ## Development
