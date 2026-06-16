@@ -6,8 +6,16 @@ import {
   validateBlock,
 } from '@mermaid-lint/core';
 
-function parseArgs(argv) {
-  const args = {
+interface Args {
+  quiet: boolean;
+  all: boolean;
+  paths: string[];
+  help: boolean;
+  error: string | null;
+}
+
+function parseArgs(argv: string[]): Args {
+  const args: Args = {
     quiet: false,
     all: false,
     paths: [],
@@ -26,7 +34,7 @@ function parseArgs(argv) {
   return args;
 }
 
-function printHelp() {
+function printHelp(): void {
   process.stdout.write(`Usage: mermaid-lint [--all] [--quiet] [paths...]
 
   paths      Files to validate. Overrides default discovery.
@@ -41,7 +49,7 @@ Exit codes:
 `);
 }
 
-async function main(argv) {
+async function main(argv: string[]): Promise<number> {
   const args = parseArgs(argv);
   if (args.help) {
     printHelp();
@@ -74,13 +82,14 @@ async function main(argv) {
 
   for (const file of files) {
     if (!args.quiet) process.stderr.write(`scanning ${file}\n`);
-    let text;
+    let text: string;
     try {
       text = readFileSync(file, 'utf8');
-    } catch (err) {
+    } catch (err: unknown) {
       failures++;
+      const msg = err instanceof Error ? err.message : String(err);
       process.stdout.write(
-        `${file}:0:0: parse error: cannot read file: ${err.message}\n`,
+        `${file}:0:0: parse error: cannot read file: ${msg}\n`,
       );
       continue;
     }

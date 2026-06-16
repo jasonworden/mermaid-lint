@@ -4,10 +4,18 @@
   "type": "module",
   "description": "Jest adapter for mermaid-lint",
   "exports": {
-    ".": "./index.mjs"
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
   },
-  "files": ["index.mjs"],
+  "types": "./dist/index.d.ts",
+  "files": ["dist", "index.ts"],
   "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "tsc",
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest"
+  },
   "peerDependencies": {
     "jest": ">=27.0.0"
   },
@@ -17,14 +25,18 @@
   "devDependencies": {
     "@jest/globals": "^29.0.0",
     "jest": "^29.0.0",
-    "jest-environment-node": "^29.0.0"
-  },
-  "scripts": {
-    "test": "NODE_OPTIONS=--experimental-vm-modules jest"
+    "jest-environment-node": "^29.0.0",
+    "ts-jest": "^29.0.0"
   },
   "jest": {
-    "testMatch": ["**/test/**/*.test.mjs"],
+    "testMatch": ["**/test/**/*.test.ts"],
     "testEnvironment": "node",
-    "transform": {}
+    "extensionsToTreatAsEsm": [".ts"],
+    "transform": {
+      "^.+\\.ts$": ["ts-jest", { "useESM": true, "isolatedModules": true }]
+    },
+    "moduleNameMapper": {
+      "^(\\.{1,2}/.+)\\.js$": "$1"
+    }
   }
 }

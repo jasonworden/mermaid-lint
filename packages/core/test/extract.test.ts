@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { extractMermaidBlocks } from '../src/extract.mjs';
+import { extractMermaidBlocks } from '../src/extract.js';
 
 describe('extractMermaidBlocks', () => {
   it('extracts a single block', () => {

@@ -4,11 +4,10 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-// import.meta.dirname = packages/cli/test — go up one level to packages/cli/bin/
-const BIN = resolve(import.meta.dirname, '../bin/mermaid-lint.mjs');
+const BIN = resolve(import.meta.dirname, '../dist/cli.js');
 
-function run(args, cwd) {
-  return spawnSync('node', [BIN, ...args], { cwd, encoding: 'utf8' });
+function run(args: string[], cwd: string) {
+  return spawnSync(process.execPath, [BIN, ...args], { cwd, encoding: 'utf8' });
 }
 
 describe('mermaid-lint CLI', () => {

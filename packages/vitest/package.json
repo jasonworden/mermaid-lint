@@ -4,10 +4,17 @@
   "type": "module",
   "description": "Vitest adapter for mermaid-lint",
   "exports": {
-    ".": "./index.mjs"
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
   },
-  "files": ["index.mjs"],
+  "types": "./dist/index.d.ts",
+  "files": ["dist", "index.ts"],
   "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "tsc"
+  },
   "peerDependencies": {
     "vitest": ">=1.0.0"
   },
