@@ -1,10 +1,10 @@
 import { readFileSync } from 'node:fs';
 import {
+  type Block,
+  type DiscoverOptions,
   discoverFiles,
   extractMermaidBlocks,
   validateBlock,
-  type Block,
-  type DiscoverOptions,
 } from '@mermaid-lint/core';
 import { describe, expect, it } from 'vitest';
 

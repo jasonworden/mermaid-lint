@@ -57,7 +57,9 @@ export async function validateBlock(body: string): Promise<ValidationResult> {
   }
   try {
     const mermaid = await getMermaid();
-    await (mermaid as { parse(text: string, opts: object): Promise<unknown> }).parse(body, {
+    await (
+      mermaid as { parse(text: string, opts: object): Promise<unknown> }
+    ).parse(body, {
       suppressErrors: false,
     });
     return { ok: true };

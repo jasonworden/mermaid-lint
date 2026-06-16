@@ -1,11 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, test } from '@jest/globals';
 import {
+  type Block,
+  type DiscoverOptions,
   discoverFiles,
   extractMermaidBlocks,
   validateBlock,
-  type Block,
-  type DiscoverOptions,
 } from '@mermaid-lint/core';
 
 export function defineMermaidTests(opts: DiscoverOptions = {}): void {
@@ -23,7 +23,8 @@ export function defineMermaidTests(opts: DiscoverOptions = {}): void {
 
     test.each(blocks)('$path:$line is valid', async ({ path, line, body }) => {
       const result = await validateBlock(body);
-      if (!result.ok) throw new Error(`${path}:${line}: ${result.error.message}`);
+      if (!result.ok)
+        throw new Error(`${path}:${line}: ${result.error.message}`);
       expect(result.ok).toBe(true);
     });
   });

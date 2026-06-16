@@ -15,7 +15,13 @@ interface Args {
 }
 
 function parseArgs(argv: string[]): Args {
-  const args: Args = { quiet: false, all: false, paths: [], help: false, error: null };
+  const args: Args = {
+    quiet: false,
+    all: false,
+    paths: [],
+    help: false,
+    error: null,
+  };
   for (const a of argv) {
     if (a === '--quiet') args.quiet = true;
     else if (a === '--all') args.all = true;
@@ -82,7 +88,9 @@ async function main(argv: string[]): Promise<number> {
     } catch (err: unknown) {
       failures++;
       const msg = err instanceof Error ? err.message : String(err);
-      process.stdout.write(`${file}:0:0: parse error: cannot read file: ${msg}\n`);
+      process.stdout.write(
+        `${file}:0:0: parse error: cannot read file: ${msg}\n`,
+      );
       continue;
     }
     const blocks = extractMermaidBlocks(file, text);
