@@ -41,4 +41,33 @@ describe('discoverFiles', () => {
     const result = discoverFiles({ root: tmp });
     expect(result).toEqual([]);
   });
+
+  it('discovers .mmd files with all:true', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(join(tmp, 'diagram.mmd'), 'flowchart LR\n  A-->B');
+    writeFileSync(join(tmp, 'doc.md'), '# doc');
+    const result = discoverFiles({ root: tmp, all: true });
+    expect(result.some((p) => p.endsWith('.mmd'))).toBe(true);
+  });
+
+  it('discovers .mdx files with all:true', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(join(tmp, 'page.mdx'), '# page');
+    const result = discoverFiles({ root: tmp, all: true });
+    expect(result.some((p) => p.endsWith('.mdx'))).toBe(true);
+  });
+
+  it('discovers .markdown files with all:true', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(join(tmp, 'doc.markdown'), '# doc');
+    const result = discoverFiles({ root: tmp, all: true });
+    expect(result.some((p) => p.endsWith('.markdown'))).toBe(true);
+  });
+
+  it('accepts .mmd explicit paths', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    const file = join(tmp, 'diagram.mmd');
+    writeFileSync(file, 'flowchart LR\n  A-->B');
+    expect(discoverFiles({ paths: [file] })).toContain(file);
+  });
 });

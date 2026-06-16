@@ -54,4 +54,73 @@ describe('mermaid-lint CLI', () => {
     const quiet = run(['--quiet', join(tmp, 'ok.md')], tmp);
     expect(quiet.stderr.length).toBeLessThan(noisy.stderr.length);
   });
+
+  it('expands glob patterns', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(
+      join(tmp, 'a.md'),
+      '```mermaid\nflowchart LR\n  A-->B\n```\n',
+    );
+    writeFileSync(
+      join(tmp, 'b.md'),
+      '```mermaid\nflowchart LR\n  C-->D\n```\n',
+    );
+    const r = run([join(tmp, '*.md')], tmp);
+    expect(r.status).toBe(0);
+    expect(r.stderr).toContain('checked 2 diagrams');
+  });
+
+  it('--format json outputs valid JSON to stdout', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(
+      join(tmp, 'ok.md'),
+      '```mermaid\nflowchart LR\n  A-->B\n```\n',
+    );
+    const r = run(['--format', 'json', join(tmp, 'ok.md')], tmp);
+    expect(r.status).toBe(0);
+    const json = JSON.parse(r.stdout);
+    expect(json.version).toBe('0.2.0');
+    expect(json.files).toHaveLength(1);
+    expect(json.files[0].diagrams[0].ok).toBe(true);
+    expect(json.files[0].diagrams[0].type).toBe('flowchart');
+    expect(json.summary.diagrams).toBe(1);
+    expect(json.summary.ok).toBe(1);
+    expect(json.summary.errors).toBe(0);
+  });
+
+  it('--format json includes error details for invalid diagram', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(
+      join(tmp, 'bad.md'),
+      '```mermaid\nflowchart LR\n  A -->|broken\n```\n',
+    );
+    const r = run(['--format', 'json', join(tmp, 'bad.md')], tmp);
+    expect(r.status).toBe(1);
+    const json = JSON.parse(r.stdout);
+    expect(json.summary.errors).toBe(1);
+    expect(json.files[0].diagrams[0].ok).toBe(false);
+    expect(json.files[0].diagrams[0].error.message).toBeTruthy();
+  });
+
+  it('--format json is silent on stderr', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(
+      join(tmp, 'ok.md'),
+      '```mermaid\nflowchart LR\n  A-->B\n```\n',
+    );
+    const r = run(['--format', 'json', join(tmp, 'ok.md')], tmp);
+    expect(r.stderr).toBe('');
+  });
+
+  it('exits 2 for unknown --format value', () => {
+    const r = run(['--format', 'xml'], '.');
+    expect(r.status).toBe(2);
+  });
+
+  it('validates .mmd files', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(join(tmp, 'diagram.mmd'), 'flowchart LR\n  A-->B\n');
+    const r = run([join(tmp, 'diagram.mmd')], tmp);
+    expect(r.status).toBe(0);
+  });
 });
