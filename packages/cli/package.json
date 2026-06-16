@@ -12,6 +12,7 @@
     "build": "tsc"
   },
   "dependencies": {
-    "@mermaid-lint/core": "workspace:*"
+    "@mermaid-lint/core": "workspace:*",
+    "fast-glob": "^3.3.3"
   }
 }
