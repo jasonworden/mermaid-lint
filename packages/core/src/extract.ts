@@ -50,7 +50,13 @@ export function extractMermaidBlocks(path: string, text: string): Block[] {
       i++;
     }
     const body = closed ? bodyLines.join('\n') : '__UNCLOSED_FENCE__';
-    blocks.push({ path, line: openerLine, col, body, type: detectDiagramType(body) });
+    blocks.push({
+      path,
+      line: openerLine,
+      col,
+      body,
+      type: detectDiagramType(body),
+    });
     i++;
   }
   return blocks;

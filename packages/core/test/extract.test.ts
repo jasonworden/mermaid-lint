@@ -79,7 +79,10 @@ describe('extractMermaidBlocks', () => {
   });
 
   it('treats .mmd file as a single block at line 1', () => {
-    const blocks = extractMermaidBlocks('diagram.mmd', 'flowchart LR\n  A-->B\n');
+    const blocks = extractMermaidBlocks(
+      'diagram.mmd',
+      'flowchart LR\n  A-->B\n',
+    );
     expect(blocks).toHaveLength(1);
     expect(blocks[0].line).toBe(1);
     expect(blocks[0].col).toBe(1);

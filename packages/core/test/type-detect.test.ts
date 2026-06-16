@@ -7,7 +7,9 @@ describe('detectDiagramType', () => {
   });
 
   it('detects sequenceDiagram', () => {
-    expect(detectDiagramType('sequenceDiagram\n  Alice->>Bob: hi')).toBe('sequenceDiagram');
+    expect(detectDiagramType('sequenceDiagram\n  Alice->>Bob: hi')).toBe(
+      'sequenceDiagram',
+    );
   });
 
   it('detects classDiagram', () => {
@@ -15,7 +17,9 @@ describe('detectDiagramType', () => {
   });
 
   it('detects stateDiagram-v2', () => {
-    expect(detectDiagramType('stateDiagram-v2\n  [*] --> s1')).toBe('stateDiagram-v2');
+    expect(detectDiagramType('stateDiagram-v2\n  [*] --> s1')).toBe(
+      'stateDiagram-v2',
+    );
   });
 
   it('detects graph (alias for flowchart)', () => {
@@ -23,7 +27,9 @@ describe('detectDiagramType', () => {
   });
 
   it('skips leading comment lines', () => {
-    expect(detectDiagramType('%% comment\nflowchart LR\n  A-->B')).toBe('flowchart');
+    expect(detectDiagramType('%% comment\nflowchart LR\n  A-->B')).toBe(
+      'flowchart',
+    );
   });
 
   it('returns unknown for empty body', () => {

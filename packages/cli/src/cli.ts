@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 import { readFileSync } from 'node:fs';
-import fg from 'fast-glob';
-import chalk from 'chalk';
 import {
   discoverFiles,
   extractMermaidBlocks,
   validateBlock,
 } from '@mermaid-lint/core';
+import chalk from 'chalk';
+import fg from 'fast-glob';
 
 interface Args {
   quiet: boolean;
@@ -163,8 +163,15 @@ async function runJsonMode(files: string[]): Promise<number> {
       const msg = err instanceof Error ? err.message : String(err);
       fileResults.push({
         path: file,
-        diagrams: [{ line: 0, col: 0, type: 'unknown', ok: false,
-          error: { message: `cannot read file: ${msg}` } }],
+        diagrams: [
+          {
+            line: 0,
+            col: 0,
+            type: 'unknown',
+            ok: false,
+            error: { message: `cannot read file: ${msg}` },
+          },
+        ],
       });
       failures++;
       continue;
@@ -173,7 +180,12 @@ async function runJsonMode(files: string[]): Promise<number> {
     const blocks = extractMermaidBlocks(file, text);
     for (const block of blocks) {
       const r = await validateBlock(block.body);
-      const dr: DiagramResult = { line: block.line, col: block.col, type: block.type, ok: r.ok };
+      const dr: DiagramResult = {
+        line: block.line,
+        col: block.col,
+        type: block.type,
+        ok: r.ok,
+      };
       if (!r.ok) {
         failures++;
         dr.error = { message: r.error.message };
@@ -202,7 +214,7 @@ async function runJsonMode(files: string[]): Promise<number> {
       types: typeCounts,
     },
   };
-  process.stdout.write(JSON.stringify(output, null, 2) + '\n');
+  process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
   return failures > 0 ? 1 : 0;
 }
 
