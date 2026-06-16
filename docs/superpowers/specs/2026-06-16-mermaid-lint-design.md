@@ -12,10 +12,10 @@ Mermaid diagrams embedded in Markdown files can contain syntax errors that only 
 | Tool | Validation | Discovery | Test runner | Deps |
 |------|-----------|-----------|-------------|------|
 | `md-mermaid-lint` | `mermaid.parse()` | glob | none | mermaid + jsdom + puppeteer + canvas |
-| `mermaid-md-check` (internal) | `mermaid.parse()` | git ls-files / --all | none | mermaid + jsdom + dompurify |
+| `mermaid-md-check` (prior art) | `mermaid.parse()` | git ls-files / --all | none | mermaid + jsdom + dompurify |
 | `mermaid-markdown.test.mjs` (blog) | opener keyword only | git ls-files | Vitest | none |
 
-`mermaid-lint` combines `mermaid-md-check`'s real-parse validation with test-runner integration, and publishes the CLI as a first-class artifact.
+`mermaid-lint` combines the real-parse validation approach of `mermaid-md-check` with test-runner integration, and publishes the CLI as a first-class artifact.
 
 ## Architecture
 
@@ -36,7 +36,7 @@ mermaid-lint/
 
 ### `@mermaid-lint/core`
 
-The shared foundation. Direct lift and clean-up of `extract.mjs` + `validate.mjs` from `mermaid-md-check` (TinderEngineering/architecture#1890), plus a `discoverFiles(opts?)` function.
+The shared foundation. Direct lift and clean-up of `extract.mjs` + `validate.mjs` from the `mermaid-md-check` prior art, plus a `discoverFiles(opts?)` function.
 
 **Exports:**
 ```ts
