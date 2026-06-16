@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { readFileSync } from 'node:fs';
 import fg from 'fast-glob';
+import chalk from 'chalk';
 import {
   discoverFiles,
   extractMermaidBlocks,
@@ -111,14 +112,16 @@ async function runTextMode(files: string[], quiet: boolean): Promise<number> {
   const typeCounts: Record<string, number> = {};
 
   for (const file of files) {
-    if (!quiet) process.stderr.write(`scanning ${file}\n`);
+    if (!quiet) process.stderr.write(chalk.dim(`scanning ${file}\n`));
     let text: string;
     try {
       text = readFileSync(file, 'utf8');
     } catch (err: unknown) {
       failures++;
       const msg = err instanceof Error ? err.message : String(err);
-      process.stdout.write(`${file}:0:0: parse error: cannot read file: ${msg}\n`);
+      process.stdout.write(
+        `${chalk.bold(file)}:0:0: ${chalk.red('parse error:')} cannot read file: ${msg}\n`,
+      );
       continue;
     }
     const blocks = extractMermaidBlocks(file, text);
@@ -131,16 +134,18 @@ async function runTextMode(files: string[], quiet: boolean): Promise<number> {
         const loc = r.error.line != null ? `:${r.error.line}` : '';
         const msg = r.error.message.replace(/\s*\n\s*/g, ' | ');
         process.stdout.write(
-          `${block.path}:${block.line}:${block.col}${loc}: parse error: ${msg}\n`,
+          `${chalk.bold(block.path)}:${block.line}:${block.col}${loc}: ${chalk.red('parse error:')} ${msg}\n`,
         );
       }
     }
   }
 
-  const result =
-    failures === 0 ? 'all valid' : `${failures} failure${failures !== 1 ? 's' : ''}`;
+  const resultStr =
+    failures === 0
+      ? chalk.green('all valid')
+      : chalk.red(`${failures} failure${failures !== 1 ? 's' : ''}`);
   process.stderr.write(
-    `checked ${blockCount} diagram${blockCount !== 1 ? 's' : ''} in ${files.length} file${files.length !== 1 ? 's' : ''} — ${result}\n`,
+    `checked ${blockCount} diagram${blockCount !== 1 ? 's' : ''} in ${files.length} file${files.length !== 1 ? 's' : ''} — ${resultStr}\n`,
   );
   printTypeDistribution(typeCounts);
   return failures > 0 ? 1 : 0;

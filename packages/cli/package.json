@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@mermaid-lint/core": "workspace:*",
+    "chalk": "^5.4.1",
     "fast-glob": "^3.3.3"
   }
 }
