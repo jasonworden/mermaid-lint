@@ -4,6 +4,7 @@ export interface Block {
   path: string;
   line: number;
   col: number;
+  /** For indented fences, body lines retain the source indentation prefix. */
   body: string;
   type: string;
 }
@@ -20,7 +21,7 @@ export function extractMermaidBlocks(path: string, text: string): Block[] {
   const normalized = text.replace(/\r\n/g, '\n');
 
   if (path.endsWith('.mmd')) {
-    const body = normalized.replace(/\n$/, '');
+    const body = normalized.replace(/\n+$/, '');
     return [{ path, line: 1, col: 1, body, type: detectDiagramType(body) }];
   }
 
