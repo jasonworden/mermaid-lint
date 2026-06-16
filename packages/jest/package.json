@@ -25,7 +25,6 @@
   "jest": {
     "testMatch": ["**/test/**/*.test.mjs"],
     "testEnvironment": "node",
-    "extensionsToTreatAsEsm": [".mjs"],
     "transform": {}
   }
 }
