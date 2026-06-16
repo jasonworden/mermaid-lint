@@ -4,12 +4,12 @@ Validate Mermaid diagrams embedded in Markdown files. Uses the official `mermaid
 
 ## Packages
 
-| Package | Description |
-|---|---|
-| [`mermaid-lint`](packages/cli) | CLI — `npx mermaid-lint` |
-| [`@mermaid-lint/vitest`](packages/vitest) | Vitest adapter |
-| [`@mermaid-lint/jest`](packages/jest) | Jest adapter |
-| [`@mermaid-lint/core`](packages/core) | Core utilities (extract, validate, discover) |
+| Package | npm | Description |
+|---|---|---|
+| [`@mermaid-lint/cli`](packages/cli) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/cli.svg)](https://www.npmjs.com/package/@mermaid-lint/cli) | CLI — `npx mermaid-lint` |
+| [`@mermaid-lint/vitest`](packages/vitest) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/vitest.svg)](https://www.npmjs.com/package/@mermaid-lint/vitest) | Vitest adapter |
+| [`@mermaid-lint/jest`](packages/jest) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/jest.svg)](https://www.npmjs.com/package/@mermaid-lint/jest) | Jest adapter |
+| [`@mermaid-lint/core`](packages/core) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/core.svg)](https://www.npmjs.com/package/@mermaid-lint/core) | Core utilities (extract, validate, discover) |
 
 ## CLI
 
