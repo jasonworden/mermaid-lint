@@ -29,7 +29,7 @@ npx mermaid-lint --no-semantic          # skip semantic checks (syntax errors on
 
 ```json
 {
-  "version": "0.3.0",
+  "version": "0.5.0",
   "files": [
     {
       "path": "docs/api.md",
@@ -171,7 +171,7 @@ All-valid corpus. Values are **total ms (ms per diagram)**.
 
 mermaid-check is **7–17× faster** than mermaid-lint v0.4.0 (down from 30–65× vs v0.3.0).
 
-**Validation accuracy:** mermaid-lint uses `@mermanjs/web` (Rust WASM, parity-tested against mermaid.js with 3,500+ golden fixtures) for the fast path. When merman signals an error, mermaid.js is the authoritative fallback — it provides precise line/col locations and handles any grammar edge cases where parsers diverge. For corpora with parse errors, both runtimes load (~500 ms total). mermaid-check uses a fully custom Go parser with no official parity guarantee.
+**Validation accuracy:** mermaid-lint uses `@mermanjs/web` (Rust WASM) for the fast path. When merman signals an error, mermaid.js is the authoritative fallback — it provides precise line/col locations and is the final arbiter of validity. Parity between the two parsers is enforced by a CI test suite: a corpus of 24+ valid and 10+ invalid diagrams across all major Mermaid diagram types runs on every PR, failing if merman ever accepts a diagram that mermaid.js rejects. For corpora with parse errors, both runtimes load (~500 ms total). mermaid-check uses a fully custom Go parser with no official parity guarantee.
 
 Run `pnpm bench` to reproduce (requires `mermaid-check` on `PATH`).
 
