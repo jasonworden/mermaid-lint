@@ -32,11 +32,6 @@ function timeRun(cmd, args, cwd) {
   return { elapsed, status: r.status };
 }
 
-function which(bin) {
-  const r = spawnSync('which', [bin], { encoding: 'utf8' });
-  return r.status === 0 ? r.stdout.trim() : null;
-}
-
 const mermaidLintBin = new URL('../packages/cli/dist/cli.js', import.meta.url)
   .pathname;
 
@@ -47,13 +42,11 @@ if (!existsSync(mermaidLintBin)) {
   process.exit(1);
 }
 
-const mermaidCheckBin = which('mermaid-check');
-
 console.log('\nmermaid-lint semantic benchmark\n');
 console.log(
-  `${'Diagrams'.padEnd(10)} ${'mermaid-lint ms'.padEnd(18)} ${'ms/diagram'.padEnd(12)} ${'mermaid-check ms'.padEnd(18)} ${'ms/diagram'.padEnd(12)}`,
+  `${'Diagrams'.padEnd(10)} ${'ms'.padEnd(12)} ${'ms/diagram'.padEnd(12)}`,
 );
-console.log('-'.repeat(74));
+console.log('-'.repeat(36));
 
 for (const size of SIZES) {
   const tmp = mkdtempSync(join(tmpdir(), 'mermaid-bench-'));
@@ -65,21 +58,10 @@ for (const size of SIZES) {
       [mermaidLintBin, '--format', 'json', join(tmp, 'bench.md')],
       tmp,
     );
-    const lintPer = (lint.elapsed / size).toFixed(1);
-
-    let checkMs = 'n/a';
-    let checkPer = 'n/a';
-    if (mermaidCheckBin) {
-      const check = timeRun(mermaidCheckBin, [join(tmp, 'bench.md')], tmp);
-      checkMs = check.elapsed.toFixed(0);
-      checkPer = (check.elapsed / size).toFixed(1);
-    } else {
-      checkMs = 'not installed';
-      checkPer = '—';
-    }
+    const lintPer = (lint.elapsed / size).toFixed(2);
 
     console.log(
-      `${String(size).padEnd(10)} ${lint.elapsed.toFixed(0).padEnd(18)} ${lintPer.padEnd(12)} ${String(checkMs).padEnd(18)} ${String(checkPer).padEnd(12)}`,
+      `${String(size).padEnd(10)} ${lint.elapsed.toFixed(0).padEnd(12)} ${lintPer.padEnd(12)}`,
     );
   } finally {
     rmSync(tmp, { recursive: true, force: true });
