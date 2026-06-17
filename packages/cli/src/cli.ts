@@ -25,6 +25,7 @@ interface DiagramResult {
   type: string;
   ok: boolean;
   error?: { message: string; line?: number; col?: number };
+  warnings: Array<{ rule: string; message: string; line?: number }>;
 }
 
 interface FileResult {
@@ -40,6 +41,7 @@ interface JsonOutput {
     diagrams: number;
     ok: number;
     errors: number;
+    warnings: number;
     types: Record<string, number>;
   };
 }
@@ -180,8 +182,13 @@ async function runTextMode(
   return failures > 0 || (strict && warningCount > 0) ? 1 : 0;
 }
 
-async function runJsonMode(files: string[]): Promise<number> {
+async function runJsonMode(
+  files: string[],
+  noSemantic: boolean,
+  strict: boolean,
+): Promise<number> {
   let failures = 0;
+  let totalWarnings = 0;
   const fileResults: FileResult[] = [];
 
   for (const file of files) {
@@ -199,6 +206,7 @@ async function runJsonMode(files: string[]): Promise<number> {
             type: 'unknown',
             ok: false,
             error: { message: `cannot read file: ${msg}` },
+            warnings: [],
           },
         ],
       });
@@ -209,11 +217,14 @@ async function runJsonMode(files: string[]): Promise<number> {
     const blocks = extractMermaidBlocks(file, text);
     for (const block of blocks) {
       const r = await validateBlock(block);
+      const blockWarnings = noSemantic ? [] : r.warnings;
+      totalWarnings += blockWarnings.length;
       const dr: DiagramResult = {
         line: block.line,
         col: block.col,
         type: block.type,
         ok: r.ok,
+        warnings: blockWarnings,
       };
       if (!r.ok) {
         failures++;
@@ -233,18 +244,19 @@ async function runJsonMode(files: string[]): Promise<number> {
   }
 
   const output: JsonOutput = {
-    version: '0.2.0',
+    version: '0.3.0',
     files: fileResults,
     summary: {
       files: files.length,
       diagrams: allDiagrams.length,
       ok: allDiagrams.filter((d) => d.ok).length,
       errors: failures,
+      warnings: totalWarnings,
       types: typeCounts,
     },
   };
   process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
-  return failures > 0 ? 1 : 0;
+  return failures > 0 || (strict && totalWarnings > 0) ? 1 : 0;
 }
 
 function printTypeDistribution(types: Record<string, number>): void {
@@ -286,7 +298,7 @@ async function main(argv: string[]): Promise<number> {
   }
 
   return args.format === 'json'
-    ? runJsonMode(files)
+    ? runJsonMode(files, args.noSemantic, args.strict)
     : runTextMode(files, args.quiet, args.noSemantic, args.strict);
 }
 
