@@ -51,15 +51,15 @@ function getMermaid(): Promise<unknown> {
   return _mermaidPromise;
 }
 
-async function validateWithMermaid(
+async function runMermaidValidation(
   body: string,
-): Promise<{ ok: boolean; error?: ValidationError }> {
+): Promise<{ ok: true } | { ok: false; error: ValidationError }> {
   try {
     const mermaid = await getMermaid();
     await (
       mermaid as { parse(text: string, opts: object): Promise<unknown> }
     ).parse(body, { suppressErrors: false });
-    return { ok: true };
+    return { ok: true as const };
   } catch (err: unknown) {
     const e = err as Record<string, unknown>;
     const message = typeof e?.message === 'string' ? e.message : String(err);
@@ -68,7 +68,7 @@ async function validateWithMermaid(
     const loc = hash?.loc as Record<string, unknown> | undefined;
     const col =
       typeof loc?.first_column === 'number' ? loc.first_column + 1 : undefined;
-    return { ok: false, error: { message, line, col } };
+    return { ok: false as const, error: { message, line, col } };
   }
 }
 
@@ -102,8 +102,8 @@ export async function validateBlock(block: Block): Promise<ValidationResult> {
   // Any non-valid result (parse error, unsupported type, panic) —
   // fall back to mermaid.js which is authoritative for error location and final verdict.
   // If mermaid.js accepts it, trust mermaid.js (merman may be stricter on edge cases).
-  const mermaidResult = await validateWithMermaid(body);
-  if (!mermaidResult.ok && mermaidResult.error) {
+  const mermaidResult = await runMermaidValidation(body);
+  if (!mermaidResult.ok) {
     return { ok: false, error: mermaidResult.error, warnings };
   }
   return { ok: true, warnings };
