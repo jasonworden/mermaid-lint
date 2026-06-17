@@ -38,9 +38,21 @@ export function isMermanUnsupported(r: MermanResult): boolean {
 export async function validateWithMerman(body: string): Promise<MermanResult> {
   await ensureInit();
   try {
-    const r = validate(body) as { valid: boolean; code_name: string; error?: string };
-    return { valid: r.valid, code_name: r.code_name, error: r.error || undefined };
+    const r = validate(body) as {
+      valid: boolean;
+      code_name: string;
+      error?: string;
+    };
+    return {
+      valid: r.valid,
+      code_name: r.code_name,
+      error: r.error || undefined,
+    };
   } catch {
-    return { valid: false, code_name: 'MERMAN_PANIC', error: 'merman panicked' };
+    return {
+      valid: false,
+      code_name: 'MERMAN_PANIC',
+      error: 'merman panicked',
+    };
   }
 }
