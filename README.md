@@ -183,18 +183,18 @@ Benchmarks run on Apple M4 Max (64 GB), Node.js 22 vs [`mermaid-check`](https://
 
 All-valid corpus. Values are **total ms (ms per diagram)**.
 
-| Diagrams | mermaid-lint v0.3.0 | mermaid-lint v0.4.0 | mermaid-check v0.1.0 |
+| Diagrams | mermaid-lint v0.3.0 | mermaid-lint v0.5.0 | mermaid-check v0.1.0 |
 |---|---|---|---|
-| 10 | — | 103 ms (10.3 ms/d) | 7 ms (0.7 ms/d) |
-| 50 | 407 ms (8.1 ms/d) | 104 ms (2.1 ms/d) | 15 ms (0.30 ms/d) |
-| 200 | 553 ms (2.8 ms/d) | 158 ms (0.8 ms/d) | 14 ms (0.07 ms/d) |
-| 1000 | 1018 ms (1.0 ms/d) | 253 ms (0.3 ms/d) | 21 ms (0.02 ms/d) |
-| 10000 | 6643 ms (0.7 ms/d) | 1567 ms (0.2 ms/d) | 103 ms (0.01 ms/d) |
-| 100000 | 62734 ms (0.63 ms/d) | 14632 ms (0.1 ms/d) | 861 ms (0.01 ms/d) |
+| 10 | — | 108 ms (10.8 ms/d) | 21 ms (2.1 ms/d) |
+| 50 | 407 ms (8.1 ms/d) | 121 ms (2.4 ms/d) | 7 ms (0.14 ms/d) |
+| 200 | 553 ms (2.8 ms/d) | 159 ms (0.8 ms/d) | 9 ms (0.05 ms/d) |
+| 1000 | 1018 ms (1.0 ms/d) | 260 ms (0.3 ms/d) | 21 ms (0.02 ms/d) |
+| 10000 | 6643 ms (0.7 ms/d) | 1699 ms (0.2 ms/d) | 115 ms (0.01 ms/d) |
+| 100000 | 62734 ms (0.63 ms/d) | 15590 ms (0.16 ms/d) | 884 ms (< 0.01 ms/d) |
 
-**v0.4.0 is 3.7–4.3× faster** than v0.3.0. The fixed ~400 ms startup cost (Node.js + mermaid.js) is now eliminated on the happy path: `@mermanjs/web` WASM handles validation with ~100 ms init + ~0.1 ms/diagram. mermaid.js is only loaded when a diagram fails validation, where it supplies precise line/column error locations.
+**v0.5.0 is 3.4–4.0× faster** than v0.3.0. The fixed ~400 ms startup cost (Node.js + mermaid.js) is now eliminated on the happy path: `@mermanjs/web` WASM handles validation with ~100 ms init + ~0.1 ms/diagram. mermaid.js is only loaded when a diagram fails validation, where it supplies precise line/column error locations.
 
-mermaid-check is **7–17× faster** than mermaid-lint v0.4.0 (down from 30–65× vs v0.3.0).
+mermaid-check is **7–18× faster** than mermaid-lint v0.5.0 (down from 30–65× vs v0.3.0).
 
 **Validation accuracy:** mermaid-lint uses `@mermanjs/web` (Rust WASM) for the fast path. When merman signals an error, mermaid.js is the authoritative fallback — it provides precise line/col locations and is the final arbiter of validity. Parity between the two parsers is enforced by a CI test suite: a corpus of 24+ valid and 10+ invalid diagrams across all major Mermaid diagram types runs on every PR, failing if merman ever accepts a diagram that mermaid.js rejects. For corpora with parse errors, both runtimes load (~500 ms total). mermaid-check uses a fully custom Go parser with no official parity guarantee.
 
