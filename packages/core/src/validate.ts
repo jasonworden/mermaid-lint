@@ -72,6 +72,12 @@ async function runMermaidValidation(
   }
 }
 
+export async function validateWithMermaidJS(
+  body: string,
+): Promise<{ ok: true } | { ok: false; error: ValidationError }> {
+  return runMermaidValidation(body);
+}
+
 export async function validateBlock(block: Block): Promise<ValidationResult> {
   const { body } = block;
 
