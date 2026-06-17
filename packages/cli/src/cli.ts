@@ -162,7 +162,7 @@ async function runTextMode(
             const bodyOffset = block.path.endsWith('.mmd')
               ? block.line - 1
               : block.line;
-            const absLine = bodyOffset + (w.line ?? 0);
+            const absLine = bodyOffset + (w.line ?? 1);
             process.stdout.write(
               `${chalk.bold(block.path)}:${absLine}:${block.col}: ${chalk.yellow('warning:')} ${w.rule}: ${w.message}\n`,
             );
@@ -177,7 +177,7 @@ async function runTextMode(
       ? chalk.green('all valid')
       : chalk.red(`${failures} failure${failures !== 1 ? 's' : ''}`);
   const warnStr =
-    warningCount > 0
+    !quiet && warningCount > 0
       ? `, ${chalk.yellow(`${warningCount} warning${warningCount !== 1 ? 's' : ''}`)}`
       : '';
   process.stderr.write(

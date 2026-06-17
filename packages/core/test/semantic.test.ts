@@ -115,5 +115,12 @@ describe('checkSemantics', () => {
       );
       expect(checkSemantics(b)).toEqual([]);
     });
+
+    it('detects duplicate with numeric node ID', () => {
+      const b = block('flowchart LR\n  1[Start]\n  1[Begin]');
+      const warnings = checkSemantics(b);
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].rule).toBe('duplicate-ids');
+    });
   });
 });
