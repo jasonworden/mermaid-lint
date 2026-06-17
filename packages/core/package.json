@@ -10,11 +10,7 @@
     }
   },
   "types": "./dist/index.d.ts",
-  "files": [
-    "dist",
-    "src",
-    "index.ts"
-  ],
+  "files": ["dist", "src", "index.ts"],
   "engines": {
     "node": ">=20"
   },

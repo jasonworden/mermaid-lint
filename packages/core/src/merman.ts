@@ -9,7 +9,9 @@ let _initPromise: Promise<void> | null = null;
 function ensureInit(): Promise<void> {
   if (!_initPromise) {
     _initPromise = (async () => {
-      const wasmPath = _require.resolve('@mermanjs/web/pkg/merman_wasm_bg.wasm');
+      const wasmPath = _require.resolve(
+        '@mermanjs/web/pkg/merman_wasm_bg.wasm',
+      );
       const wasmBytes = await readFile(wasmPath);
       await _init({ wasm: { module_or_path: wasmBytes } });
     })().catch((e) => {
@@ -27,7 +29,10 @@ export interface MermanResult {
 }
 
 export function isMermanUnsupported(r: MermanResult): boolean {
-  return r.code_name === 'MERMAN_NO_DIAGRAM' || r.code_name === 'MERMAN_UNSUPPORTED_FORMAT';
+  return (
+    r.code_name === 'MERMAN_NO_DIAGRAM' ||
+    r.code_name === 'MERMAN_UNSUPPORTED_FORMAT'
+  );
 }
 
 export async function validateWithMerman(body: string): Promise<MermanResult> {
