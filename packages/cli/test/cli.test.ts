@@ -123,4 +123,59 @@ describe('mermaid-lint CLI', () => {
     const r = run([join(tmp, 'diagram.mmd')], tmp);
     expect(r.status).toBe(0);
   });
+
+  it('emits a warning for duplicate node IDs in text mode', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(
+      join(tmp, 'dup.md'),
+      '```mermaid\nflowchart LR\n  A[Start] --> B\n  A[Begin] --> C\n```\n',
+    );
+    const r = run([join(tmp, 'dup.md')], tmp);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('warning(');
+    expect(r.stdout).toContain('duplicate-ids');
+  });
+
+  it('--no-semantic suppresses warnings', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(
+      join(tmp, 'dup.md'),
+      '```mermaid\nflowchart LR\n  A[Start] --> B\n  A[Begin] --> C\n```\n',
+    );
+    const r = run(['--no-semantic', join(tmp, 'dup.md')], tmp);
+    expect(r.status).toBe(0);
+    expect(r.stdout).not.toContain('warning(');
+  });
+
+  it('--strict causes exit 1 when only warnings present', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(
+      join(tmp, 'dup.md'),
+      '```mermaid\nflowchart LR\n  A[Start] --> B\n  A[Begin] --> C\n```\n',
+    );
+    const r = run(['--strict', join(tmp, 'dup.md')], tmp);
+    expect(r.status).toBe(1);
+  });
+
+  it('--quiet suppresses warning lines but not errors', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(
+      join(tmp, 'dup.md'),
+      '```mermaid\nflowchart LR\n  A[Start] --> B\n  A[Begin] --> C\n```\n',
+    );
+    const withWarnings = run([join(tmp, 'dup.md')], tmp);
+    const withQuiet = run(['--quiet', join(tmp, 'dup.md')], tmp);
+    expect(withWarnings.stdout).toContain('warning(');
+    expect(withQuiet.stdout).not.toContain('warning(');
+  });
+
+  it('summary line includes warning count when warnings exist', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(
+      join(tmp, 'dup.md'),
+      '```mermaid\nflowchart LR\n  A[Start] --> B\n  A[Begin] --> C\n```\n',
+    );
+    const r = run([join(tmp, 'dup.md')], tmp);
+    expect(r.stderr).toContain('1 warning');
+  });
 });
