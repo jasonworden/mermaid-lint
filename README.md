@@ -162,6 +162,7 @@ Benchmarks run on Apple M4 Max (64 GB), Node.js 22 vs [`mermaid-check`](https://
 | 200 | 553 (2.8) | 18 (0.09) |
 | 500 | 684 (1.4) | 14 (0.03) |
 | 1000 | 1018 (1.0) | 16 (0.02) |
+| 10000 | 6643 (0.7) | 108 (0.01) |
 
 **mermaid-check is ~30–60× faster** because it's a Go binary with a custom parser. mermaid-lint's cost is dominated by a fixed ~400 ms startup (Node.js process + loading the mermaid.js library); the semantic checker itself adds negligible overhead on top of `mermaid.parse()`.
 
