@@ -21,10 +21,10 @@ export function defineMermaidTests(opts: DiscoverOptions = {}): void {
       expect(blocks.length).toBeGreaterThan(0);
     });
 
-    test.each(blocks)('$path:$line is valid', async ({ path, line, body }) => {
-      const result = await validateBlock(body);
+    test.each(blocks)('$path:$line is valid', async (block) => {
+      const result = await validateBlock(block);
       if (!result.ok)
-        throw new Error(`${path}:${line}: ${result.error.message}`);
+        throw new Error(`${block.path}:${block.line}: ${result.error.message}`);
       expect(result.ok).toBe(true);
     });
   });

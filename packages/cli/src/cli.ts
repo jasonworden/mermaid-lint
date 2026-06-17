@@ -128,7 +128,7 @@ async function runTextMode(files: string[], quiet: boolean): Promise<number> {
     for (const block of blocks) {
       blockCount++;
       typeCounts[block.type] = (typeCounts[block.type] ?? 0) + 1;
-      const r = await validateBlock(block.body);
+      const r = await validateBlock(block);
       if (!r.ok) {
         failures++;
         const loc = r.error.line != null ? `:${r.error.line}` : '';
@@ -179,7 +179,7 @@ async function runJsonMode(files: string[]): Promise<number> {
     const diagrams: DiagramResult[] = [];
     const blocks = extractMermaidBlocks(file, text);
     for (const block of blocks) {
-      const r = await validateBlock(block.body);
+      const r = await validateBlock(block);
       const dr: DiagramResult = {
         line: block.line,
         col: block.col,
