@@ -154,15 +154,15 @@ Or disable globally for a run with `--no-semantic`.
 
 ## Performance
 
-Benchmarks run on Apple M4 Max (64 GB), Node.js 22 vs [`mermaid-check`](https://github.com/sammcj/mermaid-check) v0.1.0 (Go). Each corpus is a single Markdown file with the given number of flowchart diagrams, ~1/3 of which have duplicate-ID conflicts.
+Benchmarks run on Apple M4 Max (64 GB), Node.js 22 vs [`mermaid-check`](https://github.com/sammcj/mermaid-check) v0.1.0 (Go). Corpus: one Markdown file with the given number of flowchart diagrams (~1/3 with duplicate-ID conflicts). Values are **total ms (ms per diagram)**.
 
-| Diagrams | mermaid-lint (ms/d) | mermaid-check (ms/d) |
+| Diagrams | mermaid-lint | mermaid-check |
 |---|---|---|
-| 50 | 407 (8.1) | 15 (0.30) |
-| 200 | 553 (2.8) | 18 (0.09) |
-| 500 | 684 (1.4) | 14 (0.03) |
-| 1000 | 1018 (1.0) | 16 (0.02) |
-| 10000 | 6643 (0.7) | 108 (0.01) |
+| 50 | 407 ms (8.1 ms/d) | 15 ms (0.30 ms/d) |
+| 200 | 553 ms (2.8 ms/d) | 18 ms (0.09 ms/d) |
+| 500 | 684 ms (1.4 ms/d) | 14 ms (0.03 ms/d) |
+| 1000 | 1018 ms (1.0 ms/d) | 16 ms (0.02 ms/d) |
+| 10000 | 6643 ms (0.7 ms/d) | 108 ms (0.01 ms/d) |
 
 **mermaid-check is ~30–60× faster** because it's a Go binary with a custom parser. mermaid-lint's cost is dominated by a fixed ~400 ms startup (Node.js process + loading the mermaid.js library); the semantic checker itself adds negligible overhead on top of `mermaid.parse()`.
 
