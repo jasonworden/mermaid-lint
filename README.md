@@ -154,18 +154,32 @@ Or disable globally for a run with `--no-semantic`.
 
 ## Performance
 
-Benchmarks run on Apple M4 Max (64 GB), Node.js 22 vs [`mermaid-check`](https://github.com/sammcj/mermaid-check) v0.1.0 (Go). Corpus: one Markdown file with the given number of flowchart diagrams (~1/3 with duplicate-ID conflicts). Values are **total ms (ms per diagram)**.
+Benchmarks run on Apple M4 Max (64 GB), Node.js 22 vs [`mermaid-check`](https://github.com/sammcj/mermaid-check) v0.1.0 (Go). Corpus: one Markdown file with the given number of flowchart diagrams (~1/3 with duplicate-ID conflicts, all syntactically valid). Values are **total ms (ms per diagram)**.
+
+**v0.4.0** (all-valid corpus — mermaid.js never loaded):
+
+| Diagrams | mermaid-lint | mermaid-check |
+|---|---|---|
+| 10 | 87 ms (8.7 ms/d) | < 1 ms |
+| 50 | 109 ms (2.2 ms/d) | < 1 ms |
+| 200 | 147 ms (0.7 ms/d) | < 1 ms |
+| 1000 | 238 ms (0.2 ms/d) | < 1 ms |
+| 10000 | 1516 ms (0.2 ms/d) | < 1 ms |
+| 100000 | 14405 ms (0.1 ms/d) | < 1 ms |
+
+**v0.3.0** (mermaid.js loaded on startup for every run):
 
 | Diagrams | mermaid-lint | mermaid-check |
 |---|---|---|
 | 50 | 407 ms (8.1 ms/d) | 15 ms (0.30 ms/d) |
 | 200 | 553 ms (2.8 ms/d) | 18 ms (0.09 ms/d) |
-| 500 | 684 ms (1.4 ms/d) | 14 ms (0.03 ms/d) |
 | 1000 | 1018 ms (1.0 ms/d) | 16 ms (0.02 ms/d) |
 | 10000 | 6643 ms (0.7 ms/d) | 108 ms (0.01 ms/d) |
 | 100000 | 62734 ms (0.63 ms/d) | 960 ms (0.01 ms/d) |
 
-**mermaid-check is ~30–60× faster** because it's a Go binary with a custom parser. mermaid-lint's cost is dominated by a fixed ~400 ms startup (Node.js process + loading the mermaid.js library); the semantic checker itself adds negligible overhead on top of `mermaid.parse()`.
+**v0.4.0 is 3.7–4.4× faster** on valid corpora. The fixed ~400 ms startup cost (Node.js + mermaid.js) is now eliminated on the happy path: `@mermanjs/web` WASM handles validation with ~90 ms init + ~0.1 ms/diagram. mermaid.js is only loaded when a diagram fails validation, where it supplies precise line/column error locations.
+
+mermaid-check is still faster overall (pure Go, < 1 ms for any size), but mermaid-lint validates against the **official mermaid.js parser** — the same one your renderer uses. For corpora with parse errors, mermaid-lint loads mermaid.js lazily on the first error (~500 ms total for mixed corpora).
 
 The trade-off: mermaid-lint validates against the **official mermaid.js parser** — the same one your renderer uses — so it catches the exact set of errors your diagrams will hit in production. mermaid-check uses a custom Go parser which may diverge on edge cases.
 
