@@ -1,6 +1,6 @@
 export { extractMermaidBlocks } from './src/extract.js';
 export type { Block } from './src/extract.js';
-export { validateBlock } from './src/validate.js';
+export { validateBlock, validateWithMermaidJS } from './src/validate.js';
 export type {
   ValidationResult,
   ValidationError,

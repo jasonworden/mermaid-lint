@@ -1,0 +1,12 @@
+classDiagram
+  Animal <|-- Duck
+  Animal <|-- Fish
+  class Animal {
+    +String name
+    +int age
+    +makeSound() void
+  }
+  class Duck {
+    +swim() void
+    +quack() void
+  }

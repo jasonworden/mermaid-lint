@@ -1,0 +1,8 @@
+stateDiagram-v2
+  [*] --> Active
+  state Active {
+    [*] --> Waiting
+    Waiting --> Processing : event
+    Processing --> Waiting : done
+  }
+  Active --> [*] : terminate

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Block } from '../src/extract.js';
 import { detectDiagramType } from '../src/type-detect.js';
-import { validateBlock } from '../src/validate.js';
+import { validateBlock, validateWithMermaidJS } from '../src/validate.js';
 
 function makeBlock(body: string): Block {
   return {
@@ -58,5 +58,20 @@ describe('validateBlock', () => {
     expect(result.ok).toBe(true);
     expect(result.warnings).toHaveLength(1);
     expect(result.warnings[0].rule).toBe('duplicate-ids');
+  });
+});
+
+describe('validateWithMermaidJS', () => {
+  it('accepts a valid flowchart', async () => {
+    const result = await validateWithMermaidJS('flowchart LR\n  A --> B');
+    expect(result.ok).toBe(true);
+  });
+
+  it('rejects invalid syntax', async () => {
+    const result = await validateWithMermaidJS(
+      'flowchart LR\n  A -->|broken label B',
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.message).toBeTruthy();
   });
 });

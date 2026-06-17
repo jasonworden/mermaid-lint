@@ -1,0 +1,13 @@
+classDiagram
+  class IShape {
+    <<interface>>
+    +area() float
+    +perimeter() float
+  }
+  IShape <|.. Circle
+  IShape <|.. Rectangle
+  class Circle {
+    +float radius
+    +area() float
+    +perimeter() float
+  }
