@@ -63,9 +63,7 @@ describe('validateBlock', () => {
 
 describe('validateWithMermaidJS', () => {
   it('accepts a valid flowchart', async () => {
-    const result = await validateWithMermaidJS(
-      'flowchart LR\n  A --> B',
-    );
+    const result = await validateWithMermaidJS('flowchart LR\n  A --> B');
     expect(result.ok).toBe(true);
   });
 
