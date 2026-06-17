@@ -152,34 +152,30 @@ flowchart LR
 
 Or disable globally for a run with `--no-semantic`.
 
-## Supported diagram types
+## Diagram types
 
-mermaid-lint supports all diagram types that mermaid.js parses. Every type in the table below has been verified with the official `mermaid.parse()` API.
-
-| Type | Keyword | Notes |
-|---|---|---|
-| Flowchart | `flowchart` / `graph` | `graph` is an alias for `flowchart` |
-| Sequence | `sequenceDiagram` | |
-| Class | `classDiagram` | |
-| State | `stateDiagram-v2` | |
-| Entity-Relationship | `erDiagram` | |
-| Pie chart | `pie` | |
-| Gantt | `gantt` | |
-| Git graph | `gitGraph` | |
-| User journey | `journey` | |
-| Mindmap | `mindmap` | |
-| Quadrant chart | `quadrantChart` | |
-| Requirement | `requirementDiagram` | |
-| C4 Context | `C4Context` | |
-| Timeline | `timeline` | |
-| XY chart | `xychart-beta` | Experimental |
-| Sankey | `sankey-beta` | Experimental |
-| Block | `block-beta` | Experimental |
-| Packet | `packet-beta` | Experimental |
-| Architecture | `architecture-beta` | Experimental |
-| ZenUML | `zenuml` | † |
-
-† ZenUML requires the separate [`@mermaid-js/mermaid-zenuml`](https://github.com/mermaid-js/zenuml-core) package and must be registered via `mermaid.registerExternalDiagrams()` before parsing. It is not bundled in mermaid v11 and cannot be verified with the default `mermaid.parse()` setup used by mermaid-lint.
+| Type | Keyword | Supported | Notes |
+|---|---|---|---|
+| Flowchart | `flowchart` / `graph` | ✅ | `graph` is an alias for `flowchart` |
+| Sequence | `sequenceDiagram` | ✅ | |
+| Class | `classDiagram` | ✅ | |
+| State | `stateDiagram-v2` | ✅ | |
+| Entity-Relationship | `erDiagram` | ✅ | |
+| Pie chart | `pie` | ✅ | |
+| Gantt | `gantt` | ✅ | |
+| Git graph | `gitGraph` | ✅ | |
+| User journey | `journey` | ✅ | |
+| Mindmap | `mindmap` | ✅ | |
+| Quadrant chart | `quadrantChart` | ✅ | |
+| Requirement | `requirementDiagram` | ✅ | |
+| C4 Context | `C4Context` | ✅ | |
+| Timeline | `timeline` | ✅ | |
+| XY chart | `xychart-beta` | ✅ | Experimental |
+| Sankey | `sankey-beta` | ✅ | Experimental |
+| Block | `block-beta` | ✅ | Experimental |
+| Packet | `packet-beta` | ✅ | Experimental |
+| Architecture | `architecture-beta` | ✅ | Experimental |
+| ZenUML | `zenuml` | ❌ | Requires separate [`@mermaid-js/mermaid-zenuml`](https://github.com/mermaid-js/zenuml-core) package; not bundled in mermaid v11 |
 
 ## Performance
 
