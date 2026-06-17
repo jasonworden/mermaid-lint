@@ -4,7 +4,7 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const SIZES = [10, 50, 200];
+const SIZES = [10, 50, 200, 1000, 10000, 100000];
 
 function makeDiagram(i) {
   const hasConflict = i % 3 === 0;
