@@ -1,6 +1,6 @@
 {
   "name": "@mermaid-lint/core",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "type": "module",
   "description": "Core extraction, validation, and discovery utilities for mermaid-lint",
   "exports": {
@@ -11,11 +11,14 @@
   },
   "types": "./dist/index.d.ts",
   "files": ["dist", "src", "index.ts"],
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "build": "tsc"
   },
   "dependencies": {
+    "@mermanjs/web": "^0.7.0",
     "dompurify": "^3.2.6",
     "jsdom": "^26.1.0",
     "mermaid": "^11.8.1"
