@@ -19,27 +19,30 @@ npx mermaid-lint --all                  # scan every supported file on disk
 npx mermaid-lint "docs/**/*.md"         # glob pattern (quoted to prevent shell expansion)
 npx mermaid-lint --quiet                # failures only
 npx mermaid-lint --format json          # machine-readable JSON output
+npx mermaid-lint --strict               # treat semantic warnings as errors (exit 1)
+npx mermaid-lint --no-semantic          # skip semantic checks (syntax errors only)
 ```
 
-**Exit codes:** `0` = all valid · `1` = validation failures · `2` = usage/IO error
+**Exit codes:** `0` = all valid · `1` = validation failures (or warnings with `--strict`) · `2` = usage/IO error
 
 ### JSON output schema
 
 ```json
 {
-  "version": "0.2.0",
+  "version": "0.3.0",
   "files": [
     {
       "path": "docs/api.md",
       "diagrams": [
-        { "line": 42, "col": 1, "type": "flowchart", "ok": true },
+        { "line": 42, "col": 1, "type": "flowchart", "ok": true,
+          "warnings": [{ "rule": "duplicate-ids", "message": "node \"A\" declared with label \"Start\" (line 2) and \"Begin\" (line 7)", "line": 7 }] },
         { "line": 89, "col": 1, "type": "sequenceDiagram", "ok": false,
-          "error": { "message": "Expecting 'SPACE'", "line": 2, "col": 5 } }
+          "error": { "message": "Expecting 'SPACE'", "line": 2, "col": 5 }, "warnings": [] }
       ]
     }
   ],
   "summary": {
-    "files": 5, "diagrams": 12, "ok": 10, "errors": 2,
+    "files": 5, "diagrams": 12, "ok": 10, "errors": 2, "warnings": 1,
     "types": { "flowchart": 6, "sequenceDiagram": 3, "classDiagram": 3 }
   }
 }
@@ -128,6 +131,45 @@ flowchart LR
 - **Discovery:** `git ls-files -- '*.md' '*.mdx' '*.markdown' '*.mmd'` by default; `--all` falls back to recursive filesystem scan
 - **Extraction:** Parses fenced ` ```mermaid ``` ` blocks (handles CRLF, indentation, info-strings, unclosed fences); `.mmd` files treated as a single diagram
 - **Validation:** Calls `mermaid.parse()` via a lazily-bootstrapped jsdom window — same parser your renderer uses
+
+## Semantic warnings
+
+In addition to syntax errors, mermaid-lint detects semantic issues that `mermaid.parse()` accepts but which produce broken rendered diagrams.
+
+**Duplicate node IDs with conflicting labels** (flowchart / graph only): Mermaid silently picks one label when the same node ID is declared twice with different labels. mermaid-lint flags the conflict:
+
+```
+docs/api.md:7:1: warning: duplicate-ids: node "A" declared with label "Start" (line 2) and "Begin" (line 7)
+```
+
+Suppress per-diagram with a Mermaid comment:
+
+```
+%% mermaid-lint-disable duplicate-ids
+flowchart LR
+  A[Start] --> B[End]
+```
+
+Or disable globally for a run with `--no-semantic`.
+
+## Performance
+
+Benchmarks run on Apple M4 Max (64 GB), Node.js 22 vs [`mermaid-check`](https://github.com/sammcj/mermaid-check) v0.1.0 (Go). Corpus: one Markdown file with the given number of flowchart diagrams (~1/3 with duplicate-ID conflicts). Values are **total ms (ms per diagram)**.
+
+| Diagrams | mermaid-lint | mermaid-check |
+|---|---|---|
+| 50 | 407 ms (8.1 ms/d) | 15 ms (0.30 ms/d) |
+| 200 | 553 ms (2.8 ms/d) | 18 ms (0.09 ms/d) |
+| 500 | 684 ms (1.4 ms/d) | 14 ms (0.03 ms/d) |
+| 1000 | 1018 ms (1.0 ms/d) | 16 ms (0.02 ms/d) |
+| 10000 | 6643 ms (0.7 ms/d) | 108 ms (0.01 ms/d) |
+| 100000 | 62734 ms (0.63 ms/d) | 960 ms (0.01 ms/d) |
+
+**mermaid-check is ~30–60× faster** because it's a Go binary with a custom parser. mermaid-lint's cost is dominated by a fixed ~400 ms startup (Node.js process + loading the mermaid.js library); the semantic checker itself adds negligible overhead on top of `mermaid.parse()`.
+
+The trade-off: mermaid-lint validates against the **official mermaid.js parser** — the same one your renderer uses — so it catches the exact set of errors your diagrams will hit in production. mermaid-check uses a custom Go parser which may diverge on edge cases.
+
+Run `pnpm bench` to reproduce (requires `mermaid-check` on `PATH`).
 
 ## Development
 

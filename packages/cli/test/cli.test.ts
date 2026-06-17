@@ -79,7 +79,7 @@ describe('mermaid-lint CLI', () => {
     const r = run(['--format', 'json', join(tmp, 'ok.md')], tmp);
     expect(r.status).toBe(0);
     const json = JSON.parse(r.stdout);
-    expect(json.version).toBe('0.2.0');
+    expect(json.version).toBe('0.3.0');
     expect(json.files).toHaveLength(1);
     expect(json.files[0].diagrams[0].ok).toBe(true);
     expect(json.files[0].diagrams[0].type).toBe('flowchart');
@@ -122,5 +122,116 @@ describe('mermaid-lint CLI', () => {
     writeFileSync(join(tmp, 'diagram.mmd'), 'flowchart LR\n  A-->B\n');
     const r = run([join(tmp, 'diagram.mmd')], tmp);
     expect(r.status).toBe(0);
+  });
+
+  it('emits a warning for duplicate node IDs in text mode', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(
+      join(tmp, 'dup.md'),
+      '```mermaid\nflowchart LR\n  A[Start] --> B\n  A[Begin] --> C\n```\n',
+    );
+    const r = run([join(tmp, 'dup.md')], tmp);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('warning:');
+    expect(r.stdout).toContain('duplicate-ids');
+  });
+
+  it('--no-semantic suppresses warnings', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(
+      join(tmp, 'dup.md'),
+      '```mermaid\nflowchart LR\n  A[Start] --> B\n  A[Begin] --> C\n```\n',
+    );
+    const r = run(['--no-semantic', join(tmp, 'dup.md')], tmp);
+    expect(r.status).toBe(0);
+    expect(r.stdout).not.toContain('warning:');
+  });
+
+  it('--strict causes exit 1 when only warnings present', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(
+      join(tmp, 'dup.md'),
+      '```mermaid\nflowchart LR\n  A[Start] --> B\n  A[Begin] --> C\n```\n',
+    );
+    const r = run(['--strict', join(tmp, 'dup.md')], tmp);
+    expect(r.status).toBe(1);
+  });
+
+  it('--quiet suppresses warning lines but not errors', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(
+      join(tmp, 'dup.md'),
+      '```mermaid\nflowchart LR\n  A[Start] --> B\n  A[Begin] --> C\n```\n',
+    );
+    const withWarnings = run([join(tmp, 'dup.md')], tmp);
+    const withQuiet = run(['--quiet', join(tmp, 'dup.md')], tmp);
+    expect(withWarnings.stdout).toContain('warning:');
+    expect(withQuiet.stdout).not.toContain('warning:');
+  });
+
+  it('summary line includes warning count when warnings exist', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(
+      join(tmp, 'dup.md'),
+      '```mermaid\nflowchart LR\n  A[Start] --> B\n  A[Begin] --> C\n```\n',
+    );
+    const r = run([join(tmp, 'dup.md')], tmp);
+    expect(r.stderr).toContain('1 warning');
+  });
+
+  it('--format json includes warnings for duplicate node IDs', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(
+      join(tmp, 'dup.md'),
+      '```mermaid\nflowchart LR\n  A[Start] --> B\n  A[Begin] --> C\n```\n',
+    );
+    const r = run(['--format', 'json', join(tmp, 'dup.md')], tmp);
+    expect(r.status).toBe(0);
+    const json = JSON.parse(r.stdout);
+    expect(json.version).toBe('0.3.0');
+    expect(json.files[0].diagrams[0].warnings).toHaveLength(1);
+    expect(json.files[0].diagrams[0].warnings[0].rule).toBe('duplicate-ids');
+    expect(json.summary.warnings).toBe(1);
+  });
+
+  it('--format json with --no-semantic omits warnings', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(
+      join(tmp, 'dup.md'),
+      '```mermaid\nflowchart LR\n  A[Start] --> B\n  A[Begin] --> C\n```\n',
+    );
+    const r = run(
+      ['--format', 'json', '--no-semantic', join(tmp, 'dup.md')],
+      tmp,
+    );
+    expect(r.status).toBe(0);
+    const json = JSON.parse(r.stdout);
+    expect(json.files[0].diagrams[0].warnings).toEqual([]);
+    expect(json.summary.warnings).toBe(0);
+  });
+
+  it('reports correct line number for .mmd file warnings', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    // Body line 1 = file line 1 (no fence opener in .mmd files)
+    // A[Start] is line 2, A[Begin] is line 3 → warning should report line 3
+    writeFileSync(
+      join(tmp, 'dup.mmd'),
+      'flowchart LR\n  A[Start] --> B\n  A[Begin] --> C\n',
+    );
+    const r = run([join(tmp, 'dup.mmd')], tmp);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('warning:');
+    // Line 3 is where the conflicting A[Begin] declaration appears
+    expect(r.stdout).toContain(':3:');
+  });
+
+  it('--format json with --strict exits 1 when only warnings present', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(
+      join(tmp, 'dup.md'),
+      '```mermaid\nflowchart LR\n  A[Start] --> B\n  A[Begin] --> C\n```\n',
+    );
+    const r = run(['--format', 'json', '--strict', join(tmp, 'dup.md')], tmp);
+    expect(r.status).toBe(1);
   });
 });

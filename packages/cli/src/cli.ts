@@ -14,6 +14,8 @@ interface Args {
   paths: string[];
   help: boolean;
   format: 'text' | 'json';
+  noSemantic: boolean;
+  strict: boolean;
   error: string | null;
 }
 
@@ -23,6 +25,7 @@ interface DiagramResult {
   type: string;
   ok: boolean;
   error?: { message: string; line?: number; col?: number };
+  warnings: Array<{ rule: string; message: string; line?: number }>;
 }
 
 interface FileResult {
@@ -38,6 +41,7 @@ interface JsonOutput {
     diagrams: number;
     ok: number;
     errors: number;
+    warnings: number;
     types: Record<string, number>;
   };
 }
@@ -49,6 +53,8 @@ function parseArgs(argv: string[]): Args {
     paths: [],
     help: false,
     format: 'text',
+    noSemantic: false,
+    strict: false,
     error: null,
   };
   for (let i = 0; i < argv.length; i++) {
@@ -70,7 +76,9 @@ function parseArgs(argv: string[]): Args {
         break;
       }
       args.format = val;
-    } else if (a.startsWith('--')) {
+    } else if (a === '--no-semantic') args.noSemantic = true;
+    else if (a === '--strict') args.strict = true;
+    else if (a.startsWith('--')) {
       args.error = `unknown flag: ${a}`;
       break;
     } else args.paths.push(a);
@@ -90,25 +98,33 @@ function expandGlobs(paths: string[]): string[] {
 }
 
 function printHelp(): void {
-  process.stdout.write(`Usage: mermaid-lint [--all] [--quiet] [--format text|json] [paths...]
+  process.stdout.write(`Usage: mermaid-lint [--all] [--quiet] [--strict] [--no-semantic] [--format text|json] [paths...]
 
   paths              Files or glob patterns to validate. Overrides default discovery.
   (no args)          Default: git-tracked *.md / *.mdx / *.markdown / *.mmd files.
   --all              Scan every supported file on disk; skips node_modules/.
-  --quiet            Suppress per-file progress; only failures + summary.
+  --quiet            Suppress per-file progress and warnings; only failures + summary.
+  --strict           Exit 1 if any warnings are present (in addition to errors).
+  --no-semantic      Disable semantic checks (e.g. duplicate node IDs).
   --format text      Human-readable output (default).
   --format json      Machine-readable JSON to stdout; stderr is silent.
 
 Exit codes:
-  0  all blocks valid
-  1  one or more blocks failed validation
+  0  all blocks valid (and no warnings, unless --no-semantic)
+  1  one or more blocks failed validation (or warnings with --strict)
   2  usage error, IO error, or no files found
 `);
 }
 
-async function runTextMode(files: string[], quiet: boolean): Promise<number> {
+async function runTextMode(
+  files: string[],
+  quiet: boolean,
+  noSemantic: boolean,
+  strict: boolean,
+): Promise<number> {
   let blockCount = 0;
   let failures = 0;
+  let warningCount = 0;
   const typeCounts: Record<string, number> = {};
 
   for (const file of files) {
@@ -128,7 +144,7 @@ async function runTextMode(files: string[], quiet: boolean): Promise<number> {
     for (const block of blocks) {
       blockCount++;
       typeCounts[block.type] = (typeCounts[block.type] ?? 0) + 1;
-      const r = await validateBlock(block.body);
+      const r = await validateBlock(block);
       if (!r.ok) {
         failures++;
         const loc = r.error.line != null ? `:${r.error.line}` : '';
@@ -137,6 +153,22 @@ async function runTextMode(files: string[], quiet: boolean): Promise<number> {
           `${chalk.bold(block.path)}:${block.line}:${block.col}${loc}: ${chalk.red('parse error:')} ${msg}\n`,
         );
       }
+      if (!noSemantic) {
+        for (const w of r.warnings) {
+          warningCount++;
+          if (!quiet) {
+            // For .mmd files the body starts at line 1 (no fence opener).
+            // For markdown fences block.line is the opener, body starts at block.line + 1.
+            const bodyOffset = block.path.endsWith('.mmd')
+              ? block.line - 1
+              : block.line;
+            const absLine = bodyOffset + (w.line ?? 1);
+            process.stdout.write(
+              `${chalk.bold(block.path)}:${absLine}:${block.col}: ${chalk.yellow('warning:')} ${w.rule}: ${w.message}\n`,
+            );
+          }
+        }
+      }
     }
   }
 
@@ -144,15 +176,24 @@ async function runTextMode(files: string[], quiet: boolean): Promise<number> {
     failures === 0
       ? chalk.green('all valid')
       : chalk.red(`${failures} failure${failures !== 1 ? 's' : ''}`);
+  const warnStr =
+    !quiet && warningCount > 0
+      ? `, ${chalk.yellow(`${warningCount} warning${warningCount !== 1 ? 's' : ''}`)}`
+      : '';
   process.stderr.write(
-    `checked ${blockCount} diagram${blockCount !== 1 ? 's' : ''} in ${files.length} file${files.length !== 1 ? 's' : ''} — ${resultStr}\n`,
+    `checked ${blockCount} diagram${blockCount !== 1 ? 's' : ''} in ${files.length} file${files.length !== 1 ? 's' : ''} — ${resultStr}${warnStr}\n`,
   );
   printTypeDistribution(typeCounts);
-  return failures > 0 ? 1 : 0;
+  return failures > 0 || (strict && warningCount > 0) ? 1 : 0;
 }
 
-async function runJsonMode(files: string[]): Promise<number> {
+async function runJsonMode(
+  files: string[],
+  noSemantic: boolean,
+  strict: boolean,
+): Promise<number> {
   let failures = 0;
+  let totalWarnings = 0;
   const fileResults: FileResult[] = [];
 
   for (const file of files) {
@@ -170,6 +211,7 @@ async function runJsonMode(files: string[]): Promise<number> {
             type: 'unknown',
             ok: false,
             error: { message: `cannot read file: ${msg}` },
+            warnings: [],
           },
         ],
       });
@@ -179,12 +221,15 @@ async function runJsonMode(files: string[]): Promise<number> {
     const diagrams: DiagramResult[] = [];
     const blocks = extractMermaidBlocks(file, text);
     for (const block of blocks) {
-      const r = await validateBlock(block.body);
+      const r = await validateBlock(block);
+      const blockWarnings = noSemantic ? [] : r.warnings;
+      totalWarnings += blockWarnings.length;
       const dr: DiagramResult = {
         line: block.line,
         col: block.col,
         type: block.type,
         ok: r.ok,
+        warnings: blockWarnings,
       };
       if (!r.ok) {
         failures++;
@@ -204,18 +249,19 @@ async function runJsonMode(files: string[]): Promise<number> {
   }
 
   const output: JsonOutput = {
-    version: '0.2.0',
+    version: '0.3.0',
     files: fileResults,
     summary: {
       files: files.length,
       diagrams: allDiagrams.length,
       ok: allDiagrams.filter((d) => d.ok).length,
       errors: failures,
+      warnings: totalWarnings,
       types: typeCounts,
     },
   };
   process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
-  return failures > 0 ? 1 : 0;
+  return failures > 0 || (strict && totalWarnings > 0) ? 1 : 0;
 }
 
 function printTypeDistribution(types: Record<string, number>): void {
@@ -257,8 +303,8 @@ async function main(argv: string[]): Promise<number> {
   }
 
   return args.format === 'json'
-    ? runJsonMode(files)
-    : runTextMode(files, args.quiet);
+    ? runJsonMode(files, args.noSemantic, args.strict)
+    : runTextMode(files, args.quiet, args.noSemantic, args.strict);
 }
 
 const code = await main(process.argv.slice(2));

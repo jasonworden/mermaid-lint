@@ -1,3 +1,8 @@
+import type { Block } from './extract.js';
+import { type SemanticWarning, checkSemantics } from './semantic.js';
+
+export type { SemanticWarning };
+
 export interface ValidationError {
   message: string;
   line?: number;
@@ -5,8 +10,8 @@ export interface ValidationError {
 }
 
 export type ValidationResult =
-  | { ok: true }
-  | { ok: false; error: ValidationError };
+  | { ok: true; warnings: SemanticWarning[] }
+  | { ok: false; error: ValidationError; warnings: SemanticWarning[] };
 
 // Mermaid v11 calls DOMPurify.sanitize during parse for some diagram types.
 // DOMPurify requires a DOM window at module-evaluation time, so we bootstrap
@@ -45,16 +50,26 @@ function getMermaid(): Promise<unknown> {
   return _mermaidPromise;
 }
 
-export async function validateBlock(body: string): Promise<ValidationResult> {
+export async function validateBlock(block: Block): Promise<ValidationResult> {
+  const { body } = block;
+
   if (body === '__UNCLOSED_FENCE__') {
     return {
       ok: false,
       error: { message: 'unclosed ```mermaid fence (no closing ``` found)' },
+      warnings: [],
     };
   }
-  if (!body || !body.trim()) {
-    return { ok: false, error: { message: 'empty mermaid block' } };
+  if (!body.trim()) {
+    return {
+      ok: false,
+      error: { message: 'empty mermaid block' },
+      warnings: [],
+    };
   }
+
+  const warnings = checkSemantics(block);
+
   try {
     const mermaid = await getMermaid();
     await (
@@ -62,7 +77,7 @@ export async function validateBlock(body: string): Promise<ValidationResult> {
     ).parse(body, {
       suppressErrors: false,
     });
-    return { ok: true };
+    return { ok: true, warnings };
   } catch (err: unknown) {
     const e = err as Record<string, unknown>;
     const message = typeof e?.message === 'string' ? e.message : String(err);
@@ -71,6 +86,6 @@ export async function validateBlock(body: string): Promise<ValidationResult> {
     const loc = hash?.loc as Record<string, unknown> | undefined;
     const col =
       typeof loc?.first_column === 'number' ? loc.first_column + 1 : undefined;
-    return { ok: false, error: { message, line, col } };
+    return { ok: false, error: { message, line, col }, warnings };
   }
 }
