@@ -1,12 +1,12 @@
 #!/usr/bin/env node
+import { spawnSync } from 'node:child_process';
 /**
  * Benchmark mermaid-lint semantic checking vs mermaid-check.
  * Usage: node scripts/bench-semantic.mjs
  */
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { spawnSync } from 'node:child_process';
 
 const SIZES = [10, 50, 200];
 
@@ -18,7 +18,9 @@ function makeDiagram(i) {
     'flowchart LR',
     `  A${i}[Label${i}A] --> B${i}[Step${i}]`,
     `  B${i}[Step${i}] --> C${i}[End${i}]`,
-    hasConflict ? `  A${i}[${secondLabel}] --> C${i}` : `  C${i} --> D${i}[Done${i}]`,
+    hasConflict
+      ? `  A${i}[${secondLabel}] --> C${i}`
+      : `  C${i} --> D${i}[Done${i}]`,
     '```',
   ].join('\n');
 }
@@ -39,7 +41,16 @@ function which(bin) {
   return r.status === 0 ? r.stdout.trim() : null;
 }
 
-const mermaidLintBin = new URL('../packages/cli/dist/cli.js', import.meta.url).pathname;
+const mermaidLintBin = new URL('../packages/cli/dist/cli.js', import.meta.url)
+  .pathname;
+
+if (!existsSync(mermaidLintBin)) {
+  console.error(
+    `Error: dist/cli.js not found. Run "pnpm build" first.\n  Expected: ${mermaidLintBin}`,
+  );
+  process.exit(1);
+}
+
 const mermaidCheckBin = which('mermaid-check');
 
 console.log('\nmermaid-lint semantic benchmark\n');
@@ -53,7 +64,11 @@ for (const size of SIZES) {
   try {
     writeFileSync(join(tmp, 'bench.md'), makeFile(size));
 
-    const lint = timeRun(process.execPath, [mermaidLintBin, '--format', 'json', join(tmp, 'bench.md')], tmp);
+    const lint = timeRun(
+      process.execPath,
+      [mermaidLintBin, '--format', 'json', join(tmp, 'bench.md')],
+      tmp,
+    );
     const lintPer = (lint.elapsed / size).toFixed(1);
 
     let checkMs = 'n/a';
