@@ -40,7 +40,7 @@ function checkDuplicateIds(block: Block): SemanticWarning[] {
         seen.set(id, { label, line: bodyLine });
       } else if (prior.label !== label) {
         warnings.push({
-          rule: 'duplicate-id',
+          rule: 'duplicate-ids',
           message: `node "${id}" declared with label "${prior.label}" (line ${prior.line}) and "${label}" (line ${bodyLine})`,
           line: bodyLine,
         });

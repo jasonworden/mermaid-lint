@@ -22,7 +22,7 @@ describe('checkSemantics', () => {
       const b = block('flowchart LR\n  A[Start] --> B\n  A[Begin] --> C');
       const warnings = checkSemantics(b);
       expect(warnings).toHaveLength(1);
-      expect(warnings[0].rule).toBe('duplicate-id');
+      expect(warnings[0].rule).toBe('duplicate-ids');
       expect(warnings[0].message).toContain('"A"');
       expect(warnings[0].message).toContain('Start');
       expect(warnings[0].message).toContain('Begin');
