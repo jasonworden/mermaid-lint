@@ -1,0 +1,10 @@
+sequenceDiagram
+  Alice->>Bob: Start
+  loop Every minute
+    Bob->>Alice: Ping
+  end
+  alt Success
+    Alice->>Bob: OK
+  else Failure
+    Alice->>Bob: Error
+  end
