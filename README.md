@@ -156,30 +156,20 @@ Or disable globally for a run with `--no-semantic`.
 
 Benchmarks run on Apple M4 Max (64 GB), Node.js 22 vs [`mermaid-check`](https://github.com/sammcj/mermaid-check) v0.1.0 (Go). Corpus: one Markdown file with the given number of flowchart diagrams (~1/3 with duplicate-ID conflicts, all syntactically valid). Values are **total ms (ms per diagram)**.
 
-**v0.4.0** (all-valid corpus — mermaid.js never loaded):
+All-valid corpus. Values are **total ms (ms per diagram)**.
 
-| Diagrams | mermaid-lint | mermaid-check |
-|---|---|---|
-| 10 | 87 ms (8.7 ms/d) | < 1 ms |
-| 50 | 109 ms (2.2 ms/d) | < 1 ms |
-| 200 | 147 ms (0.7 ms/d) | < 1 ms |
-| 1000 | 238 ms (0.2 ms/d) | < 1 ms |
-| 10000 | 1516 ms (0.2 ms/d) | < 1 ms |
-| 100000 | 14405 ms (0.1 ms/d) | < 1 ms |
+| Diagrams | mermaid-lint v0.3.0 | mermaid-lint v0.4.0 | mermaid-check v0.1.0 |
+|---|---|---|---|
+| 10 | — | 103 ms (10.3 ms/d) | 7 ms (0.7 ms/d) |
+| 50 | 407 ms (8.1 ms/d) | 104 ms (2.1 ms/d) | 15 ms (0.30 ms/d) |
+| 200 | 553 ms (2.8 ms/d) | 158 ms (0.8 ms/d) | 14 ms (0.07 ms/d) |
+| 1000 | 1018 ms (1.0 ms/d) | 253 ms (0.3 ms/d) | 21 ms (0.02 ms/d) |
+| 10000 | 6643 ms (0.7 ms/d) | 1567 ms (0.2 ms/d) | 103 ms (0.01 ms/d) |
+| 100000 | 62734 ms (0.63 ms/d) | 14632 ms (0.1 ms/d) | 861 ms (0.01 ms/d) |
 
-**v0.3.0** (mermaid.js loaded on startup for every run):
+**v0.4.0 is 3.7–4.3× faster** than v0.3.0. The fixed ~400 ms startup cost (Node.js + mermaid.js) is now eliminated on the happy path: `@mermanjs/web` WASM handles validation with ~100 ms init + ~0.1 ms/diagram. mermaid.js is only loaded when a diagram fails validation, where it supplies precise line/column error locations.
 
-| Diagrams | mermaid-lint | mermaid-check |
-|---|---|---|
-| 50 | 407 ms (8.1 ms/d) | 15 ms (0.30 ms/d) |
-| 200 | 553 ms (2.8 ms/d) | 18 ms (0.09 ms/d) |
-| 1000 | 1018 ms (1.0 ms/d) | 16 ms (0.02 ms/d) |
-| 10000 | 6643 ms (0.7 ms/d) | 108 ms (0.01 ms/d) |
-| 100000 | 62734 ms (0.63 ms/d) | 960 ms (0.01 ms/d) |
-
-**v0.4.0 is 3.7–4.4× faster** on valid corpora. The fixed ~400 ms startup cost (Node.js + mermaid.js) is now eliminated on the happy path: `@mermanjs/web` WASM handles validation with ~90 ms init + ~0.1 ms/diagram. mermaid.js is only loaded when a diagram fails validation, where it supplies precise line/column error locations.
-
-mermaid-check is still faster (pure Go binary, sub-millisecond at any size). The mermaid-check column shows `< 1 ms` because its subprocess completes below `performance.now()` granularity at these sizes.
+mermaid-check is **7–17× faster** than mermaid-lint v0.4.0 (down from 30–65× vs v0.3.0).
 
 **Validation accuracy:** mermaid-lint uses `@mermanjs/web` (Rust WASM, parity-tested against mermaid.js with 3,500+ golden fixtures) for the fast path. When merman signals an error, mermaid.js is the authoritative fallback — it provides precise line/col locations and handles any grammar edge cases where parsers diverge. For corpora with parse errors, both runtimes load (~500 ms total). mermaid-check uses a fully custom Go parser with no official parity guarantee.
 
