@@ -132,7 +132,7 @@ describe('mermaid-lint CLI', () => {
     );
     const r = run([join(tmp, 'dup.md')], tmp);
     expect(r.status).toBe(0);
-    expect(r.stdout).toContain('warning(');
+    expect(r.stdout).toContain('warning:');
     expect(r.stdout).toContain('duplicate-ids');
   });
 
@@ -144,7 +144,7 @@ describe('mermaid-lint CLI', () => {
     );
     const r = run(['--no-semantic', join(tmp, 'dup.md')], tmp);
     expect(r.status).toBe(0);
-    expect(r.stdout).not.toContain('warning(');
+    expect(r.stdout).not.toContain('warning:');
   });
 
   it('--strict causes exit 1 when only warnings present', () => {
@@ -165,8 +165,8 @@ describe('mermaid-lint CLI', () => {
     );
     const withWarnings = run([join(tmp, 'dup.md')], tmp);
     const withQuiet = run(['--quiet', join(tmp, 'dup.md')], tmp);
-    expect(withWarnings.stdout).toContain('warning(');
-    expect(withQuiet.stdout).not.toContain('warning(');
+    expect(withWarnings.stdout).toContain('warning:');
+    expect(withQuiet.stdout).not.toContain('warning:');
   });
 
   it('summary line includes warning count when warnings exist', () => {

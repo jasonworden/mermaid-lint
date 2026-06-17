@@ -157,7 +157,7 @@ async function runTextMode(
           if (!quiet) {
             const absLine = block.line + (w.line ?? 0);
             process.stdout.write(
-              `${chalk.bold(block.path)}:${absLine}:${block.col}: ${chalk.yellow(`warning(${w.rule}):`)} ${w.message}\n`,
+              `${chalk.bold(block.path)}:${absLine}:${block.col}: ${chalk.yellow('warning:')} ${w.rule}: ${w.message}\n`,
             );
           }
         }
