@@ -130,7 +130,7 @@ flowchart LR
 
 - **Discovery:** `git ls-files -- '*.md' '*.mdx' '*.markdown' '*.mmd'` by default; `--all` falls back to recursive filesystem scan
 - **Extraction:** Parses fenced ` ```mermaid ``` ` blocks (handles CRLF, indentation, info-strings, unclosed fences); `.mmd` files treated as a single diagram
-- **Validation:** Calls `mermaid.parse()` via a lazily-bootstrapped jsdom window — same parser your renderer uses
+- **Validation:** Primary pass via [`@mermanjs/web`](https://github.com/Latias94/merman) WASM (Rust, ~3.7–4.4× faster). On any error, falls back to `mermaid.parse()` via jsdom for precise line/col locations and authoritative verdict
 
 ## Semantic warnings
 
@@ -179,9 +179,9 @@ Benchmarks run on Apple M4 Max (64 GB), Node.js 22 vs [`mermaid-check`](https://
 
 **v0.4.0 is 3.7–4.4× faster** on valid corpora. The fixed ~400 ms startup cost (Node.js + mermaid.js) is now eliminated on the happy path: `@mermanjs/web` WASM handles validation with ~90 ms init + ~0.1 ms/diagram. mermaid.js is only loaded when a diagram fails validation, where it supplies precise line/column error locations.
 
-mermaid-check is still faster overall (pure Go, < 1 ms for any size), but mermaid-lint validates against the **official mermaid.js parser** — the same one your renderer uses. For corpora with parse errors, mermaid-lint loads mermaid.js lazily on the first error (~500 ms total for mixed corpora).
+mermaid-check is still faster (pure Go binary, sub-millisecond at any size). The mermaid-check column shows `< 1 ms` because its subprocess completes below `performance.now()` granularity at these sizes.
 
-The trade-off: mermaid-lint validates against the **official mermaid.js parser** — the same one your renderer uses — so it catches the exact set of errors your diagrams will hit in production. mermaid-check uses a custom Go parser which may diverge on edge cases.
+**Validation accuracy:** mermaid-lint uses `@mermanjs/web` (Rust WASM, parity-tested against mermaid.js with 3,500+ golden fixtures) for the fast path. When merman signals an error, mermaid.js is the authoritative fallback — it provides precise line/col locations and handles any grammar edge cases where parsers diverge. For corpora with parse errors, both runtimes load (~500 ms total). mermaid-check uses a fully custom Go parser with no official parity guarantee.
 
 Run `pnpm bench` to reproduce (requires `mermaid-check` on `PATH`).
 
