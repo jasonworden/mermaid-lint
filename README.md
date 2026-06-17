@@ -154,7 +154,7 @@ Or disable globally for a run with `--no-semantic`.
 
 ## Performance
 
-Benchmarks run on Apple M3 Pro, Node.js 22. Each corpus is a single Markdown file with the given number of flowchart diagrams, ~1/3 of which have duplicate-ID conflicts.
+Benchmarks run on Apple M4 Max (64 GB), Node.js 22. Each corpus is a single Markdown file with the given number of flowchart diagrams, ~1/3 of which have duplicate-ID conflicts.
 
 Times include Node.js startup and `mermaid.parse()` — the semantic checker itself adds negligible overhead on top of parsing.
 
