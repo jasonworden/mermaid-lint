@@ -1,4 +1,5 @@
 import type { Block } from './extract.js';
+import { validateWithMerman } from './merman.js';
 import { type SemanticWarning, checkSemantics } from './semantic.js';
 
 export type { SemanticWarning };
@@ -50,6 +51,27 @@ function getMermaid(): Promise<unknown> {
   return _mermaidPromise;
 }
 
+async function validateWithMermaid(
+  body: string,
+): Promise<{ ok: boolean; error?: ValidationError }> {
+  try {
+    const mermaid = await getMermaid();
+    await (
+      mermaid as { parse(text: string, opts: object): Promise<unknown> }
+    ).parse(body, { suppressErrors: false });
+    return { ok: true };
+  } catch (err: unknown) {
+    const e = err as Record<string, unknown>;
+    const message = typeof e?.message === 'string' ? e.message : String(err);
+    const hash = e?.hash as Record<string, unknown> | undefined;
+    const line = typeof hash?.line === 'number' ? hash.line : undefined;
+    const loc = hash?.loc as Record<string, unknown> | undefined;
+    const col =
+      typeof loc?.first_column === 'number' ? loc.first_column + 1 : undefined;
+    return { ok: false, error: { message, line, col } };
+  }
+}
+
 export async function validateBlock(block: Block): Promise<ValidationResult> {
   const { body } = block;
 
@@ -70,22 +92,19 @@ export async function validateBlock(block: Block): Promise<ValidationResult> {
 
   const warnings = checkSemantics(block);
 
-  try {
-    const mermaid = await getMermaid();
-    await (
-      mermaid as { parse(text: string, opts: object): Promise<unknown> }
-    ).parse(body, {
-      suppressErrors: false,
-    });
+  const mermanResult = await validateWithMerman(body);
+
+  if (mermanResult.valid) {
+    // Fast path: merman confirmed valid — skip mermaid.js entirely
     return { ok: true, warnings };
-  } catch (err: unknown) {
-    const e = err as Record<string, unknown>;
-    const message = typeof e?.message === 'string' ? e.message : String(err);
-    const hash = e?.hash as Record<string, unknown> | undefined;
-    const line = typeof hash?.line === 'number' ? hash.line : undefined;
-    const loc = hash?.loc as Record<string, unknown> | undefined;
-    const col =
-      typeof loc?.first_column === 'number' ? loc.first_column + 1 : undefined;
-    return { ok: false, error: { message, line, col }, warnings };
   }
+
+  // Any non-valid result (parse error, unsupported type, panic) —
+  // fall back to mermaid.js which is authoritative for error location and final verdict.
+  // If mermaid.js accepts it, trust mermaid.js (merman may be stricter on edge cases).
+  const mermaidResult = await validateWithMermaid(body);
+  if (!mermaidResult.ok && mermaidResult.error) {
+    return { ok: false, error: mermaidResult.error, warnings };
+  }
+  return { ok: true, warnings };
 }
