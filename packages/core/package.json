@@ -10,12 +10,19 @@
     }
   },
   "types": "./dist/index.d.ts",
-  "files": ["dist", "src", "index.ts"],
-  "engines": { "node": ">=20" },
+  "files": [
+    "dist",
+    "src",
+    "index.ts"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "build": "tsc"
   },
   "dependencies": {
+    "@mermanjs/web": "^0.7.0",
     "dompurify": "^3.2.6",
     "jsdom": "^26.1.0",
     "mermaid": "^11.8.1"

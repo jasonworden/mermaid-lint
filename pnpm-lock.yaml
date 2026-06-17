@@ -35,6 +35,9 @@ importers:
 
   packages/core:
     dependencies:
+      '@mermanjs/web':
+        specifier: ^0.7.0
+        version: 0.7.0
       dompurify:
         specifier: ^3.2.6
         version: 3.4.10
@@ -577,6 +580,9 @@ packages:
 
   '@mermaid-js/parser@1.1.1':
     resolution: {integrity: sha512-VuHdsYMK1bT6X2JbcAaWAhugTRvRBRyuZgd+c22swUeI9g/ntaxF7CY7dYarhZovofCbUNO0G7JesfmNtjYOCw==}
+
+  '@mermanjs/web@0.7.0':
+    resolution: {integrity: sha512-wZv2jvxBRnK+SxMo+9oKA1fFkHTfVCi2+IhLtYd1hRwxrEaFoRnt05teaM9m+NdUESOUxQJaZ/63lIU4XfwUcw==}
 
   '@nodelib/fs.scandir@2.1.5':
     resolution: {integrity: sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g==}
@@ -2882,6 +2888,8 @@ snapshots:
   '@mermaid-js/parser@1.1.1':
     dependencies:
       '@chevrotain/types': 11.1.2
+
+  '@mermanjs/web@0.7.0': {}
 
   '@nodelib/fs.scandir@2.1.5':
     dependencies:
