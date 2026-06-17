@@ -210,6 +210,21 @@ describe('mermaid-lint CLI', () => {
     expect(json.summary.warnings).toBe(0);
   });
 
+  it('reports correct line number for .mmd file warnings', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    // Body line 1 = file line 1 (no fence opener in .mmd files)
+    // A[Start] is line 2, A[Begin] is line 3 → warning should report line 3
+    writeFileSync(
+      join(tmp, 'dup.mmd'),
+      'flowchart LR\n  A[Start] --> B\n  A[Begin] --> C\n',
+    );
+    const r = run([join(tmp, 'dup.mmd')], tmp);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('warning:');
+    // Line 3 is where the conflicting A[Begin] declaration appears
+    expect(r.stdout).toContain(':3:');
+  });
+
   it('--format json with --strict exits 1 when only warnings present', () => {
     const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
     writeFileSync(
