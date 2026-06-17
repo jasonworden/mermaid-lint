@@ -1,9 +1,5 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
-/**
- * Benchmark mermaid-lint semantic checking vs mermaid-check.
- * Usage: node scripts/bench-semantic.mjs
- */
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

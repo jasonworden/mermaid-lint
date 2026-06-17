@@ -159,7 +159,9 @@ async function runTextMode(
           if (!quiet) {
             // For .mmd files the body starts at line 1 (no fence opener).
             // For markdown fences block.line is the opener, body starts at block.line + 1.
-            const bodyOffset = block.path.endsWith('.mmd') ? block.line - 1 : block.line;
+            const bodyOffset = block.path.endsWith('.mmd')
+              ? block.line - 1
+              : block.line;
             const absLine = bodyOffset + (w.line ?? 0);
             process.stdout.write(
               `${chalk.bold(block.path)}:${absLine}:${block.col}: ${chalk.yellow('warning:')} ${w.rule}: ${w.message}\n`,

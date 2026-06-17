@@ -1,6 +1,5 @@
 import type { Block } from './extract.js';
-import { checkSemantics } from './semantic.js';
-import type { SemanticWarning } from './semantic.js';
+import { type SemanticWarning, checkSemantics } from './semantic.js';
 
 export type { SemanticWarning };
 
@@ -61,7 +60,7 @@ export async function validateBlock(block: Block): Promise<ValidationResult> {
       warnings: [],
     };
   }
-  if (!body || !body.trim()) {
+  if (!body.trim()) {
     return {
       ok: false,
       error: { message: 'empty mermaid block' },

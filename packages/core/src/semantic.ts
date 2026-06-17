@@ -33,7 +33,7 @@ function checkDuplicateIds(block: Block): SemanticWarning[] {
       if (m === null) break;
       const id = m[1];
       const label = extractLabel(m);
-      const bodyLine = lineIdx + 1; // 1-based
+      const bodyLine = lineIdx + 1;
 
       const prior = seen.get(id);
       if (prior === undefined) {
