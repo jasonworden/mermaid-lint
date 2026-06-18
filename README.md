@@ -2,6 +2,8 @@
 
 Validate Mermaid diagrams embedded in Markdown files. Uses the official `mermaid.parse()` API — catches real syntax errors, not just missing diagram-type keywords.
 
+**[jasonworden.com/mermaid-lint](http://jasonworden.com/mermaid-lint)**
+
 ## Packages
 
 | Package | npm | Description |
@@ -87,6 +89,58 @@ repos:
         entry: npx mermaid-lint
         types: [markdown]
         pass_filenames: true
+```
+
+## Configuration
+
+mermaid-lint auto-discovers a config file in your project root. Supported names (in priority order):
+
+- `mermaid-lint.config.js` / `.cjs` / `.mjs`
+- `.mermaidlintrc` / `.mermaidlintrc.json`
+- `.mermaidlintrc.js` / `.cjs` / `.mjs`
+- `package.json` → `"mermaidLint"` field
+
+CLI flags always override config values. A starter template is provided at [`mermaid-lint.config.example.js`](mermaid-lint.config.example.js).
+
+```js
+// mermaid-lint.config.js
+export default {
+  // Glob patterns to validate (used when no CLI paths given and --all not set)
+  files: ['docs/**/*.md', '**/*.mmd'],
+
+  // Glob patterns to exclude
+  ignore: ['node_modules/**', 'dist/**'],
+
+  // Treat semantic warnings as errors — equivalent to --strict
+  strict: false,
+
+  // false disables semantic checks — equivalent to --no-semantic
+  semantic: true,
+
+  // 'text' (default) or 'json'
+  format: 'text',
+};
+```
+
+Or as JSON in `.mermaidlintrc.json`:
+
+```json
+{
+  "files": ["docs/**/*.md"],
+  "ignore": ["dist/**"],
+  "strict": true
+}
+```
+
+Or inline in `package.json`:
+
+```json
+{
+  "mermaidLint": {
+    "ignore": ["dist/**"],
+    "strict": true
+  }
+}
 ```
 
 ## Vitest
