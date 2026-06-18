@@ -234,4 +234,116 @@ describe('mermaid-lint CLI', () => {
     const r = run(['--format', 'json', '--strict', join(tmp, 'dup.md')], tmp);
     expect(r.status).toBe(1);
   });
+
+  it('reads strict from .mermaidlintrc.json config file', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(
+      join(tmp, '.mermaidlintrc.json'),
+      JSON.stringify({ strict: true }),
+    );
+    writeFileSync(
+      join(tmp, 'dup.md'),
+      '```mermaid\nflowchart LR\n  A[Start] --> B\n  A[Begin] --> C\n```\n',
+    );
+    // strict from config → exit 1 even though only warnings
+    const r = run([join(tmp, 'dup.md')], tmp);
+    expect(r.status).toBe(1);
+  });
+
+  it('CLI --no-semantic flag overrides config semantic:true', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(
+      join(tmp, '.mermaidlintrc.json'),
+      JSON.stringify({ strict: true }),
+    );
+    writeFileSync(
+      join(tmp, 'dup.md'),
+      '```mermaid\nflowchart LR\n  A[Start] --> B\n  A[Begin] --> C\n```\n',
+    );
+    // --no-semantic suppresses warnings so strict has nothing to fail on
+    const r = run(['--no-semantic', join(tmp, 'dup.md')], tmp);
+    expect(r.status).toBe(0);
+  });
+
+  it('reads format from mermaid-lint.config.js', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(
+      join(tmp, 'mermaid-lint.config.js'),
+      'export default { format: "json" };\n',
+    );
+    writeFileSync(
+      join(tmp, 'ok.md'),
+      '```mermaid\nflowchart LR\n  A-->B\n```\n',
+    );
+    const r = run([join(tmp, 'ok.md')], tmp);
+    expect(r.status).toBe(0);
+    // format: json from config → stdout is valid JSON
+    expect(() => JSON.parse(r.stdout)).not.toThrow();
+  });
+
+  it('CLI --format text overrides config format:json', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(
+      join(tmp, '.mermaidlintrc.json'),
+      JSON.stringify({ format: 'json' }),
+    );
+    writeFileSync(
+      join(tmp, 'ok.md'),
+      '```mermaid\nflowchart LR\n  A-->B\n```\n',
+    );
+    const r = run(['--format', 'text', join(tmp, 'ok.md')], tmp);
+    expect(r.status).toBe(0);
+    // text mode: nothing on stdout for a valid diagram
+    expect(r.stdout).toBe('');
+  });
+
+  it('uses config files globs when no positional args', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(
+      join(tmp, '.mermaidlintrc.json'),
+      JSON.stringify({ files: [`${tmp}/*.md`] }),
+    );
+    writeFileSync(
+      join(tmp, 'chart.md'),
+      '```mermaid\nflowchart LR\n  A-->B\n```\n',
+    );
+    // no positional args — config files glob should pick up chart.md
+    const r = run([], tmp);
+    expect(r.status).toBe(0);
+    expect(r.stderr).toContain('checked 1 diagram');
+  });
+
+  it('config ignore excludes files from validation', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(
+      join(tmp, '.mermaidlintrc.json'),
+      JSON.stringify({ ignore: ['**/bad.md'] }),
+    );
+    writeFileSync(
+      join(tmp, 'bad.md'),
+      '```mermaid\nflowchart LR\n  A -->|broken\n```\n',
+    );
+    writeFileSync(
+      join(tmp, 'ok.md'),
+      '```mermaid\nflowchart LR\n  A-->B\n```\n',
+    );
+    // bad.md is ignored, only ok.md validated → exit 0
+    const r = run([join(tmp, 'bad.md'), join(tmp, 'ok.md')], tmp);
+    expect(r.status).toBe(0);
+  });
+
+  it('config ignore filters explicit path args', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(
+      join(tmp, '.mermaidlintrc.json'),
+      JSON.stringify({ ignore: ['**/bad.md'] }),
+    );
+    writeFileSync(
+      join(tmp, 'bad.md'),
+      '```mermaid\nflowchart LR\n  A -->|broken\n```\n',
+    );
+    // bad.md passed explicitly but ignored by config → no files to validate → exit 2
+    const r = run([join(tmp, 'bad.md')], tmp);
+    expect(r.status).toBe(2);
+  });
 });

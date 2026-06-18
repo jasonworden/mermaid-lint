@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import {
   discoverFiles,
   extractMermaidBlocks,
+  loadConfig,
   validateBlock,
 } from '@mermaid-lint/core';
 import chalk from 'chalk';
@@ -13,7 +14,7 @@ interface Args {
   all: boolean;
   paths: string[];
   help: boolean;
-  format: 'text' | 'json';
+  format: 'text' | 'json' | null;
   noSemantic: boolean;
   strict: boolean;
   error: string | null;
@@ -52,7 +53,7 @@ function parseArgs(argv: string[]): Args {
     all: false,
     paths: [],
     help: false,
-    format: 'text',
+    format: null,
     noSemantic: false,
     strict: false,
     error: null,
@@ -108,6 +109,7 @@ function printHelp(): void {
   --no-semantic      Disable semantic checks (e.g. duplicate node IDs).
   --format text      Human-readable output (default).
   --format json      Machine-readable JSON to stdout; stderr is silent.
+  (config)           mermaid-lint.config.js / .mermaidlintrc / package.json#mermaidLint
 
 Exit codes:
   0  all blocks valid (and no warnings, unless --no-semantic)
@@ -157,8 +159,6 @@ async function runTextMode(
         for (const w of r.warnings) {
           warningCount++;
           if (!quiet) {
-            // For .mmd files the body starts at line 1 (no fence opener).
-            // For markdown fences block.line is the opener, body starts at block.line + 1.
             const bodyOffset = block.path.endsWith('.mmd')
               ? block.line - 1
               : block.line;
@@ -285,10 +285,23 @@ async function main(argv: string[]): Promise<number> {
     return 2;
   }
 
-  const expandedPaths = expandGlobs(args.paths);
+  const config = await loadConfig();
+
+  const strict = args.strict || (config.strict ?? false);
+  const noSemantic = args.noSemantic || config.semantic === false;
+  const format: 'text' | 'json' = args.format ?? config.format ?? 'text';
+
+  const expandedPaths =
+    args.paths.length > 0
+      ? expandGlobs(args.paths)
+      : config.files && config.files.length > 0 && !args.all
+        ? expandGlobs(config.files)
+        : [];
+
   const files = discoverFiles({
     all: args.all,
     paths: expandedPaths.length ? expandedPaths : undefined,
+    ignore: config.ignore,
   });
 
   if (files.length === 0) {
@@ -302,9 +315,9 @@ async function main(argv: string[]): Promise<number> {
     return 2;
   }
 
-  return args.format === 'json'
-    ? runJsonMode(files, args.noSemantic, args.strict)
-    : runTextMode(files, args.quiet, args.noSemantic, args.strict);
+  return format === 'json'
+    ? runJsonMode(files, noSemantic, strict)
+    : runTextMode(files, args.quiet, noSemantic, strict);
 }
 
 const code = await main(process.argv.slice(2));
