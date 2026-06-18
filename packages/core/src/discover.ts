@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { isAbsolute, join, relative } from 'node:path';
 import micromatch from 'micromatch';
 
 export interface DiscoverOptions {
@@ -24,6 +24,7 @@ export function discoverFiles(opts: DiscoverOptions = {}): string[] {
   if (paths && paths.length > 0) {
     files = paths.filter((p) => {
       if (!existsSync(p)) return false;
+      if (!hasMarkdownExt(p)) return false;
       try {
         return statSync(p).isFile();
       } catch {
@@ -35,7 +36,10 @@ export function discoverFiles(opts: DiscoverOptions = {}): string[] {
   }
 
   if (ignore.length === 0) return files;
-  return files.filter((p) => !micromatch.isMatch(p, ignore));
+  return files.filter((p) => {
+    const rel = isAbsolute(p) ? relative(root, p) : p;
+    return !micromatch.isMatch(rel, ignore) && !micromatch.isMatch(p, ignore);
+  });
 }
 
 function discoverTracked(root: string): string[] {

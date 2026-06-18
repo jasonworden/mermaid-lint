@@ -332,6 +332,32 @@ describe('mermaid-lint CLI', () => {
     expect(r.status).toBe(0);
   });
 
+  it('exits 2 with clear message when config files glob matches nothing', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(
+      join(tmp, '.mermaidlintrc.json'),
+      JSON.stringify({ files: ['nonexistent/**/*.md'] }),
+    );
+    const r = run([], tmp);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain('config file');
+  });
+
+  it('exits 2 with error when config format is invalid', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(
+      join(tmp, '.mermaidlintrc.json'),
+      JSON.stringify({ format: 'xml' }),
+    );
+    writeFileSync(
+      join(tmp, 'ok.md'),
+      '```mermaid\nflowchart LR\n  A-->B\n```\n',
+    );
+    const r = run([join(tmp, 'ok.md')], tmp);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain('config error');
+  });
+
   it('config ignore filters explicit path args', () => {
     const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
     writeFileSync(

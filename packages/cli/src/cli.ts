@@ -287,16 +287,35 @@ async function main(argv: string[]): Promise<number> {
 
   const config = await loadConfig();
 
+  if (
+    config.format !== undefined &&
+    config.format !== 'text' &&
+    config.format !== 'json'
+  ) {
+    process.stderr.write(
+      `config error: format must be "text" or "json", got: "${config.format}"\n`,
+    );
+    return 2;
+  }
+
   const strict = args.strict || (config.strict ?? false);
   const noSemantic = args.noSemantic || config.semantic === false;
   const format: 'text' | 'json' = args.format ?? config.format ?? 'text';
 
-  const expandedPaths =
-    args.paths.length > 0
-      ? expandGlobs(args.paths)
-      : config.files && config.files.length > 0 && !args.all
-        ? expandGlobs(config.files)
-        : [];
+  let expandedPaths: string[];
+  if (args.paths.length > 0) {
+    expandedPaths = expandGlobs(args.paths);
+  } else if (config.files && config.files.length > 0 && !args.all) {
+    expandedPaths = expandGlobs(config.files);
+    if (expandedPaths.length === 0) {
+      process.stderr.write(
+        'no files matched the glob patterns in your config file\n',
+      );
+      return 2;
+    }
+  } else {
+    expandedPaths = [];
+  }
 
   const files = discoverFiles({
     all: args.all,

@@ -94,4 +94,26 @@ describe('discoverFiles', () => {
     const result = discoverFiles({ root: tmp, all: true, ignore: [] });
     expect(result).toHaveLength(2);
   });
+
+  it('filters out non-markdown files from explicit paths', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    const md = join(tmp, 'doc.md');
+    const ts = join(tmp, 'index.ts');
+    writeFileSync(md, '# doc');
+    writeFileSync(ts, 'export {}');
+    const result = discoverFiles({ paths: [md, ts] });
+    expect(result).toContain(md);
+    expect(result).not.toContain(ts);
+  });
+
+  it('ignore patterns match absolute paths from all:true mode', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    mkdirSync(join(tmp, 'dist'));
+    writeFileSync(join(tmp, 'keep.md'), '# keep');
+    writeFileSync(join(tmp, 'dist', 'generated.md'), '# gen');
+    // dist/** should work even though discoverAll returns absolute paths
+    const result = discoverFiles({ root: tmp, all: true, ignore: ['dist/**'] });
+    expect(result.some((p) => p.includes('dist'))).toBe(false);
+    expect(result.some((p) => p.includes('keep.md'))).toBe(true);
+  });
 });
