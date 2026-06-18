@@ -45,8 +45,8 @@ importers:
         specifier: ^0.7.0
         version: 0.7.0
       dompurify:
-        specifier: ^3.2.6
-        version: 3.4.10
+        specifier: ^3.4.11
+        version: 3.4.11
       jsdom:
         specifier: ^26.1.0
         version: 26.1.0
@@ -1348,8 +1348,8 @@ packages:
     resolution: {integrity: sha512-EjePK1srD3P08o2j4f0ExnylqRs5B9tJjcp9t1krH2qRi8CCdsYfwe9JgSLurFBWwq4uOlipzfk5fHNvwFKr8Q==}
     engines: {node: ^14.15.0 || ^16.10.0 || >=18.0.0}
 
-  dompurify@3.4.10:
-    resolution: {integrity: sha512-0xzNv0e7oYC6yyuOGZIABPM4qtg3QxLFniDNPP4ZP90wR8Yq3zgwpRbrNiT4N3IKqDbbYFEJLV+JWEs19aZ//w==}
+  dompurify@3.4.11:
+    resolution: {integrity: sha512-zhlUV12GsaRzMsf9q5M254YhA4+VuF0fG+QFqu6aYpoGlKtz+w8//jBcGVYBgQkR5GHjUomejY84AV+/uPbWdw==}
 
   electron-to-chromium@1.5.372:
     resolution: {integrity: sha512-M3yhbAlilnwqC8D21t28UCDGHyitShTmmLRU/H+b74P6Ski16Nb9HONYEaVpMj/pwC7BEo5B95FpjODLCWbtfA==}
@@ -3338,6 +3338,14 @@ snapshots:
     optionalDependencies:
       vite: 5.4.21(@types/node@20.19.43)
 
+  '@vitest/mocker@2.1.9(vite@5.4.21(@types/node@25.9.3))':
+    dependencies:
+      '@vitest/spy': 2.1.9
+      estree-walker: 3.0.3
+      magic-string: 0.30.21
+    optionalDependencies:
+      vite: 5.4.21(@types/node@25.9.3)
+
   '@vitest/pretty-format@2.1.9':
     dependencies:
       tinyrainbow: 1.2.0
@@ -3793,7 +3801,7 @@ snapshots:
 
   diff-sequences@29.6.3: {}
 
-  dompurify@3.4.10:
+  dompurify@3.4.11:
     optionalDependencies:
       '@types/trusted-types': 2.0.7
 
@@ -4515,7 +4523,7 @@ snapshots:
       d3-sankey: 0.12.3
       dagre-d3-es: 7.0.14
       dayjs: 1.11.21
-      dompurify: 3.4.10
+      dompurify: 3.4.11
       es-toolkit: 1.47.1
       katex: 0.16.47
       khroma: 2.1.0
@@ -5020,7 +5028,7 @@ snapshots:
   vitest@2.1.9(@types/node@25.9.3)(jsdom@26.1.0):
     dependencies:
       '@vitest/expect': 2.1.9
-      '@vitest/mocker': 2.1.9(vite@5.4.21(@types/node@20.19.43))
+      '@vitest/mocker': 2.1.9(vite@5.4.21(@types/node@25.9.3))
       '@vitest/pretty-format': 2.1.9
       '@vitest/runner': 2.1.9
       '@vitest/snapshot': 2.1.9
