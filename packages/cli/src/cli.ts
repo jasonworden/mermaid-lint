@@ -10,7 +10,9 @@ import {
 import chalk from 'chalk';
 import fg from 'fast-glob';
 
-const { version } = createRequire(import.meta.url)('../package.json') as { version: string };
+const { version } = createRequire(import.meta.url)('../package.json') as {
+  version: string;
+};
 
 interface Args {
   quiet: boolean;
