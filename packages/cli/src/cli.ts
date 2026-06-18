@@ -94,31 +94,21 @@ function parseArgs(argv: string[]): Args {
       args.format = val;
     } else if (a === '--no-semantic') args.noSemantic = true;
     else if (a === '--strict') args.strict = true;
-    else if (a === '--include') {
-      const val = argv[++i];
+    else if (a === '--include' || a.startsWith('--include=')) {
+      const val = a.startsWith('--include=')
+        ? a.slice('--include='.length)
+        : argv[++i];
       if (!val) {
         args.error = '--include requires a glob argument';
         break;
       }
       args.include.push(val);
-    } else if (a.startsWith('--include=')) {
-      const val = a.slice('--include='.length);
-      if (!val) {
-        args.error = '--include= requires a glob argument';
-        break;
-      }
-      args.include.push(val);
-    } else if (a === '--exclude') {
-      const val = argv[++i];
+    } else if (a === '--exclude' || a.startsWith('--exclude=')) {
+      const val = a.startsWith('--exclude=')
+        ? a.slice('--exclude='.length)
+        : argv[++i];
       if (!val) {
         args.error = '--exclude requires a glob argument';
-        break;
-      }
-      args.exclude.push(val);
-    } else if (a.startsWith('--exclude=')) {
-      const val = a.slice('--exclude='.length);
-      if (!val) {
-        args.error = '--exclude= requires a glob argument';
         break;
       }
       args.exclude.push(val);
@@ -170,11 +160,10 @@ Exit codes:
 }
 
 async function readStdin(): Promise<string> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of process.stdin) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as string));
-  }
-  return Buffer.concat(chunks).toString('utf8');
+  process.stdin.setEncoding('utf8');
+  let out = '';
+  for await (const chunk of process.stdin) out += chunk as string;
+  return out;
 }
 
 async function runTextMode(
@@ -395,7 +384,7 @@ async function main(argv: string[]): Promise<number> {
 
   let expandedPaths: string[];
   if (args.paths.length > 0 || args.include.length > 0) {
-    expandedPaths = [...expandGlobs(args.paths), ...expandGlobs(args.include)];
+    expandedPaths = expandGlobs([...args.paths, ...args.include]);
   } else if (config.files && config.files.length > 0 && !args.all) {
     expandedPaths = expandGlobs(config.files);
     if (expandedPaths.length === 0) {
@@ -410,17 +399,16 @@ async function main(argv: string[]): Promise<number> {
 
   const ignore = [...(config.ignore ?? []), ...args.exclude];
 
-  let files: string[];
-  if (stdinEntry && expandedPaths.length === 0 && !args.all) {
-    files = [];
-  } else {
-    files = discoverFiles({
-      all: args.all,
-      paths: expandedPaths.length ? expandedPaths : undefined,
-      ignore,
-      noGitignore: args.noGitignore,
-    });
-  }
+  const shouldDiscover =
+    expandedPaths.length > 0 || args.all || args.noGitignore || !stdinEntry;
+  const files = shouldDiscover
+    ? discoverFiles({
+        all: args.all,
+        paths: expandedPaths.length ? expandedPaths : undefined,
+        ignore,
+        noGitignore: args.noGitignore,
+      })
+    : [];
 
   if (files.length === 0 && !stdinEntry) {
     process.stderr.write(
