@@ -96,6 +96,33 @@ repos:
         pass_filenames: true
 ```
 
+**Pre-commit hook (Node.js / JavaScript projects):**
+
+Use [husky](https://typicode.github.io/husky/) + [lint-staged](https://github.com/lint-staged/lint-staged) to run mermaid-lint on only the staged Markdown files before every commit.
+
+```bash
+npm install --save-dev husky lint-staged
+npx husky init
+```
+
+Add to `package.json`:
+
+```json
+{
+  "lint-staged": {
+    "*.{md,mmd,mdx}": "mermaid-lint"
+  }
+}
+```
+
+Set `.husky/pre-commit` to:
+
+```sh
+npx lint-staged
+```
+
+lint-staged passes staged file paths as positional arguments — mermaid-lint validates each file directly.
+
 ## Configuration
 
 mermaid-lint auto-discovers a config file in your project root. Supported names (in priority order):
