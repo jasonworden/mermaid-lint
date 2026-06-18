@@ -1,0 +1,2 @@
+. "$(dirname "$0")/_/node-manager.sh"
+pnpm exec lint-staged
