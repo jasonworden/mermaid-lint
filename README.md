@@ -36,7 +36,7 @@ npx mermaid-lint --no-semantic          # skip semantic checks (syntax errors on
 
 ```json
 {
-  "version": "0.6.0",
+  "version": "0.6.1",
   "files": [
     {
       "path": "docs/api.md",
@@ -122,6 +122,17 @@ npx lint-staged
 ```
 
 lint-staged passes staged file paths as positional arguments — mermaid-lint validates each file directly.
+
+## GitHub Actions
+
+```yaml
+- uses: jasonworden/mermaid-lint-action@v1
+  with:
+    files: 'docs/**/*.md **/*.mmd'
+    strict: true
+```
+
+See [mermaid-lint-action](https://github.com/jasonworden/mermaid-lint-action) for full options and inline PR annotation support.
 
 ## Configuration
 
