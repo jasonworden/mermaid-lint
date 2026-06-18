@@ -135,8 +135,12 @@ function expandGlobs(paths: string[]): string[] {
     if (!/[*?{[]/.test(p)) return [p];
     try {
       return fg.sync(p, { dot: false, onlyFiles: true });
-    } catch {
-      return [p];
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      process.stderr.write(
+        `warning: glob expansion failed for "${p}": ${msg}\n`,
+      );
+      return [];
     }
   });
 }
@@ -422,7 +426,7 @@ async function main(argv: string[]): Promise<number> {
     process.stderr.write(
       args.paths.length > 0 || args.include.length > 0
         ? 'no files matched the given paths\n'
-        : args.all
+        : args.all || args.noGitignore
           ? 'no supported files found on disk\n'
           : 'no tracked files found (is this a git checkout? try --all)\n',
     );

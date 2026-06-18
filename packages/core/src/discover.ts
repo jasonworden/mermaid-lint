@@ -66,5 +66,11 @@ function discoverAll(root: string): string[] {
   return readdirSync(root, { recursive: true, withFileTypes: true })
     .filter((e) => e.isFile() && hasMarkdownExt(e.name))
     .map((e) => join(e.parentPath ?? e.path, e.name))
-    .filter((p) => !p.includes('/node_modules/') && !p.includes('/.git/'));
+    .filter(
+      (p) =>
+        !p.includes('/node_modules/') &&
+        !p.startsWith('node_modules/') &&
+        !p.includes('/.git/') &&
+        !p.startsWith('.git/'),
+    );
 }
