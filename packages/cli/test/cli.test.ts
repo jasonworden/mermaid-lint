@@ -372,4 +372,30 @@ describe('mermaid-lint CLI', () => {
     const r = run([join(tmp, 'bad.md')], tmp);
     expect(r.status).toBe(2);
   });
+
+  it('--no-gitignore finds files in a non-git directory', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(
+      join(tmp, 'valid.md'),
+      '```mermaid\nflowchart LR\n  A-->B\n```\n',
+    );
+    // Without --no-gitignore and no git repo: no tracked files → exit 2
+    const withoutFlag = run([], tmp);
+    expect(withoutFlag.status).toBe(2);
+    expect(withoutFlag.stderr).toContain('no tracked files found');
+    // With --no-gitignore: filesystem scan finds valid.md → exit 0
+    const withFlag = run(['--no-gitignore'], tmp);
+    expect(withFlag.status).toBe(0);
+    expect(withFlag.stderr).toContain('checked 1 diagram');
+  });
+
+  it('--no-gitignore with --all still works (no conflict)', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(
+      join(tmp, 'valid.md'),
+      '```mermaid\nflowchart LR\n  A-->B\n```\n',
+    );
+    const r = run(['--all', '--no-gitignore'], tmp);
+    expect(r.status).toBe(0);
+  });
 });

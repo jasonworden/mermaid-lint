@@ -22,6 +22,7 @@ interface Args {
   format: 'text' | 'json' | null;
   noSemantic: boolean;
   strict: boolean;
+  noGitignore: boolean;
   error: string | null;
 }
 
@@ -61,6 +62,7 @@ function parseArgs(argv: string[]): Args {
     format: null,
     noSemantic: false,
     strict: false,
+    noGitignore: false,
     error: null,
   };
   for (let i = 0; i < argv.length; i++) {
@@ -68,6 +70,7 @@ function parseArgs(argv: string[]): Args {
     if (a === '--quiet') args.quiet = true;
     else if (a === '--all') args.all = true;
     else if (a === '--help' || a === '-h') args.help = true;
+    else if (a === '--no-gitignore') args.noGitignore = true;
     else if (a === '--format') {
       const val = argv[++i];
       if (val !== 'text' && val !== 'json') {
@@ -104,11 +107,12 @@ function expandGlobs(paths: string[]): string[] {
 }
 
 function printHelp(): void {
-  process.stdout.write(`Usage: mermaid-lint [--all] [--quiet] [--strict] [--no-semantic] [--format text|json] [paths...]
+  process.stdout.write(`Usage: mermaid-lint [--all] [--quiet] [--strict] [--no-semantic] [--no-gitignore] [--format text|json] [paths...]
 
   paths              Files or glob patterns to validate. Overrides default discovery.
   (no args)          Default: git-tracked *.md / *.mdx / *.markdown / *.mmd files.
   --all              Scan every supported file on disk; skips node_modules/.
+  --no-gitignore     Scan filesystem instead of git-tracked files; finds gitignored docs.
   --quiet            Suppress per-file progress and warnings; only failures + summary.
   --strict           Exit 1 if any warnings are present (in addition to errors).
   --no-semantic      Disable semantic checks (e.g. duplicate node IDs).
@@ -326,6 +330,7 @@ async function main(argv: string[]): Promise<number> {
     all: args.all,
     paths: expandedPaths.length ? expandedPaths : undefined,
     ignore: config.ignore,
+    noGitignore: args.noGitignore,
   });
 
   if (files.length === 0) {
