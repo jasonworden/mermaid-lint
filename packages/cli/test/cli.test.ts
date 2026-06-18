@@ -10,6 +10,14 @@ function run(args: string[], cwd: string) {
   return spawnSync(process.execPath, [BIN, ...args], { cwd, encoding: 'utf8' });
 }
 
+function runWithStdin(args: string[], cwd: string, stdinContent: string) {
+  return spawnSync(process.execPath, [BIN, ...args], {
+    cwd,
+    encoding: 'utf8',
+    input: stdinContent,
+  });
+}
+
 describe('mermaid-lint CLI', () => {
   it('exits 0 for a file with a valid diagram', () => {
     const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
@@ -397,5 +405,53 @@ describe('mermaid-lint CLI', () => {
     );
     const r = run(['--all', '--no-gitignore'], tmp);
     expect(r.status).toBe(0);
+  });
+
+  it('reads a valid diagram from stdin with -', () => {
+    const r = runWithStdin(
+      ['-'],
+      '.',
+      '```mermaid\nflowchart LR\n  A-->B\n```\n',
+    );
+    expect(r.status).toBe(0);
+    expect(r.stderr).toContain('checked 1 diagram');
+  });
+
+  it('reads an invalid diagram from stdin with -', () => {
+    const r = runWithStdin(
+      ['-'],
+      '.',
+      '```mermaid\nflowchart LR\n  A -->|broken\n```\n',
+    );
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain('parse error');
+    expect(r.stdout).toContain('<stdin>');
+  });
+
+  it('stdin with --format json outputs <stdin> as file path', () => {
+    const r = runWithStdin(
+      ['-', '--format', 'json'],
+      '.',
+      '```mermaid\nflowchart LR\n  A-->B\n```\n',
+    );
+    expect(r.status).toBe(0);
+    const json = JSON.parse(r.stdout);
+    expect(json.files[0].path).toBe('<stdin>');
+    expect(json.files[0].diagrams[0].ok).toBe(true);
+  });
+
+  it('stdin can be combined with file paths', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(
+      join(tmp, 'extra.md'),
+      '```mermaid\nflowchart LR\n  C-->D\n```\n',
+    );
+    const r = runWithStdin(
+      ['-', join(tmp, 'extra.md')],
+      tmp,
+      '```mermaid\nflowchart LR\n  A-->B\n```\n',
+    );
+    expect(r.status).toBe(0);
+    expect(r.stderr).toContain('checked 2 diagrams');
   });
 });
