@@ -4,6 +4,11 @@ Validate Mermaid diagrams embedded in Markdown files. Uses the official `mermaid
 
 **[jasonworden.com/mermaid-lint](http://jasonworden.com/mermaid-lint)**
 
+[![npm version](https://img.shields.io/npm/v/@mermaid-lint/cli.svg)](https://www.npmjs.com/package/@mermaid-lint/cli)
+[![npm downloads](https://img.shields.io/npm/dm/@mermaid-lint/cli.svg)](https://www.npmjs.com/package/@mermaid-lint/cli)
+[![CI](https://github.com/jasonworden/mermaid-lint/actions/workflows/ci.yml/badge.svg)](https://github.com/jasonworden/mermaid-lint/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 ## Packages
 
 | Package | npm | Description |
