@@ -4,10 +4,8 @@ coverage/
 .DS_Store
 *.local
 
-# Superpowers
 .worktrees/
 docs/superpowers/
-
 .envrc
 .claude/worktrees/
 .superpowers/
