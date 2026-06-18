@@ -250,7 +250,7 @@ describe('mermaid-lint CLI', () => {
     expect(r.status).toBe(1);
   });
 
-  it('CLI --no-semantic flag overrides config semantic:true', () => {
+  it('CLI --no-semantic suppresses warnings so config strict:true does not trigger exit 1', () => {
     const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
     writeFileSync(
       join(tmp, '.mermaidlintrc.json'),
