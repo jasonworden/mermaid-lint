@@ -31,7 +31,7 @@ npx mermaid-lint --no-semantic          # skip semantic checks (syntax errors on
 
 ```json
 {
-  "version": "0.5.0",
+  "version": "0.6.0",
   "files": [
     {
       "path": "docs/api.md",

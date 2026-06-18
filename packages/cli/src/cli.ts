@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import {
   discoverFiles,
   extractMermaidBlocks,
@@ -8,6 +9,8 @@ import {
 } from '@mermaid-lint/core';
 import chalk from 'chalk';
 import fg from 'fast-glob';
+
+const { version } = createRequire(import.meta.url)('../package.json') as { version: string };
 
 interface Args {
   quiet: boolean;
@@ -249,7 +252,7 @@ async function runJsonMode(
   }
 
   const output: JsonOutput = {
-    version: '0.3.0',
+    version,
     files: fileResults,
     summary: {
       files: files.length,
