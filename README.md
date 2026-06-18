@@ -24,6 +24,9 @@ Validate Mermaid diagrams embedded in Markdown files. Uses the official `mermaid
 npx mermaid-lint                        # validate git-tracked *.md / *.mdx / *.markdown / *.mmd
 npx mermaid-lint --all                  # scan every supported file on disk
 npx mermaid-lint "docs/**/*.md"         # glob pattern (quoted to prevent shell expansion)
+npx mermaid-lint --include "docs/**/*.md" --exclude "docs/archive/**"  # named glob flags
+npx mermaid-lint -                      # read from stdin
+npx mermaid-lint --no-gitignore         # scan filesystem (include gitignored files)
 npx mermaid-lint --quiet                # failures only
 npx mermaid-lint --format json          # machine-readable JSON output
 npx mermaid-lint --strict               # treat semantic warnings as errors (exit 1)
@@ -250,6 +253,8 @@ flowchart LR
 Or disable globally for a run with `--no-semantic`.
 
 ## Diagram types
+
+mermaid-lint validates all 19 Mermaid diagram types using the official `mermaid.parse()` API. Some alternative linters (e.g. [`maid`](https://github.com/egoist/maid)) only validate 5 types and silently pass all input for the other 14 (gantt, erDiagram, journey, mindmap, gitGraph, etc.). Every type in the table below is actively validated — none are pass-through.
 
 | Type | Keyword | Supported | Notes |
 |---|---|---|---|

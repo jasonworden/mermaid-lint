@@ -1,6 +1,6 @@
 {
   "name": "@mermaid-lint/core",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "type": "module",
   "description": "Core extraction, validation, and discovery utilities for mermaid-lint",
   "exports": {
