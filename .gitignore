@@ -1,5 +1,11 @@
 node_modules/
 dist/
+coverage/
 .DS_Store
 *.local
+
+.worktrees/
 docs/superpowers/
+.envrc
+.claude/worktrees/
+.superpowers/

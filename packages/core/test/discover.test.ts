@@ -70,4 +70,50 @@ describe('discoverFiles', () => {
     writeFileSync(file, 'flowchart LR\n  A-->B');
     expect(discoverFiles({ paths: [file] })).toContain(file);
   });
+
+  it('filters out files matching ignore patterns', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(join(tmp, 'keep.md'), '# keep');
+    writeFileSync(join(tmp, 'skip.md'), '# skip');
+    mkdirSync(join(tmp, 'dist'));
+    writeFileSync(join(tmp, 'dist', 'generated.md'), '# gen');
+    const result = discoverFiles({
+      root: tmp,
+      all: true,
+      ignore: ['**/dist/**', '**/skip.md'],
+    });
+    expect(result.some((p) => p.includes('dist'))).toBe(false);
+    expect(result.some((p) => p.includes('skip.md'))).toBe(false);
+    expect(result.some((p) => p.includes('keep.md'))).toBe(true);
+  });
+
+  it('returns all files when ignore is empty array', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(join(tmp, 'a.md'), '# a');
+    writeFileSync(join(tmp, 'b.md'), '# b');
+    const result = discoverFiles({ root: tmp, all: true, ignore: [] });
+    expect(result).toHaveLength(2);
+  });
+
+  it('filters out non-markdown files from explicit paths', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    const md = join(tmp, 'doc.md');
+    const ts = join(tmp, 'index.ts');
+    writeFileSync(md, '# doc');
+    writeFileSync(ts, 'export {}');
+    const result = discoverFiles({ paths: [md, ts] });
+    expect(result).toContain(md);
+    expect(result).not.toContain(ts);
+  });
+
+  it('ignore patterns match absolute paths from all:true mode', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    mkdirSync(join(tmp, 'dist'));
+    writeFileSync(join(tmp, 'keep.md'), '# keep');
+    writeFileSync(join(tmp, 'dist', 'generated.md'), '# gen');
+    // dist/** should work even though discoverAll returns absolute paths
+    const result = discoverFiles({ root: tmp, all: true, ignore: ['dist/**'] });
+    expect(result.some((p) => p.includes('dist'))).toBe(false);
+    expect(result.some((p) => p.includes('keep.md'))).toBe(true);
+  });
 });

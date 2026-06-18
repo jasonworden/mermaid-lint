@@ -1,19 +1,25 @@
 #!/usr/bin/env node
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import {
   discoverFiles,
   extractMermaidBlocks,
+  loadConfig,
   validateBlock,
 } from '@mermaid-lint/core';
 import chalk from 'chalk';
 import fg from 'fast-glob';
+
+const { version } = createRequire(import.meta.url)('../package.json') as {
+  version: string;
+};
 
 interface Args {
   quiet: boolean;
   all: boolean;
   paths: string[];
   help: boolean;
-  format: 'text' | 'json';
+  format: 'text' | 'json' | null;
   noSemantic: boolean;
   strict: boolean;
   error: string | null;
@@ -52,7 +58,7 @@ function parseArgs(argv: string[]): Args {
     all: false,
     paths: [],
     help: false,
-    format: 'text',
+    format: null,
     noSemantic: false,
     strict: false,
     error: null,
@@ -108,6 +114,7 @@ function printHelp(): void {
   --no-semantic      Disable semantic checks (e.g. duplicate node IDs).
   --format text      Human-readable output (default).
   --format json      Machine-readable JSON to stdout; stderr is silent.
+  (config)           mermaid-lint.config.js / .mermaidlintrc / package.json#mermaidLint
 
 Exit codes:
   0  all blocks valid (and no warnings, unless --no-semantic)
@@ -157,8 +164,6 @@ async function runTextMode(
         for (const w of r.warnings) {
           warningCount++;
           if (!quiet) {
-            // For .mmd files the body starts at line 1 (no fence opener).
-            // For markdown fences block.line is the opener, body starts at block.line + 1.
             const bodyOffset = block.path.endsWith('.mmd')
               ? block.line - 1
               : block.line;
@@ -249,7 +254,7 @@ async function runJsonMode(
   }
 
   const output: JsonOutput = {
-    version: '0.3.0',
+    version,
     files: fileResults,
     summary: {
       files: files.length,
@@ -285,10 +290,42 @@ async function main(argv: string[]): Promise<number> {
     return 2;
   }
 
-  const expandedPaths = expandGlobs(args.paths);
+  const config = await loadConfig();
+
+  if (
+    config.format !== undefined &&
+    config.format !== 'text' &&
+    config.format !== 'json'
+  ) {
+    process.stderr.write(
+      `config error: format must be "text" or "json", got: "${config.format}"\n`,
+    );
+    return 2;
+  }
+
+  const strict = args.strict || (config.strict ?? false);
+  const noSemantic = args.noSemantic || config.semantic === false;
+  const format: 'text' | 'json' = args.format ?? config.format ?? 'text';
+
+  let expandedPaths: string[];
+  if (args.paths.length > 0) {
+    expandedPaths = expandGlobs(args.paths);
+  } else if (config.files && config.files.length > 0 && !args.all) {
+    expandedPaths = expandGlobs(config.files);
+    if (expandedPaths.length === 0) {
+      process.stderr.write(
+        'no files matched the glob patterns in your config file\n',
+      );
+      return 2;
+    }
+  } else {
+    expandedPaths = [];
+  }
+
   const files = discoverFiles({
     all: args.all,
     paths: expandedPaths.length ? expandedPaths : undefined,
+    ignore: config.ignore,
   });
 
   if (files.length === 0) {
@@ -302,9 +339,9 @@ async function main(argv: string[]): Promise<number> {
     return 2;
   }
 
-  return args.format === 'json'
-    ? runJsonMode(files, args.noSemantic, args.strict)
-    : runTextMode(files, args.quiet, args.noSemantic, args.strict);
+  return format === 'json'
+    ? runJsonMode(files, noSemantic, strict)
+    : runTextMode(files, args.quiet, noSemantic, strict);
 }
 
 const code = await main(process.argv.slice(2));
