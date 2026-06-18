@@ -8,6 +8,7 @@ export interface DiscoverOptions {
   all?: boolean;
   paths?: string[];
   ignore?: string[];
+  noGitignore?: boolean;
 }
 
 const MARKDOWN_EXTS = new Set(['.md', '.mdx', '.markdown', '.mmd']);
@@ -18,7 +19,13 @@ function hasMarkdownExt(name: string): boolean {
 }
 
 export function discoverFiles(opts: DiscoverOptions = {}): string[] {
-  const { root = '.', all = false, paths, ignore = [] } = opts;
+  const {
+    root = '.',
+    all = false,
+    paths,
+    ignore = [],
+    noGitignore = false,
+  } = opts;
 
   let files: string[];
   if (paths && paths.length > 0) {
@@ -32,7 +39,7 @@ export function discoverFiles(opts: DiscoverOptions = {}): string[] {
       }
     });
   } else {
-    files = all ? discoverAll(root) : discoverTracked(root);
+    files = all || noGitignore ? discoverAll(root) : discoverTracked(root);
   }
 
   if (ignore.length === 0) return files;
@@ -59,5 +66,8 @@ function discoverAll(root: string): string[] {
   return readdirSync(root, { recursive: true, withFileTypes: true })
     .filter((e) => e.isFile() && hasMarkdownExt(e.name))
     .map((e) => join(e.parentPath ?? e.path, e.name))
-    .filter((p) => !p.includes('/node_modules/') && !p.includes('/.git/'));
+    .filter((p) => {
+      const parts = p.split('/');
+      return !parts.includes('node_modules') && !parts.includes('.git');
+    });
 }

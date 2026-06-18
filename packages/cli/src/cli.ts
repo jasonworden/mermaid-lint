@@ -22,6 +22,10 @@ interface Args {
   format: 'text' | 'json' | null;
   noSemantic: boolean;
   strict: boolean;
+  noGitignore: boolean;
+  stdin: boolean;
+  include: string[];
+  exclude: string[];
   error: string | null;
 }
 
@@ -61,13 +65,19 @@ function parseArgs(argv: string[]): Args {
     format: null,
     noSemantic: false,
     strict: false,
+    noGitignore: false,
+    stdin: false,
+    include: [],
+    exclude: [],
     error: null,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === '--quiet') args.quiet = true;
+    if (a === '-') args.stdin = true;
+    else if (a === '--quiet') args.quiet = true;
     else if (a === '--all') args.all = true;
     else if (a === '--help' || a === '-h') args.help = true;
+    else if (a === '--no-gitignore') args.noGitignore = true;
     else if (a === '--format') {
       const val = argv[++i];
       if (val !== 'text' && val !== 'json') {
@@ -84,7 +94,25 @@ function parseArgs(argv: string[]): Args {
       args.format = val;
     } else if (a === '--no-semantic') args.noSemantic = true;
     else if (a === '--strict') args.strict = true;
-    else if (a.startsWith('--')) {
+    else if (a === '--include' || a.startsWith('--include=')) {
+      const val = a.startsWith('--include=')
+        ? a.slice('--include='.length)
+        : argv[++i];
+      if (!val) {
+        args.error = '--include requires a glob argument';
+        break;
+      }
+      args.include.push(val);
+    } else if (a === '--exclude' || a.startsWith('--exclude=')) {
+      const val = a.startsWith('--exclude=')
+        ? a.slice('--exclude='.length)
+        : argv[++i];
+      if (!val) {
+        args.error = '--exclude requires a glob argument';
+        break;
+      }
+      args.exclude.push(val);
+    } else if (a.startsWith('--')) {
       args.error = `unknown flag: ${a}`;
       break;
     } else args.paths.push(a);
@@ -97,18 +125,26 @@ function expandGlobs(paths: string[]): string[] {
     if (!/[*?{[]/.test(p)) return [p];
     try {
       return fg.sync(p, { dot: false, onlyFiles: true });
-    } catch {
-      return [p];
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      process.stderr.write(
+        `warning: glob expansion failed for "${p}": ${msg}\n`,
+      );
+      return [];
     }
   });
 }
 
 function printHelp(): void {
-  process.stdout.write(`Usage: mermaid-lint [--all] [--quiet] [--strict] [--no-semantic] [--format text|json] [paths...]
+  process.stdout.write(`Usage: mermaid-lint [--all] [--quiet] [--strict] [--no-semantic] [--no-gitignore] [--include <glob>] [--exclude <glob>] [--format text|json] [paths...] [-]
 
   paths              Files or glob patterns to validate. Overrides default discovery.
+  -                  Read from stdin (pipe: cat file.mmd | mermaid-lint -).
   (no args)          Default: git-tracked *.md / *.mdx / *.markdown / *.mmd files.
   --all              Scan every supported file on disk; skips node_modules/.
+  --no-gitignore     Scan filesystem instead of git-tracked files; finds gitignored docs.
+  --include <glob>   Add a glob pattern to validate (repeatable; merges with positional paths).
+  --exclude <glob>   Exclude files matching glob (repeatable; stacks with config ignore).
   --quiet            Suppress per-file progress and warnings; only failures + summary.
   --strict           Exit 1 if any warnings are present (in addition to errors).
   --no-semantic      Disable semantic checks (e.g. duplicate node IDs).
@@ -123,31 +159,27 @@ Exit codes:
 `);
 }
 
+async function readStdin(): Promise<string> {
+  process.stdin.setEncoding('utf8');
+  let out = '';
+  for await (const chunk of process.stdin) out += chunk as string;
+  return out;
+}
+
 async function runTextMode(
   files: string[],
   quiet: boolean,
   noSemantic: boolean,
   strict: boolean,
+  stdinEntry?: { path: string; content: string },
 ): Promise<number> {
   let blockCount = 0;
   let failures = 0;
   let warningCount = 0;
   const typeCounts: Record<string, number> = {};
 
-  for (const file of files) {
-    if (!quiet) process.stderr.write(chalk.dim(`scanning ${file}\n`));
-    let text: string;
-    try {
-      text = readFileSync(file, 'utf8');
-    } catch (err: unknown) {
-      failures++;
-      const msg = err instanceof Error ? err.message : String(err);
-      process.stdout.write(
-        `${chalk.bold(file)}:0:0: ${chalk.red('parse error:')} cannot read file: ${msg}\n`,
-      );
-      continue;
-    }
-    const blocks = extractMermaidBlocks(file, text);
+  const processContent = async (filePath: string, text: string) => {
+    const blocks = extractMermaidBlocks(filePath, text);
     for (const block of blocks) {
       blockCount++;
       typeCounts[block.type] = (typeCounts[block.type] ?? 0) + 1;
@@ -175,6 +207,28 @@ async function runTextMode(
         }
       }
     }
+  };
+
+  if (stdinEntry) {
+    if (!quiet)
+      process.stderr.write(chalk.dim(`scanning ${stdinEntry.path}\n`));
+    await processContent(stdinEntry.path, stdinEntry.content);
+  }
+
+  for (const file of files) {
+    if (!quiet) process.stderr.write(chalk.dim(`scanning ${file}\n`));
+    let text: string;
+    try {
+      text = readFileSync(file, 'utf8');
+    } catch (err: unknown) {
+      failures++;
+      const msg = err instanceof Error ? err.message : String(err);
+      process.stdout.write(
+        `${chalk.bold(file)}:0:0: ${chalk.red('parse error:')} cannot read file: ${msg}\n`,
+      );
+      continue;
+    }
+    await processContent(file, text);
   }
 
   const resultStr =
@@ -185,8 +239,9 @@ async function runTextMode(
     !quiet && warningCount > 0
       ? `, ${chalk.yellow(`${warningCount} warning${warningCount !== 1 ? 's' : ''}`)}`
       : '';
+  const totalFiles = files.length + (stdinEntry ? 1 : 0);
   process.stderr.write(
-    `checked ${blockCount} diagram${blockCount !== 1 ? 's' : ''} in ${files.length} file${files.length !== 1 ? 's' : ''} — ${resultStr}${warnStr}\n`,
+    `checked ${blockCount} diagram${blockCount !== 1 ? 's' : ''} in ${totalFiles} file${totalFiles !== 1 ? 's' : ''} — ${resultStr}${warnStr}\n`,
   );
   printTypeDistribution(typeCounts);
   return failures > 0 || (strict && warningCount > 0) ? 1 : 0;
@@ -196,10 +251,40 @@ async function runJsonMode(
   files: string[],
   noSemantic: boolean,
   strict: boolean,
+  stdinEntry?: { path: string; content: string },
 ): Promise<number> {
   let failures = 0;
   let totalWarnings = 0;
   const fileResults: FileResult[] = [];
+
+  const processContent = async (filePath: string, text: string) => {
+    const diagrams: DiagramResult[] = [];
+    const blocks = extractMermaidBlocks(filePath, text);
+    for (const block of blocks) {
+      const r = await validateBlock(block);
+      const blockWarnings = noSemantic ? [] : r.warnings;
+      totalWarnings += blockWarnings.length;
+      const dr: DiagramResult = {
+        line: block.line,
+        col: block.col,
+        type: block.type,
+        ok: r.ok,
+        warnings: blockWarnings,
+      };
+      if (!r.ok) {
+        failures++;
+        dr.error = { message: r.error.message };
+        if (r.error.line != null) dr.error.line = r.error.line;
+        if (r.error.col != null) dr.error.col = r.error.col;
+      }
+      diagrams.push(dr);
+    }
+    fileResults.push({ path: filePath, diagrams });
+  };
+
+  if (stdinEntry) {
+    await processContent(stdinEntry.path, stdinEntry.content);
+  }
 
   for (const file of files) {
     let text: string;
@@ -223,28 +308,7 @@ async function runJsonMode(
       failures++;
       continue;
     }
-    const diagrams: DiagramResult[] = [];
-    const blocks = extractMermaidBlocks(file, text);
-    for (const block of blocks) {
-      const r = await validateBlock(block);
-      const blockWarnings = noSemantic ? [] : r.warnings;
-      totalWarnings += blockWarnings.length;
-      const dr: DiagramResult = {
-        line: block.line,
-        col: block.col,
-        type: block.type,
-        ok: r.ok,
-        warnings: blockWarnings,
-      };
-      if (!r.ok) {
-        failures++;
-        dr.error = { message: r.error.message };
-        if (r.error.line != null) dr.error.line = r.error.line;
-        if (r.error.col != null) dr.error.col = r.error.col;
-      }
-      diagrams.push(dr);
-    }
-    fileResults.push({ path: file, diagrams });
+    await processContent(file, text);
   }
 
   const allDiagrams = fileResults.flatMap((f) => f.diagrams);
@@ -257,7 +321,7 @@ async function runJsonMode(
     version,
     files: fileResults,
     summary: {
-      files: files.length,
+      files: fileResults.length,
       diagrams: allDiagrams.length,
       ok: allDiagrams.filter((d) => d.ok).length,
       errors: failures,
@@ -290,6 +354,17 @@ async function main(argv: string[]): Promise<number> {
     return 2;
   }
 
+  let stdinEntry: { path: string; content: string } | undefined;
+  if (args.stdin) {
+    if (process.stdin.isTTY) {
+      process.stderr.write(
+        'error: stdin is a TTY — pipe content or pass file paths\n',
+      );
+      return 2;
+    }
+    stdinEntry = { path: '<stdin>', content: await readStdin() };
+  }
+
   const config = await loadConfig();
 
   if (
@@ -308,8 +383,8 @@ async function main(argv: string[]): Promise<number> {
   const format: 'text' | 'json' = args.format ?? config.format ?? 'text';
 
   let expandedPaths: string[];
-  if (args.paths.length > 0) {
-    expandedPaths = expandGlobs(args.paths);
+  if (args.paths.length > 0 || args.include.length > 0) {
+    expandedPaths = expandGlobs([...args.paths, ...args.include]);
   } else if (config.files && config.files.length > 0 && !args.all) {
     expandedPaths = expandGlobs(config.files);
     if (expandedPaths.length === 0) {
@@ -322,17 +397,24 @@ async function main(argv: string[]): Promise<number> {
     expandedPaths = [];
   }
 
-  const files = discoverFiles({
-    all: args.all,
-    paths: expandedPaths.length ? expandedPaths : undefined,
-    ignore: config.ignore,
-  });
+  const ignore = [...(config.ignore ?? []), ...args.exclude];
 
-  if (files.length === 0) {
+  const shouldDiscover =
+    expandedPaths.length > 0 || args.all || args.noGitignore || !stdinEntry;
+  const files = shouldDiscover
+    ? discoverFiles({
+        all: args.all,
+        paths: expandedPaths.length ? expandedPaths : undefined,
+        ignore,
+        noGitignore: args.noGitignore,
+      })
+    : [];
+
+  if (files.length === 0 && !stdinEntry) {
     process.stderr.write(
-      args.paths.length > 0
+      args.paths.length > 0 || args.include.length > 0
         ? 'no files matched the given paths\n'
-        : args.all
+        : args.all || args.noGitignore
           ? 'no supported files found on disk\n'
           : 'no tracked files found (is this a git checkout? try --all)\n',
     );
@@ -340,8 +422,8 @@ async function main(argv: string[]): Promise<number> {
   }
 
   return format === 'json'
-    ? runJsonMode(files, noSemantic, strict)
-    : runTextMode(files, args.quiet, noSemantic, strict);
+    ? runJsonMode(files, noSemantic, strict, stdinEntry)
+    : runTextMode(files, args.quiet, noSemantic, strict, stdinEntry);
 }
 
 const code = await main(process.argv.slice(2));

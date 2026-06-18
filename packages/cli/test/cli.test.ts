@@ -10,6 +10,14 @@ function run(args: string[], cwd: string) {
   return spawnSync(process.execPath, [BIN, ...args], { cwd, encoding: 'utf8' });
 }
 
+function runWithStdin(args: string[], cwd: string, stdinContent: string) {
+  return spawnSync(process.execPath, [BIN, ...args], {
+    cwd,
+    encoding: 'utf8',
+    input: stdinContent,
+  });
+}
+
 describe('mermaid-lint CLI', () => {
   it('exits 0 for a file with a valid diagram', () => {
     const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
@@ -79,7 +87,7 @@ describe('mermaid-lint CLI', () => {
     const r = run(['--format', 'json', join(tmp, 'ok.md')], tmp);
     expect(r.status).toBe(0);
     const json = JSON.parse(r.stdout);
-    expect(json.version).toBe('0.6.1');
+    expect(json.version).toBe('0.7.0');
     expect(json.files).toHaveLength(1);
     expect(json.files[0].diagrams[0].ok).toBe(true);
     expect(json.files[0].diagrams[0].type).toBe('flowchart');
@@ -188,7 +196,7 @@ describe('mermaid-lint CLI', () => {
     const r = run(['--format', 'json', join(tmp, 'dup.md')], tmp);
     expect(r.status).toBe(0);
     const json = JSON.parse(r.stdout);
-    expect(json.version).toBe('0.6.1');
+    expect(json.version).toBe('0.7.0');
     expect(json.files[0].diagrams[0].warnings).toHaveLength(1);
     expect(json.files[0].diagrams[0].warnings[0].rule).toBe('duplicate-ids');
     expect(json.summary.warnings).toBe(1);
@@ -370,6 +378,188 @@ describe('mermaid-lint CLI', () => {
     );
     // bad.md passed explicitly but ignored by config → no files to validate → exit 2
     const r = run([join(tmp, 'bad.md')], tmp);
+    expect(r.status).toBe(2);
+  });
+
+  it('--no-gitignore finds files in a non-git directory', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(
+      join(tmp, 'valid.md'),
+      '```mermaid\nflowchart LR\n  A-->B\n```\n',
+    );
+    // Without --no-gitignore and no git repo: no tracked files → exit 2
+    const withoutFlag = run([], tmp);
+    expect(withoutFlag.status).toBe(2);
+    expect(withoutFlag.stderr).toContain('no tracked files found');
+    // With --no-gitignore: filesystem scan finds valid.md → exit 0
+    const withFlag = run(['--no-gitignore'], tmp);
+    expect(withFlag.status).toBe(0);
+    expect(withFlag.stderr).toContain('checked 1 diagram');
+  });
+
+  it('--no-gitignore with --all still works (no conflict)', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(
+      join(tmp, 'valid.md'),
+      '```mermaid\nflowchart LR\n  A-->B\n```\n',
+    );
+    const r = run(['--all', '--no-gitignore'], tmp);
+    expect(r.status).toBe(0);
+  });
+
+  it('reads a valid diagram from stdin with -', () => {
+    const r = runWithStdin(
+      ['-'],
+      '.',
+      '```mermaid\nflowchart LR\n  A-->B\n```\n',
+    );
+    expect(r.status).toBe(0);
+    expect(r.stderr).toContain('checked 1 diagram');
+  });
+
+  it('reads an invalid diagram from stdin with -', () => {
+    const r = runWithStdin(
+      ['-'],
+      '.',
+      '```mermaid\nflowchart LR\n  A -->|broken\n```\n',
+    );
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain('parse error');
+    expect(r.stdout).toContain('<stdin>');
+  });
+
+  it('stdin with --format json outputs <stdin> as file path', () => {
+    const r = runWithStdin(
+      ['-', '--format', 'json'],
+      '.',
+      '```mermaid\nflowchart LR\n  A-->B\n```\n',
+    );
+    expect(r.status).toBe(0);
+    const json = JSON.parse(r.stdout);
+    expect(json.files[0].path).toBe('<stdin>');
+    expect(json.files[0].diagrams[0].ok).toBe(true);
+  });
+
+  it('stdin can be combined with file paths', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(
+      join(tmp, 'extra.md'),
+      '```mermaid\nflowchart LR\n  C-->D\n```\n',
+    );
+    const r = runWithStdin(
+      ['-', join(tmp, 'extra.md')],
+      tmp,
+      '```mermaid\nflowchart LR\n  A-->B\n```\n',
+    );
+    expect(r.status).toBe(0);
+    expect(r.stderr).toContain('checked 2 diagrams');
+  });
+
+  it('--include picks up a glob pattern', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(
+      join(tmp, 'a.md'),
+      '```mermaid\nflowchart LR\n  A-->B\n```\n',
+    );
+    writeFileSync(
+      join(tmp, 'b.md'),
+      '```mermaid\nflowchart LR\n  C-->D\n```\n',
+    );
+    const r = run(['--include', join(tmp, '*.md')], tmp);
+    expect(r.status).toBe(0);
+    expect(r.stderr).toContain('checked 2 diagrams');
+  });
+
+  it('--include can be repeated', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(
+      join(tmp, 'a.md'),
+      '```mermaid\nflowchart LR\n  A-->B\n```\n',
+    );
+    writeFileSync(join(tmp, 'b.mmd'), 'flowchart LR\n  C-->D\n');
+    const r = run(
+      ['--include', join(tmp, '*.md'), '--include', join(tmp, '*.mmd')],
+      tmp,
+    );
+    expect(r.status).toBe(0);
+    expect(r.stderr).toContain('checked 2 diagrams');
+  });
+
+  it('--exclude filters files from validation', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(
+      join(tmp, 'good.md'),
+      '```mermaid\nflowchart LR\n  A-->B\n```\n',
+    );
+    writeFileSync(
+      join(tmp, 'bad.md'),
+      '```mermaid\nflowchart LR\n  A -->|broken\n```\n',
+    );
+    // Pass both files explicitly; exclude bad.md → should exit 0
+    const r = run(
+      [join(tmp, 'good.md'), join(tmp, 'bad.md'), '--exclude', '**/bad.md'],
+      tmp,
+    );
+    expect(r.status).toBe(0);
+    expect(r.stderr).toContain('checked 1 diagram');
+  });
+
+  it('--exclude stacks with config ignore', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(
+      join(tmp, '.mermaidlintrc.json'),
+      JSON.stringify({ ignore: ['**/config-ignored.md'] }),
+    );
+    writeFileSync(
+      join(tmp, 'config-ignored.md'),
+      '```mermaid\nflowchart LR\n  A -->|broken\n```\n',
+    );
+    writeFileSync(
+      join(tmp, 'flag-excluded.md'),
+      '```mermaid\nflowchart LR\n  A -->|broken\n```\n',
+    );
+    writeFileSync(
+      join(tmp, 'ok.md'),
+      '```mermaid\nflowchart LR\n  A-->B\n```\n',
+    );
+    // Pass all three; config ignores config-ignored.md, --exclude ignores flag-excluded.md
+    const r = run(
+      [
+        join(tmp, 'config-ignored.md'),
+        join(tmp, 'flag-excluded.md'),
+        join(tmp, 'ok.md'),
+        '--exclude',
+        '**/flag-excluded.md',
+      ],
+      tmp,
+    );
+    expect(r.status).toBe(0);
+    expect(r.stderr).toContain('checked 1 diagram');
+  });
+
+  it('--include merges with positional paths', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(
+      join(tmp, 'a.md'),
+      '```mermaid\nflowchart LR\n  A-->B\n```\n',
+    );
+    writeFileSync(
+      join(tmp, 'b.md'),
+      '```mermaid\nflowchart LR\n  C-->D\n```\n',
+    );
+    // One file positionally, one via --include
+    const r = run([join(tmp, 'a.md'), '--include', join(tmp, 'b.md')], tmp);
+    expect(r.status).toBe(0);
+    expect(r.stderr).toContain('checked 2 diagrams');
+  });
+
+  it('exits 2 when --include requires an argument', () => {
+    const r = run(['--include'], '.');
+    expect(r.status).toBe(2);
+  });
+
+  it('exits 2 when --exclude requires an argument', () => {
+    const r = run(['--exclude'], '.');
     expect(r.status).toBe(2);
   });
 });
