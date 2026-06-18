@@ -24,6 +24,8 @@ interface Args {
   strict: boolean;
   noGitignore: boolean;
   stdin: boolean;
+  include: string[];
+  exclude: string[];
   error: string | null;
 }
 
@@ -65,6 +67,8 @@ function parseArgs(argv: string[]): Args {
     strict: false,
     noGitignore: false,
     stdin: false,
+    include: [],
+    exclude: [],
     error: null,
   };
   for (let i = 0; i < argv.length; i++) {
@@ -90,7 +94,35 @@ function parseArgs(argv: string[]): Args {
       args.format = val;
     } else if (a === '--no-semantic') args.noSemantic = true;
     else if (a === '--strict') args.strict = true;
-    else if (a.startsWith('--')) {
+    else if (a === '--include') {
+      const val = argv[++i];
+      if (!val) {
+        args.error = '--include requires a glob argument';
+        break;
+      }
+      args.include.push(val);
+    } else if (a.startsWith('--include=')) {
+      const val = a.slice('--include='.length);
+      if (!val) {
+        args.error = '--include= requires a glob argument';
+        break;
+      }
+      args.include.push(val);
+    } else if (a === '--exclude') {
+      const val = argv[++i];
+      if (!val) {
+        args.error = '--exclude requires a glob argument';
+        break;
+      }
+      args.exclude.push(val);
+    } else if (a.startsWith('--exclude=')) {
+      const val = a.slice('--exclude='.length);
+      if (!val) {
+        args.error = '--exclude= requires a glob argument';
+        break;
+      }
+      args.exclude.push(val);
+    } else if (a.startsWith('--')) {
       args.error = `unknown flag: ${a}`;
       break;
     } else args.paths.push(a);
@@ -110,13 +142,15 @@ function expandGlobs(paths: string[]): string[] {
 }
 
 function printHelp(): void {
-  process.stdout.write(`Usage: mermaid-lint [--all] [--quiet] [--strict] [--no-semantic] [--no-gitignore] [--format text|json] [paths...] [-]
+  process.stdout.write(`Usage: mermaid-lint [--all] [--quiet] [--strict] [--no-semantic] [--no-gitignore] [--include <glob>] [--exclude <glob>] [--format text|json] [paths...] [-]
 
   paths              Files or glob patterns to validate. Overrides default discovery.
   -                  Read from stdin (pipe: cat file.mmd | mermaid-lint -).
   (no args)          Default: git-tracked *.md / *.mdx / *.markdown / *.mmd files.
   --all              Scan every supported file on disk; skips node_modules/.
   --no-gitignore     Scan filesystem instead of git-tracked files; finds gitignored docs.
+  --include <glob>   Add a glob pattern to validate (repeatable; merges with positional paths).
+  --exclude <glob>   Exclude files matching glob (repeatable; stacks with config ignore).
   --quiet            Suppress per-file progress and warnings; only failures + summary.
   --strict           Exit 1 if any warnings are present (in addition to errors).
   --no-semantic      Disable semantic checks (e.g. duplicate node IDs).
@@ -356,8 +390,8 @@ async function main(argv: string[]): Promise<number> {
   const format: 'text' | 'json' = args.format ?? config.format ?? 'text';
 
   let expandedPaths: string[];
-  if (args.paths.length > 0) {
-    expandedPaths = expandGlobs(args.paths);
+  if (args.paths.length > 0 || args.include.length > 0) {
+    expandedPaths = [...expandGlobs(args.paths), ...expandGlobs(args.include)];
   } else if (config.files && config.files.length > 0 && !args.all) {
     expandedPaths = expandGlobs(config.files);
     if (expandedPaths.length === 0) {
@@ -370,6 +404,8 @@ async function main(argv: string[]): Promise<number> {
     expandedPaths = [];
   }
 
+  const ignore = [...(config.ignore ?? []), ...args.exclude];
+
   let files: string[];
   if (stdinEntry && expandedPaths.length === 0 && !args.all) {
     files = [];
@@ -377,14 +413,14 @@ async function main(argv: string[]): Promise<number> {
     files = discoverFiles({
       all: args.all,
       paths: expandedPaths.length ? expandedPaths : undefined,
-      ignore: config.ignore,
+      ignore,
       noGitignore: args.noGitignore,
     });
   }
 
   if (files.length === 0 && !stdinEntry) {
     process.stderr.write(
-      args.paths.length > 0
+      args.paths.length > 0 || args.include.length > 0
         ? 'no files matched the given paths\n'
         : args.all
           ? 'no supported files found on disk\n'
