@@ -70,4 +70,28 @@ describe('discoverFiles', () => {
     writeFileSync(file, 'flowchart LR\n  A-->B');
     expect(discoverFiles({ paths: [file] })).toContain(file);
   });
+
+  it('filters out files matching ignore patterns', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(join(tmp, 'keep.md'), '# keep');
+    writeFileSync(join(tmp, 'skip.md'), '# skip');
+    mkdirSync(join(tmp, 'dist'));
+    writeFileSync(join(tmp, 'dist', 'generated.md'), '# gen');
+    const result = discoverFiles({
+      root: tmp,
+      all: true,
+      ignore: ['**/dist/**', '**/skip.md'],
+    });
+    expect(result.some((p) => p.includes('dist'))).toBe(false);
+    expect(result.some((p) => p.includes('skip.md'))).toBe(false);
+    expect(result.some((p) => p.includes('keep.md'))).toBe(true);
+  });
+
+  it('returns all files when ignore is empty array', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(join(tmp, 'a.md'), '# a');
+    writeFileSync(join(tmp, 'b.md'), '# b');
+    const result = discoverFiles({ root: tmp, all: true, ignore: [] });
+    expect(result).toHaveLength(2);
+  });
 });

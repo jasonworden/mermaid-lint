@@ -1,11 +1,13 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import micromatch from 'micromatch';
 
 export interface DiscoverOptions {
   root?: string;
   all?: boolean;
   paths?: string[];
+  ignore?: string[];
 }
 
 const MARKDOWN_EXTS = new Set(['.md', '.mdx', '.markdown', '.mmd']);
@@ -16,9 +18,11 @@ function hasMarkdownExt(name: string): boolean {
 }
 
 export function discoverFiles(opts: DiscoverOptions = {}): string[] {
-  const { root = '.', all = false, paths } = opts;
+  const { root = '.', all = false, paths, ignore = [] } = opts;
+
+  let files: string[];
   if (paths && paths.length > 0) {
-    return paths.filter((p) => {
+    files = paths.filter((p) => {
       if (!existsSync(p)) return false;
       try {
         return statSync(p).isFile();
@@ -26,8 +30,12 @@ export function discoverFiles(opts: DiscoverOptions = {}): string[] {
         return false;
       }
     });
+  } else {
+    files = all ? discoverAll(root) : discoverTracked(root);
   }
-  return all ? discoverAll(root) : discoverTracked(root);
+
+  if (ignore.length === 0) return files;
+  return files.filter((p) => !micromatch.isMatch(p, ignore));
 }
 
 function discoverTracked(root: string): string[] {
