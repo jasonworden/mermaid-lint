@@ -59,6 +59,16 @@ describe('fixText', () => {
       expect(fixText(input)).toBe(input);
     });
 
+    it('does not corrupt dotted arrows (-.->)', () => {
+      const input = '```mermaid\nflowchart LR\n  A -.-> B\n```\n';
+      expect(fixText(input)).toBe(input);
+    });
+
+    it('does not corrupt dotted arrows with label (-. text .->)', () => {
+      const input = '```mermaid\nflowchart LR\n  A -. label .-> B\n```\n';
+      expect(fixText(input)).toBe(input);
+    });
+
     it('works on .mmd file with path option', () => {
       const input = 'flowchart LR\n  A -> B\n';
       expect(fixText(input, { path: 'diagram.mmd' })).toBe(

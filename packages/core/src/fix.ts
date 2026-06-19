@@ -35,7 +35,7 @@ function normalizeFlowchartArrows(body: string): string {
       return parts
         .map((part, i) => {
           if (i % 2 === 1) return part; // quoted — leave alone
-          return part.replace(/(?<![=-])->(?![>-])/g, '-->');
+          return part.replace(/(?<![=\-.])->(?![>-])/g, '-->');
         })
         .join('');
     })
