@@ -2,10 +2,11 @@
   "name": "mermaid-lint-vscode",
   "displayName": "Mermaid Lint",
   "description": "Live Mermaid diagram validation — inline squiggles, hover, and quick-fixes for .md and .mmd files.",
-  "version": "0.11.0",
+  "version": "0.11.1",
   "private": true,
   "license": "MIT",
   "publisher": "mermaid-lint",
+  "icon": "media/icon.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/jasonworden/mermaid-lint.git",
