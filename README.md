@@ -315,12 +315,13 @@ Settings:
 `strict` and `semantic` behavior comes from your project's mermaid-lint config
 file (e.g. `.mermaidlintrc`), so the editor matches the CLI.
 
-**Status:** the extension is built and runs from source (open the repo in VS Code
-and press `F5` to launch an Extension Development Host). It is **not yet published
-to the Marketplace** — packaging a `.vsix` requires bundling the runtime
-dependency tree (the extension loads `@mermaid-lint/core`, which embeds jsdom and
-mermaid, from `node_modules` rather than inlining it). Marketplace publishing is
-tracked as a follow-up.
+**Install:** published to the
+[VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=mermaid-lint.mermaid-lint-vscode)
+and [Open VSX](https://open-vsx.org/extension/mermaid-lint/mermaid-lint-vscode)
+(Cursor / VSCodium / Windsurf / Gitpod) as `mermaid-lint.mermaid-lint-vscode` —
+search _Mermaid Lint_ in the Extensions panel, or
+`code --install-extension mermaid-lint.mermaid-lint-vscode`. Release and
+double-publish steps are in [`packages/vscode/PUBLISHING.md`](packages/vscode/PUBLISHING.md).
 
 ## Vitest
 

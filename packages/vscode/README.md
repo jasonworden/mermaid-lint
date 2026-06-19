@@ -7,15 +7,26 @@ Invalid diagrams get red squiggles as you type — in Markdown fenced
 Powered by [`@mermaid-lint/core`](https://www.npmjs.com/package/@mermaid-lint/core),
 the same engine behind the `mermaid-lint` CLI, so the editor matches CI.
 
+[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/mermaid-lint.mermaid-lint-vscode?label=VS%20Code%20Marketplace&logo=visualstudiocode)](https://marketplace.visualstudio.com/items?itemName=mermaid-lint.mermaid-lint-vscode)
+[![Open VSX](https://img.shields.io/open-vsx/v/mermaid-lint/mermaid-lint-vscode?label=Open%20VSX&logo=eclipseide)](https://open-vsx.org/extension/mermaid-lint/mermaid-lint-vscode)
+
+## Install
+
+- **VS Code** — [Marketplace listing](https://marketplace.visualstudio.com/items?itemName=mermaid-lint.mermaid-lint-vscode),
+  or search _Mermaid Lint_ in the Extensions panel.
+- **Cursor / VSCodium / Windsurf / Gitpod** (Open VSX) — [Open VSX listing](https://open-vsx.org/extension/mermaid-lint/mermaid-lint-vscode),
+  or search _Mermaid Lint_ in the extensions panel.
+- **CLI** — `code --install-extension mermaid-lint.mermaid-lint-vscode`
+
 ## Screenshots
 
 Invalid block in a Markdown file — red squiggle + Problems-panel entry:
 
-![Invalid mermaid block in a Markdown file](media/demo-markdown.png)
+![Invalid mermaid block in a Markdown file](https://raw.githubusercontent.com/jasonworden/mermaid-lint/main/packages/vscode/media/demo-markdown.png)
 
 Standalone `.mmd` file (coverage the markdownlint rule can't provide):
 
-![Invalid standalone .mmd file](media/demo-mmd.png)
+![Invalid standalone .mmd file](https://raw.githubusercontent.com/jasonworden/mermaid-lint/main/packages/vscode/media/demo-mmd.png)
 
 ## Features
 
@@ -82,11 +93,16 @@ invariants before changing the core integration.
 
 ## Status
 
-Not yet published to the VS Code Marketplace. The packaging machinery is in
-place (see below); publishing is a manual step that needs a Marketplace
-publisher and token.
+Published to the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=mermaid-lint.mermaid-lint-vscode)
+and [Open VSX](https://open-vsx.org/extension/mermaid-lint/mermaid-lint-vscode)
+under the install id `mermaid-lint.mermaid-lint-vscode`. Release and
+double-publish steps live in [`PUBLISHING.md`](PUBLISHING.md).
 
 ## Packaging & publishing
+
+> Full release runbook (npm + both extension registries, including token
+> retrieval): see [`PUBLISHING.md`](PUBLISHING.md). The summary below covers
+> just how the `.vsix` is assembled.
 
 The extension does **not** bundle `@mermaid-lint/core` (it pulls in jsdom and
 merman, which esbuild can't bundle), so the `.vsix` ships core + its dependency
@@ -119,9 +135,9 @@ pnpm --filter mermaid-lint-vscode exec vsce publish \
 ```
 
 The produced `.vsix` is ~25 MB (jsdom + mermaid). It has been verified to load
-and validate `.md`/`.mmd` from the packaged `node_modules`. No icon is set yet;
-add one (`icon` in `package.json` + a 128×128 PNG) before publishing for a
-nicer Marketplace listing.
+and validate `.md`/`.mmd` from the packaged `node_modules`. The Marketplace icon
+is [`media/icon.png`](media/icon.png) (256×256), referenced by the `icon` field
+in `package.json`.
 
 ## Relationship to `@mermaid-lint/markdownlint`
 
