@@ -14,6 +14,7 @@ Validate Mermaid diagrams embedded in Markdown files. Uses the official `mermaid
 | Package | npm | Description |
 |---|---|---|
 | [`@mermaid-lint/cli`](packages/cli) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/cli.svg)](https://www.npmjs.com/package/@mermaid-lint/cli) | CLI — `npx mermaid-lint` |
+| [`@mermaid-lint/remark`](packages/remark) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/remark.svg)](https://www.npmjs.com/package/@mermaid-lint/remark) | remark-lint plugin |
 | [`@mermaid-lint/vitest`](packages/vitest) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/vitest.svg)](https://www.npmjs.com/package/@mermaid-lint/vitest) | Vitest adapter |
 | [`@mermaid-lint/jest`](packages/jest) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/jest.svg)](https://www.npmjs.com/package/@mermaid-lint/jest) | Jest adapter |
 | [`@mermaid-lint/core`](packages/core) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/core.svg)](https://www.npmjs.com/package/@mermaid-lint/core) | Core utilities (extract, validate, discover) |
@@ -189,6 +190,43 @@ Or inline in `package.json`:
     "strict": true
   }
 }
+```
+
+## remark
+
+```ts
+import { remark } from 'remark';
+import remarkLint from 'remark-lint';
+import remarkLintMermaid from '@mermaid-lint/remark';
+
+const result = await remark()
+  .use(remarkLint)
+  .use(remarkLintMermaid)
+  .process(markdown);
+
+// result.messages contains any mermaid validation errors
+```
+
+Or in `.remarkrc.mjs` to run from the command line (`npx remark --frail .`):
+
+```js
+export default {
+  plugins: [
+    'remark-lint',
+    '@mermaid-lint/remark',
+  ]
+};
+```
+
+Enable strict mode (treat semantic warnings as errors):
+
+```js
+export default {
+  plugins: [
+    'remark-lint',
+    ['@mermaid-lint/remark', { strict: true }],
+  ]
+};
 ```
 
 ## Vitest
