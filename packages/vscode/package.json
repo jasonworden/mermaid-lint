@@ -6,6 +6,22 @@
   "private": true,
   "license": "MIT",
   "publisher": "jasonworden",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jasonworden/mermaid-lint.git",
+    "directory": "packages/vscode"
+  },
+  "bugs": "https://github.com/jasonworden/mermaid-lint/issues",
+  "homepage": "https://github.com/jasonworden/mermaid-lint/tree/main/packages/vscode#readme",
+  "keywords": [
+    "mermaid",
+    "diagram",
+    "lint",
+    "linter",
+    "markdown",
+    "mmd",
+    "validation"
+  ],
   "type": "module",
   "engines": {
     "node": ">=20",
@@ -47,7 +63,8 @@
   },
   "scripts": {
     "build": "tsc --noEmit && node esbuild.mjs",
-    "test:e2e": "node esbuild.mjs && node e2e/runTest.cjs"
+    "test:e2e": "node esbuild.mjs && node e2e/runTest.cjs",
+    "package": "bash scripts/package-vsix.sh"
   },
   "dependencies": {
     "@mermaid-lint/core": "workspace:*"
@@ -55,6 +72,7 @@
   "devDependencies": {
     "@types/vscode": "^1.85.0",
     "@vscode/test-electron": "^3.0.0",
+    "@vscode/vsce": "^3.9.2",
     "esbuild": "^0.24.0",
     "glob": "^13.0.6",
     "mocha": "^11.7.6"

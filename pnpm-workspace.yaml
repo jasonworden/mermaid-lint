@@ -3,3 +3,7 @@ packages:
 allowBuilds:
   '@biomejs/biome': true
   esbuild: true
+  # vsce's optional native deps — not needed for `vsce package` (used only by
+  # `vsce publish` for credential storage/signing); skip their build scripts.
+  '@vscode/vsce-sign': false
+  keytar: false

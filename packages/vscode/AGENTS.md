@@ -59,6 +59,17 @@ off-by-one; there is a test guarding it.
   - `@vscode/test-electron` downloads a full VS Code build into `.vscode-test/`
     (~800MB) — gitignored, and ignored by biome.
 
+## Packaging (.vsix)
+
+`pnpm --filter mermaid-lint-vscode package` → `scripts/package-vsix.sh`. It
+stages a clean dir and `npm install`s `@mermaid-lint/core` from **npm** (not the
+workspace) because the `.vsix` must ship a flat, symlink-free `node_modules`
+(pnpm's symlinks can't be packaged by vsce, and core/jsdom/merman can't be
+bundled). **Prerequisite:** the matching `@mermaid-lint/core` version must be on
+npm first (push a `v<version>` tag → publish CI job). Test the mechanics against
+an already-published version with `--core-version <ver>`. Never run `vsce` in the
+package dir directly — it would package pnpm's symlinked `node_modules`.
+
 ## After any change, verify
 
 ```bash

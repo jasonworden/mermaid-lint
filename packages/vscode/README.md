@@ -82,10 +82,46 @@ invariants before changing the core integration.
 
 ## Status
 
-Not yet published to the VS Code Marketplace. The extension loads
-`@mermaid-lint/core` (which embeds jsdom and mermaid.js) from `node_modules` at
-runtime rather than inlining it into the bundle, so packaging a self-contained
-`.vsix` requires shipping that dependency tree — a follow-up task.
+Not yet published to the VS Code Marketplace. The packaging machinery is in
+place (see below); publishing is a manual step that needs a Marketplace
+publisher and token.
+
+## Packaging & publishing
+
+The extension does **not** bundle `@mermaid-lint/core` (it pulls in jsdom and
+merman, which esbuild can't bundle), so the `.vsix` ships core + its dependency
+tree as a flat `node_modules`. Because pnpm's symlinked `node_modules` can't be
+packaged by `vsce`, [`scripts/package-vsix.sh`](scripts/package-vsix.sh) stages
+a clean directory and installs core from **npm** with plain `npm install`.
+
+**Prerequisite:** the matching `@mermaid-lint/core` version must be published to
+npm first. The monorepo publishes on a version tag:
+
+```bash
+git tag v0.11.0 && git push origin v0.11.0   # CI publishes @mermaid-lint/* to npm
+```
+
+Then build the `.vsix`:
+
+```bash
+pnpm install
+pnpm --filter mermaid-lint-vscode package
+# → packages/vscode/mermaid-lint-vscode-<version>.vsix
+# (override the core version for testing: --core-version 0.9.0)
+```
+
+Publish it (needs a [publisher](https://code.visualstudio.com/api/working-with-extensions/publishing-extension)
+matching the `publisher` field and a Personal Access Token):
+
+```bash
+pnpm --filter mermaid-lint-vscode exec vsce publish \
+  --packagePath mermaid-lint-vscode-<version>.vsix --pat <token>
+```
+
+The produced `.vsix` is ~25 MB (jsdom + mermaid). It has been verified to load
+and validate `.md`/`.mmd` from the packaged `node_modules`. No icon is set yet;
+add one (`icon` in `package.json` + a 128×128 PNG) before publishing for a
+nicer Marketplace listing.
 
 ## Relationship to `@mermaid-lint/markdownlint`
 
