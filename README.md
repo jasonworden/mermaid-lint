@@ -9,6 +9,10 @@ Validate Mermaid diagrams embedded in Markdown files. Uses the official `mermaid
 [![CI](https://github.com/jasonworden/mermaid-lint/actions/workflows/ci.yml/badge.svg)](https://github.com/jasonworden/mermaid-lint/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+Catches real syntax errors as you type — here the [VS Code extension](packages/vscode) flagging an unterminated edge label in a `.mmd` file:
+
+![Invalid Mermaid diagram flagged inline in VS Code](packages/vscode/media/demo-mmd.png)
+
 ## Packages
 
 | Package | npm | Description |
