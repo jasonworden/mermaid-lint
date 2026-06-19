@@ -19,6 +19,7 @@ Validate Mermaid diagrams embedded in Markdown files. Uses the official `mermaid
 | [`@mermaid-lint/vitest`](packages/vitest) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/vitest.svg)](https://www.npmjs.com/package/@mermaid-lint/vitest) | Vitest adapter |
 | [`@mermaid-lint/jest`](packages/jest) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/jest.svg)](https://www.npmjs.com/package/@mermaid-lint/jest) | Jest adapter |
 | [`@mermaid-lint/core`](packages/core) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/core.svg)](https://www.npmjs.com/package/@mermaid-lint/core) | Core utilities (extract, validate, discover) |
+| [`mermaid-lint-vscode`](packages/vscode) | _(unreleased)_ | VS Code extension — live squiggles for `.md` + `.mmd` |
 
 ## CLI
 
@@ -241,7 +242,7 @@ on the command line, and inline in VS Code.
 | Surface | Supported | Notes |
 |---|---|---|
 | ```` ```mermaid ```` blocks in **Markdown** (`.md`, `.markdown`, …) | ✅ | CLI, CI, and in-editor squiggles |
-| Standalone **`.mmd`** diagram files | ❌ not yet | markdownlint only processes Markdown; it never invokes the rule on `.mmd`. Tracked in [#13](https://github.com/jasonworden/mermaid-lint/issues/13) (dedicated VS Code extension). |
+| Standalone **`.mmd`** diagram files | ❌ | markdownlint only processes Markdown; it never invokes the rule on `.mmd`. Use the [VS Code extension](#vs-code-extension) for `.mmd` coverage in the editor. |
 | Zero-config editor setup | ❌ | requires the steps below (npm install + setting + workspace trust) |
 
 ### CLI / CI usage
@@ -281,6 +282,41 @@ inline diagnostics as you type. (`.mmd` files are not covered — see the table
 above.)
 
 Requires `markdownlint >= 0.37.0` for async custom rule support.
+
+## VS Code extension
+
+A dedicated extension (`mermaid-lint-vscode`, in [`packages/vscode`](packages/vscode))
+that validates Mermaid as you type and reports errors inline — no markdownlint
+setup required, and unlike the markdownlint rule it **also covers standalone
+`.mmd` files**.
+
+| Feature | |
+|---|---|
+| Inline squiggles on invalid ```` ```mermaid ```` blocks in **Markdown** | ✅ |
+| Inline squiggles in standalone **`.mmd`** files | ✅ |
+| Hover messages + **Problems panel** entries | ✅ |
+| Debounced **on-type** validation | ✅ |
+| Respects the [mermaid-lint config file](#configuration) (`strict`, `semantic`) | ✅ |
+| **Quick-fix** code actions (apply `--fix` autocorrections in-editor) | ✅ |
+
+Settings:
+
+```json
+{
+  "mermaidLint.enable": true,
+  "mermaidLint.delay": 300
+}
+```
+
+`strict` and `semantic` behavior comes from your project's mermaid-lint config
+file (e.g. `.mermaidlintrc`), so the editor matches the CLI.
+
+**Status:** the extension is built and runs from source (open the repo in VS Code
+and press `F5` to launch an Extension Development Host). It is **not yet published
+to the Marketplace** — packaging a `.vsix` requires bundling the runtime
+dependency tree (the extension loads `@mermaid-lint/core`, which embeds jsdom and
+mermaid, from `node_modules` rather than inlining it). Marketplace publishing is
+tracked as a follow-up.
 
 ## Vitest
 
