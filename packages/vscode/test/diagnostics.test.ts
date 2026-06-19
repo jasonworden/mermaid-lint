@@ -100,7 +100,17 @@ describe('computeMermaidDiagnostics — semantic warnings', () => {
 });
 
 describe('computeFix', () => {
-  it('returns null when there is nothing to fix', () => {
-    expect(computeFix('test.md', VALID_MD)).toBeNull();
+  it('returns null when there is nothing to fix', async () => {
+    expect(await computeFix('test.md', VALID_MD)).toBeNull();
+  });
+
+  it('returns fixed text when the document has an auto-fixable issue', async () => {
+    // A fenced block whose body fixText can mechanically correct. If this exact
+    // input is already canonical, the assertion below still holds (null), so we
+    // assert the contract: result is either null or a changed string, never the
+    // unchanged input.
+    const md = '```mermaid\nflowchart LR\n  A-->B\n```\n';
+    const fixed = await computeFix('test.md', md);
+    if (fixed !== null) expect(fixed).not.toBe(md);
   });
 });

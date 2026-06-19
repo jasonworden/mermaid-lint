@@ -1,4 +1,4 @@
-import { extractMermaidBlocks, validateBlock } from '@mermaid-lint/core';
+import { loadCore } from './core.js';
 
 export type Severity = 'error' | 'warning';
 
@@ -52,6 +52,7 @@ export async function computeMermaidDiagnostics(
   options: ComputeOptions = {},
 ): Promise<MermaidDiagnostic[]> {
   const { semantic = true, strict = false } = options;
+  const { extractMermaidBlocks, validateBlock } = await loadCore();
   const isMmd = path.endsWith('.mmd');
   const lines = text.replace(/\r\n/g, '\n').split('\n');
   const blocks = extractMermaidBlocks(path, text);

@@ -135,8 +135,8 @@ export function activate(context: vscode.ExtensionContext): void {
         { scheme: 'file', pattern: '**/*.mmd' },
       ],
       {
-        provideCodeActions(doc) {
-          const fixed = computeFix(doc.fileName, doc.getText());
+        async provideCodeActions(doc) {
+          const fixed = await computeFix(doc.fileName, doc.getText());
           if (fixed === null) return [];
           const action = new vscode.CodeAction(
             FIX_ACTION_TITLE,
