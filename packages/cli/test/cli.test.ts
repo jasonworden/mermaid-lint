@@ -87,7 +87,7 @@ describe('mermaid-lint CLI', () => {
     const r = run(['--format', 'json', join(tmp, 'ok.md')], tmp);
     expect(r.status).toBe(0);
     const json = JSON.parse(r.stdout);
-    expect(json.version).toBe('0.8.0');
+    expect(json.version).toBe('0.9.0');
     expect(json.files).toHaveLength(1);
     expect(json.files[0].diagrams[0].ok).toBe(true);
     expect(json.files[0].diagrams[0].type).toBe('flowchart');
@@ -196,7 +196,7 @@ describe('mermaid-lint CLI', () => {
     const r = run(['--format', 'json', join(tmp, 'dup.md')], tmp);
     expect(r.status).toBe(0);
     const json = JSON.parse(r.stdout);
-    expect(json.version).toBe('0.8.0');
+    expect(json.version).toBe('0.9.0');
     expect(json.files[0].diagrams[0].warnings).toHaveLength(1);
     expect(json.files[0].diagrams[0].warnings[0].rule).toBe('duplicate-ids');
     expect(json.summary.warnings).toBe(1);
