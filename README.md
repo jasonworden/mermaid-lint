@@ -15,6 +15,7 @@ Validate Mermaid diagrams embedded in Markdown files. Uses the official `mermaid
 |---|---|---|
 | [`@mermaid-lint/cli`](packages/cli) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/cli.svg)](https://www.npmjs.com/package/@mermaid-lint/cli) | CLI — `npx mermaid-lint` |
 | [`@mermaid-lint/remark`](packages/remark) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/remark.svg)](https://www.npmjs.com/package/@mermaid-lint/remark) | remark-lint plugin |
+| [`@mermaid-lint/markdownlint`](packages/markdownlint) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/markdownlint.svg)](https://www.npmjs.com/package/@mermaid-lint/markdownlint) | markdownlint async custom rule |
 | [`@mermaid-lint/vitest`](packages/vitest) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/vitest.svg)](https://www.npmjs.com/package/@mermaid-lint/vitest) | Vitest adapter |
 | [`@mermaid-lint/jest`](packages/jest) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/jest.svg)](https://www.npmjs.com/package/@mermaid-lint/jest) | Jest adapter |
 | [`@mermaid-lint/core`](packages/core) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/core.svg)](https://www.npmjs.com/package/@mermaid-lint/core) | Core utilities (extract, validate, discover) |
@@ -42,7 +43,7 @@ npx mermaid-lint --fix "docs/**/*.md"   # fix only specific files
 
 ```json
 {
-  "version": "0.6.1",
+  "version": "0.10.0",
   "files": [
     {
       "path": "docs/api.md",
@@ -228,6 +229,58 @@ export default {
   ]
 };
 ```
+
+## markdownlint
+
+A [markdownlint](https://github.com/DavidAnson/markdownlint) async custom rule
+that validates Mermaid blocks as part of your existing markdownlint run — in CI,
+on the command line, and inline in VS Code.
+
+### What this provides today
+
+| Surface | Supported | Notes |
+|---|---|---|
+| ```` ```mermaid ```` blocks in **Markdown** (`.md`, `.markdown`, …) | ✅ | CLI, CI, and in-editor squiggles |
+| Standalone **`.mmd`** diagram files | ❌ not yet | markdownlint only processes Markdown; it never invokes the rule on `.mmd`. Tracked in [#13](https://github.com/jasonworden/mermaid-lint/issues/13) (dedicated VS Code extension). |
+| Zero-config editor setup | ❌ | requires the steps below (npm install + setting + workspace trust) |
+
+### CLI / CI usage
+
+```bash
+npm install --save-dev @mermaid-lint/markdownlint markdownlint-cli2
+```
+
+```js
+// .markdownlint-cli2.mjs
+export default {
+  config: { default: true },
+  customRules: ['@mermaid-lint/markdownlint'],
+};
+```
+
+Run it: `npx markdownlint-cli2 "**/*.md"`. Use **`markdownlint-cli2 >= 0.17.0`** —
+earlier versions bundle a `markdownlint` older than `0.37`, which predates async
+custom rules, so the rule is **silently skipped** (zero errors reported).
+
+### VS Code (inline squiggles, no separate extension)
+
+Install the [markdownlint extension](https://marketplace.visualstudio.com/items?itemName=DavidAnson.vscode-markdownlint)
+(**v0.50+**; it bundles a recent `markdownlint-cli2`, so async rules run), add the
+package to your workspace (`npm i -D @mermaid-lint/markdownlint`), then in
+`.vscode/settings.json`:
+
+```json
+{
+  "markdownlint.customRules": ["./node_modules/@mermaid-lint/markdownlint"]
+}
+```
+
+You must **trust the workspace** — the extension blocks custom-rule JavaScript in
+untrusted workspaces. Invalid ```` ```mermaid ```` blocks in `.md` files then get
+inline diagnostics as you type. (`.mmd` files are not covered — see the table
+above.)
+
+Requires `markdownlint >= 0.37.0` for async custom rule support.
 
 ## Vitest
 

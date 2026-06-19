@@ -1,8 +1,8 @@
 {
-  "name": "@mermaid-lint/vitest",
+  "name": "@mermaid-lint/markdownlint",
   "version": "0.10.0",
   "type": "module",
-  "description": "Vitest adapter for mermaid-lint",
+  "description": "markdownlint async custom rule for Mermaid diagram validation",
   "exports": {
     ".": {
       "import": "./dist/index.js",
@@ -16,9 +16,13 @@
     "build": "tsc"
   },
   "peerDependencies": {
-    "vitest": ">=1.0.0"
+    "markdownlint": ">=0.37.0"
   },
   "dependencies": {
     "@mermaid-lint/core": "workspace:*"
+  },
+  "devDependencies": {
+    "markdownlint": "^0.38.0",
+    "markdownlint-cli2": "^0.18.0"
   }
 }
