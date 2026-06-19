@@ -256,7 +256,7 @@ Or in VS Code settings (via the [markdownlint extension](https://marketplace.vis
 
 This gives inline red squiggles on invalid Mermaid blocks as you type — without a separate VS Code extension.
 
-Requires `markdownlint >= 0.37.0` (async custom rule support).
+Requires `markdownlint >= 0.37.0` for async custom rule support. For CLI usage, use `markdownlint-cli2 >= 0.17.0` — earlier versions bundle a `markdownlint` older than 0.37, and the async rule is silently skipped (no errors reported). For the VS Code extension, use a recent release that bundles `markdownlint >= 0.37.0`.
 
 ## Vitest
 

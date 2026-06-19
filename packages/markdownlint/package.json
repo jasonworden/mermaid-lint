@@ -23,6 +23,6 @@
   },
   "devDependencies": {
     "markdownlint": "^0.37.0",
-    "markdownlint-cli2": "^0.14.0"
+    "markdownlint-cli2": "^0.18.0"
   }
 }
