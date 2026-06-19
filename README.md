@@ -31,6 +31,8 @@ npx mermaid-lint --quiet                # failures only
 npx mermaid-lint --format json          # machine-readable JSON output
 npx mermaid-lint --strict               # treat semantic warnings as errors (exit 1)
 npx mermaid-lint --no-semantic          # skip semantic checks (syntax errors only)
+npx mermaid-lint --fix                  # auto-fix mechanical errors in git-tracked files
+npx mermaid-lint --fix "docs/**/*.md"   # fix only specific files
 ```
 
 **Exit codes:** `0` = all valid · `1` = validation failures (or warnings with `--strict`) · `2` = usage/IO error
