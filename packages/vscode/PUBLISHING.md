@@ -118,15 +118,6 @@ unset OVSX_TOKEN
 
 Confirm: <https://open-vsx.org/extension/mermaid-lint/mermaid-lint-vscode>
 
-### Is it safe to name the 1Password item in this public repo?
-
-**Yes.** The item *name* (`open-vsx.org Access Token`) is a label — a pointer to
-where the secret lives, not the secret itself. The token *value* never leaves
-1Password and is only ever held in a shell variable at publish time. Recording
-where credentials live (so the next release doesn't hardcode them) is good
-hygiene, not a leak. The rule that matters: **never commit a token value** — not
-the PAT, not the Open VSX token, not anything from `op ... --reveal`.
-
 ---
 
 ## Quick checklist for a normal release
