@@ -85,6 +85,9 @@ export function activate(context: vscode.ExtensionContext): void {
   }
 
   function scheduleValidate(doc: vscode.TextDocument): void {
+    // Skip ineligible docs up front so edits to unrelated files don't churn
+    // debounce timers (validate() re-checks eligibility too).
+    if (!isEligible(doc)) return;
     const key = doc.uri.toString();
     const existing = debounceTimers.get(key);
     if (existing) clearTimeout(existing);
@@ -140,7 +143,12 @@ export function activate(context: vscode.ExtensionContext): void {
       ],
       {
         async provideCodeActions(doc) {
-          const fixed = await computeFix(doc.fileName, doc.getText());
+          const text = doc.getText();
+          // Cheap guard: avoid loading core for Markdown files with no Mermaid.
+          if (!doc.fileName.endsWith('.mmd') && !text.includes('```mermaid')) {
+            return [];
+          }
+          const fixed = await computeFix(doc.fileName, text);
           if (fixed === null) return [];
           const action = new vscode.CodeAction(
             FIX_ACTION_TITLE,
