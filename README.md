@@ -43,7 +43,7 @@ npx mermaid-lint --fix "docs/**/*.md"   # fix only specific files
 
 ```json
 {
-  "version": "0.6.1",
+  "version": "0.10.0",
   "files": [
     {
       "path": "docs/api.md",
