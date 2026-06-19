@@ -1,0 +1,22 @@
+src/**
+test/**
+e2e/**
+demo/**
+.vscode-test/**
+tsconfig.json
+esbuild.mjs
+AGENTS.md
+**/*.ts
+**/*.map
+docs/**
+
+# media/ is intentionally NOT ignored — README screenshots ship in the listing.
+
+# NOTE: @mermaid-lint/core is intentionally NOT bundled (it pulls in jsdom and
+# merman, which cannot be esbuild-bundled). The extension loads it from
+# node_modules at runtime. A publishable .vsix must therefore SHIP the runtime
+# dependency tree (core + its transitive deps), which pnpm's symlinked
+# node_modules does not lay out in a way `vsce package` can consume directly.
+# Packaging for the Marketplace (e.g. via `pnpm deploy` to a flat node_modules,
+# then `vsce package`) is a separate, out-of-scope step — see README.
+# Until then, node_modules is left includable rather than excluded.

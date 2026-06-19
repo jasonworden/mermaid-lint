@@ -36,6 +36,32 @@ jobs:
       - name: Test (jest adapter)
         run: pnpm --filter @mermaid-lint/jest test
 
+  e2e:
+    # Real VS Code Extension Host test for mermaid-lint-vscode. Runs the
+    # @vscode/test-electron suite headlessly under xvfb (Electron needs a
+    # display); xvfb is preinstalled on ubuntu-latest runners.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build
+        run: pnpm -r build
+
+      - name: VS Code extension e2e (@vscode/test-electron)
+        run: xvfb-run -a pnpm --filter mermaid-lint-vscode test:e2e
+
   publish:
     needs: test
     runs-on: ubuntu-latest
