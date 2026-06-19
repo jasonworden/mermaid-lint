@@ -1,0 +1,33 @@
+{
+  "name": "@mermaid-lint/remark",
+  "version": "0.9.0",
+  "type": "module",
+  "description": "remark-lint plugin for Mermaid diagram validation",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "files": ["dist", "index.ts"],
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "tsc"
+  },
+  "peerDependencies": {
+    "remark-lint": ">=9.0.0",
+    "unified": ">=11.0.0"
+  },
+  "dependencies": {
+    "@mermaid-lint/core": "workspace:*",
+    "unified-lint-rule": "^3.0.0",
+    "unist-util-visit": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/mdast": "^4.0.0",
+    "remark": "^15.0.0",
+    "remark-lint": "^10.0.0",
+    "unified": "^11.0.0"
+  }
+}
