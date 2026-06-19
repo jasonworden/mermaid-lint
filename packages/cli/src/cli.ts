@@ -4,6 +4,7 @@ import { createRequire } from 'node:module';
 import {
   discoverFiles,
   extractMermaidBlocks,
+  fixText,
   loadConfig,
   validateBlock,
 } from '@mermaid-lint/core';
@@ -27,6 +28,7 @@ interface Args {
   include: string[];
   exclude: string[];
   error: string | null;
+  fix: boolean;
 }
 
 interface DiagramResult {
@@ -70,6 +72,7 @@ function parseArgs(argv: string[]): Args {
     include: [],
     exclude: [],
     error: null,
+    fix: false,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -94,6 +97,7 @@ function parseArgs(argv: string[]): Args {
       args.format = val;
     } else if (a === '--no-semantic') args.noSemantic = true;
     else if (a === '--strict') args.strict = true;
+    else if (a === '--fix') args.fix = true;
     else if (a === '--include' || a.startsWith('--include=')) {
       const val = a.startsWith('--include=')
         ? a.slice('--include='.length)
@@ -150,6 +154,8 @@ function printHelp(): void {
   --no-semantic      Disable semantic checks (e.g. duplicate node IDs).
   --format text      Human-readable output (default).
   --format json      Machine-readable JSON to stdout; stderr is silent.
+  --fix              Fix mechanical errors in-place (arrow normalization,
+                     missing colons, unclosed fences).
   (config)           mermaid-lint.config.js / .mermaidlintrc / package.json#mermaidLint
 
 Exit codes:
@@ -419,6 +425,30 @@ async function main(argv: string[]): Promise<number> {
           : 'no tracked files found (is this a git checkout? try --all)\n',
     );
     return 2;
+  }
+
+  if (args.fix) {
+    const { writeFileSync: writeFile } = await import('node:fs');
+    if (stdinEntry) {
+      const fixed = fixText(stdinEntry.content, {
+        path: stdinEntry.path,
+      });
+      process.stdout.write(fixed);
+      return 0;
+    }
+    for (const file of files) {
+      let content: string;
+      try {
+        content = readFileSync(file, 'utf8');
+      } catch {
+        continue;
+      }
+      const fixed = fixText(content, { path: file });
+      if (fixed !== content) {
+        writeFile(file, fixed, 'utf8');
+        process.stderr.write(`fixed: ${file}\n`);
+      }
+    }
   }
 
   return format === 'json'

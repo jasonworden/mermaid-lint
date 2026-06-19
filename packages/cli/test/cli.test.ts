@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -561,5 +561,65 @@ describe('mermaid-lint CLI', () => {
   it('exits 2 when --exclude requires an argument', () => {
     const r = run(['--exclude'], '.');
     expect(r.status).toBe(2);
+  });
+
+  describe('--fix', () => {
+    it('fixes an arrow normalization error in place', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+      const file = join(dir, 'test.md');
+      writeFileSync(file, '```mermaid\nflowchart LR\n  A -> B\n```\n');
+      const r = run(['--fix', file], dir);
+      expect(r.status).toBe(0);
+      expect(readFileSync(file, 'utf8')).toBe(
+        '```mermaid\nflowchart LR\n  A --> B\n```\n',
+      );
+    });
+
+    it('exits 0 when file was already valid (nothing to fix)', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+      const file = join(dir, 'test.md');
+      writeFileSync(file, '```mermaid\nflowchart LR\n  A --> B\n```\n');
+      const r = run(['--fix', file], dir);
+      expect(r.status).toBe(0);
+    });
+
+    it('exits 1 when file still has errors after fix', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+      const file = join(dir, 'test.md');
+      writeFileSync(
+        file,
+        '```mermaid\nflowchart LR\n  A -->|broken label B\n```\n',
+      );
+      const r = run(['--fix', file], dir);
+      expect(r.status).toBe(1);
+    });
+
+    it('fixes unclosed fence in place', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+      const file = join(dir, 'test.md');
+      writeFileSync(file, 'text\n```mermaid\nflowchart LR\n  A --> B\n');
+      const r = run(['--fix', file], dir);
+      expect(r.status).toBe(0);
+      expect(readFileSync(file, 'utf8')).toContain('```');
+    });
+
+    it('reports fixed: <path> on stderr', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+      const file = join(dir, 'test.md');
+      writeFileSync(file, '```mermaid\nflowchart LR\n  A -> B\n```\n');
+      const r = run(['--fix', file], dir);
+      expect(r.stderr).toContain('fixed:');
+    });
+
+    it('writes fixed content to stdout for stdin (-) with --fix', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+      const r = runWithStdin(
+        ['--fix', '-'],
+        dir,
+        '```mermaid\nflowchart LR\n  A -> B\n```\n',
+      );
+      expect(r.status).toBe(0);
+      expect(r.stdout).toContain('A --> B');
+    });
   });
 });
