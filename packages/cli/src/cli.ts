@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import {
   discoverFiles,
@@ -428,7 +428,6 @@ async function main(argv: string[]): Promise<number> {
   }
 
   if (args.fix) {
-    const { writeFileSync: writeFile } = await import('node:fs');
     if (stdinEntry) {
       const fixed = fixText(stdinEntry.content, {
         path: stdinEntry.path,
@@ -445,7 +444,7 @@ async function main(argv: string[]): Promise<number> {
       }
       const fixed = fixText(content, { path: file });
       if (fixed !== content) {
-        writeFile(file, fixed, 'utf8');
+        writeFileSync(file, fixed, 'utf8');
         process.stderr.write(`fixed: ${file}\n`);
       }
     }
