@@ -45,9 +45,9 @@ describe('@mermaid-lint/remark', () => {
     const file = await lintFile(md);
     expect(file.messages.length).toBeGreaterThan(0);
     const msg = file.messages[0];
-    // The fence opens on line 3. Body starts on line 4. Error is in body.
-    // Absolute line should be >= 3.
-    expect(msg.line).toBeGreaterThanOrEqual(3);
+    // The fence opens on line 3. Error is on line 2 of body (5 absolute).
+    // Absolute line = fenceStartLine (3) + errorBodyLine (2) = 5
+    expect(msg.line).toBe(5);
   });
 
   it('strict mode: reports semantic warnings as errors', async () => {
