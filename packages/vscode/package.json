@@ -1,8 +1,8 @@
 {
   "name": "mermaid-lint-vscode",
   "displayName": "Mermaid Lint",
-  "description": "Live Mermaid diagram validation — inline squiggles, hover, and quick-fixes for .md and .mmd files.",
-  "version": "0.11.1",
+  "description": "Live Mermaid diagram validation — inline squiggles, hover, and quick-fixes in Markdown fenced blocks (.md, .markdown) and standalone .mmd files.",
+  "version": "0.11.2",
   "private": true,
   "license": "MIT",
   "publisher": "mermaid-lint",
