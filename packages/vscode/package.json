@@ -5,7 +5,7 @@
   "version": "0.11.0",
   "private": true,
   "license": "MIT",
-  "publisher": "jasonworden",
+  "publisher": "mermaid-lint",
   "repository": {
     "type": "git",
     "url": "https://github.com/jasonworden/mermaid-lint.git",
