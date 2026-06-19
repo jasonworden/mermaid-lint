@@ -1,0 +1,51 @@
+{
+  "name": "mermaid-lint-vscode",
+  "displayName": "Mermaid Lint",
+  "description": "Live Mermaid diagram validation — inline squiggles, hover, and quick-fixes for .md and .mmd files.",
+  "version": "0.11.0",
+  "private": true,
+  "license": "MIT",
+  "publisher": "jasonworden",
+  "type": "module",
+  "engines": { "node": ">=20", "vscode": "^1.85.0" },
+  "categories": ["Linters"],
+  "main": "./dist/extension.cjs",
+  "files": ["dist"],
+  "activationEvents": ["onLanguage:markdown", "onLanguage:mermaid"],
+  "contributes": {
+    "languages": [
+      { "id": "mermaid", "aliases": ["Mermaid"], "extensions": [".mmd"] }
+    ],
+    "commands": [
+      {
+        "command": "mermaidLint.lintAllOpen",
+        "title": "Mermaid Lint: Re-lint open documents"
+      }
+    ],
+    "configuration": {
+      "title": "Mermaid Lint",
+      "properties": {
+        "mermaidLint.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Mermaid diagram validation."
+        },
+        "mermaidLint.delay": {
+          "type": "number",
+          "default": 300,
+          "description": "Debounce delay (ms) before validating after a change."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsc --noEmit && node esbuild.mjs"
+  },
+  "dependencies": {
+    "@mermaid-lint/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.24.0"
+  }
+}
