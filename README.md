@@ -15,6 +15,7 @@ Validate Mermaid diagrams embedded in Markdown files. Uses the official `mermaid
 |---|---|---|
 | [`@mermaid-lint/cli`](packages/cli) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/cli.svg)](https://www.npmjs.com/package/@mermaid-lint/cli) | CLI — `npx mermaid-lint` |
 | [`@mermaid-lint/remark`](packages/remark) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/remark.svg)](https://www.npmjs.com/package/@mermaid-lint/remark) | remark-lint plugin |
+| [`@mermaid-lint/markdownlint`](packages/markdownlint) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/markdownlint.svg)](https://www.npmjs.com/package/@mermaid-lint/markdownlint) | markdownlint async custom rule |
 | [`@mermaid-lint/vitest`](packages/vitest) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/vitest.svg)](https://www.npmjs.com/package/@mermaid-lint/vitest) | Vitest adapter |
 | [`@mermaid-lint/jest`](packages/jest) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/jest.svg)](https://www.npmjs.com/package/@mermaid-lint/jest) | Jest adapter |
 | [`@mermaid-lint/core`](packages/core) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/core.svg)](https://www.npmjs.com/package/@mermaid-lint/core) | Core utilities (extract, validate, discover) |
@@ -228,6 +229,34 @@ export default {
   ]
 };
 ```
+
+## markdownlint
+
+Install the rule and add it to your `.markdownlint-cli2.mjs`:
+
+```bash
+npm install --save-dev @mermaid-lint/markdownlint markdownlint-cli2
+```
+
+```js
+// .markdownlint-cli2.mjs
+export default {
+  config: { default: true },
+  customRules: ['@mermaid-lint/markdownlint'],
+};
+```
+
+Or in VS Code settings (via the [markdownlint extension](https://marketplace.visualstudio.com/items?itemName=DavidAnson.vscode-markdownlint)):
+
+```json
+{
+  "markdownlint.customRules": ["@mermaid-lint/markdownlint"]
+}
+```
+
+This gives inline red squiggles on invalid Mermaid blocks as you type — without a separate VS Code extension.
+
+Requires `markdownlint >= 0.37.0` (async custom rule support).
 
 ## Vitest
 
