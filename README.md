@@ -232,7 +232,19 @@ export default {
 
 ## markdownlint
 
-Install the rule and add it to your `.markdownlint-cli2.mjs`:
+A [markdownlint](https://github.com/DavidAnson/markdownlint) async custom rule
+that validates Mermaid blocks as part of your existing markdownlint run — in CI,
+on the command line, and inline in VS Code.
+
+### What this provides today
+
+| Surface | Supported | Notes |
+|---|---|---|
+| ```` ```mermaid ```` blocks in **Markdown** (`.md`, `.markdown`, …) | ✅ | CLI, CI, and in-editor squiggles |
+| Standalone **`.mmd`** diagram files | ❌ not yet | markdownlint only processes Markdown; it never invokes the rule on `.mmd`. Tracked in [#13](https://github.com/jasonworden/mermaid-lint/issues/13) (dedicated VS Code extension). |
+| Zero-config editor setup | ❌ | requires the steps below (npm install + setting + workspace trust) |
+
+### CLI / CI usage
 
 ```bash
 npm install --save-dev @mermaid-lint/markdownlint markdownlint-cli2
@@ -246,17 +258,29 @@ export default {
 };
 ```
 
-Or in VS Code settings (via the [markdownlint extension](https://marketplace.visualstudio.com/items?itemName=DavidAnson.vscode-markdownlint)):
+Run it: `npx markdownlint-cli2 "**/*.md"`. Use **`markdownlint-cli2 >= 0.17.0`** —
+earlier versions bundle a `markdownlint` older than `0.37`, which predates async
+custom rules, so the rule is **silently skipped** (zero errors reported).
+
+### VS Code (inline squiggles, no separate extension)
+
+Install the [markdownlint extension](https://marketplace.visualstudio.com/items?itemName=DavidAnson.vscode-markdownlint)
+(**v0.50+**; it bundles a recent `markdownlint-cli2`, so async rules run), add the
+package to your workspace (`npm i -D @mermaid-lint/markdownlint`), then in
+`.vscode/settings.json`:
 
 ```json
 {
-  "markdownlint.customRules": ["@mermaid-lint/markdownlint"]
+  "markdownlint.customRules": ["./node_modules/@mermaid-lint/markdownlint"]
 }
 ```
 
-This gives inline red squiggles on invalid Mermaid blocks as you type — without a separate VS Code extension.
+You must **trust the workspace** — the extension blocks custom-rule JavaScript in
+untrusted workspaces. Invalid ```` ```mermaid ```` blocks in `.md` files then get
+inline diagnostics as you type. (`.mmd` files are not covered — see the table
+above.)
 
-Requires `markdownlint >= 0.37.0` for async custom rule support. For CLI usage, use `markdownlint-cli2 >= 0.17.0` — earlier versions bundle a `markdownlint` older than 0.37, and the async rule is silently skipped (no errors reported). For the VS Code extension, use a recent release that bundles `markdownlint >= 0.37.0`.
+Requires `markdownlint >= 0.37.0` for async custom rule support.
 
 ## Vitest
 
