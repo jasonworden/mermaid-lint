@@ -1,5 +1,5 @@
-import { loadConfig } from '@mermaid-lint/core';
 import * as vscode from 'vscode';
+import { loadCore } from './core.js';
 import {
   type MermaidDiagnostic,
   computeMermaidDiagnostics,
@@ -46,7 +46,11 @@ export function activate(context: vscode.ExtensionContext): void {
     const key = folder?.uri.fsPath ?? '';
     let cached = configCache.get(key);
     if (!cached) {
-      cached = loadConfig(folder?.uri.fsPath).catch(() => ({}));
+      // Reach loadConfig through the dynamic-import bridge so the bundle never
+      // statically require()s the ESM-only core (which would crash at load).
+      cached = loadCore()
+        .then(({ loadConfig }) => loadConfig(folder?.uri.fsPath))
+        .catch(() => ({}));
       configCache.set(key, cached);
     }
     return cached;
