@@ -37,15 +37,38 @@ VS Code setting, so behavior matches `mermaid-lint` on the command line.
 ## Running from source
 
 This extension lives in the [mermaid-lint](https://github.com/jasonworden/mermaid-lint)
-monorepo. To try it:
+monorepo. Build it once:
 
 ```bash
 pnpm install
 pnpm -r build
 ```
 
-Then open the repo in VS Code and press `F5` to launch an Extension Development
-Host with the extension loaded.
+**Try it in VS Code (F5):** open the repo at its root in VS Code and press `F5`
+(Run and Debug → "Run mermaid-lint-vscode (Extension Host)"). A second window
+opens with the extension loaded and the demo fixtures
+(`packages/vscode/e2e/suite/fixtures`) — open `demo.md` or `bad.mmd` to see live
+squiggles, hover messages, Problems-panel entries, and the `Cmd .` quick-fix.
+
+**Try it from a terminal** (no launch config needed):
+
+```bash
+code --extensionDevelopmentPath="$PWD/packages/vscode" --disable-extensions \
+  "$PWD/packages/vscode/e2e/suite/fixtures"
+```
+
+### Testing
+
+```bash
+pnpm test                                    # unit tests (pure logic, via root vitest)
+pnpm --filter mermaid-lint-vscode test:e2e   # real VS Code host (@vscode/test-electron)
+```
+
+The e2e suite launches a real VS Code, loads the built extension, and asserts
+diagnostics on the fixtures. It downloads a VS Code build into `.vscode-test/`
+(gitignored). On Linux/CI it must run under a virtual display (`xvfb-run`); CI
+does this in the `e2e` job. See [`AGENTS.md`](AGENTS.md) for build/architecture
+invariants before changing the core integration.
 
 ## Status
 

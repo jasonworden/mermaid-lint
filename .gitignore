@@ -4,6 +4,9 @@ coverage/
 .DS_Store
 *.local
 
+# @vscode/test-electron downloads a full VS Code build here (~800MB)
+.vscode-test/
+
 .worktrees/
 docs/superpowers/
 .envrc

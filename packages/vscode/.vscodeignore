@@ -1,5 +1,7 @@
 src/**
 test/**
+e2e/**
+.vscode-test/**
 tsconfig.json
 esbuild.mjs
 **/*.ts

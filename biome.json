@@ -1,7 +1,13 @@
 {
   "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
   "files": {
-    "ignore": ["**/node_modules", "**/pnpm-lock.yaml", "**/.git", "**/dist"]
+    "ignore": [
+      "**/node_modules",
+      "**/pnpm-lock.yaml",
+      "**/.git",
+      "**/dist",
+      "**/.vscode-test"
+    ]
   },
   "linter": {
     "enabled": true,
