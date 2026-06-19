@@ -1,12 +1,16 @@
 src/**
 test/**
 e2e/**
+demo/**
 .vscode-test/**
 tsconfig.json
 esbuild.mjs
+AGENTS.md
 **/*.ts
 **/*.map
 docs/**
+
+# media/ is intentionally NOT ignored — README screenshots ship in the listing.
 
 # NOTE: @mermaid-lint/core is intentionally NOT bundled (it pulls in jsdom and
 # merman, which cannot be esbuild-bundled). The extension loads it from

@@ -49,7 +49,7 @@ off-by-one; there is a test guarding it.
   to source. These do NOT exercise the bundle.
 - **End-to-end (real VS Code host):** `pnpm --filter mermaid-lint-vscode test:e2e`.
   Uses `@vscode/test-electron` to launch a real VS Code, load the built
-  extension, open fixtures, and assert real diagnostics. This is the only check
+  extension, open the `demo/` files, and assert real diagnostics. This is the only check
   that exercises activation + the CJS bundle + the dynamic core import together.
   - **macOS gotcha:** VS Code's IPC socket lives under `--user-data-dir`; a deep
     worktree path overflows the 103-char Unix-socket limit. `e2e/runTest.cjs`

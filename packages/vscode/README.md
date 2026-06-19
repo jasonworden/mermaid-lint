@@ -7,6 +7,16 @@ Invalid diagrams get red squiggles as you type — in Markdown fenced
 Powered by [`@mermaid-lint/core`](https://www.npmjs.com/package/@mermaid-lint/core),
 the same engine behind the `mermaid-lint` CLI, so the editor matches CI.
 
+## Screenshots
+
+Invalid block in a Markdown file — red squiggle + Problems-panel entry:
+
+![Invalid mermaid block in a Markdown file](media/demo-markdown.png)
+
+Standalone `.mmd` file (coverage the markdownlint rule can't provide):
+
+![Invalid standalone .mmd file](media/demo-mmd.png)
+
 ## Features
 
 - **Inline diagnostics** on invalid Mermaid in `.md` / `.markdown` fenced blocks
@@ -46,15 +56,15 @@ pnpm -r build
 
 **Try it in VS Code (F5):** open the repo at its root in VS Code and press `F5`
 (Run and Debug → "Run mermaid-lint-vscode (Extension Host)"). A second window
-opens with the extension loaded and the demo fixtures
-(`packages/vscode/e2e/suite/fixtures`) — open `demo.md` or `bad.mmd` to see live
-squiggles, hover messages, Problems-panel entries, and the `Cmd .` quick-fix.
+opens with the extension loaded and the [`demo/`](demo) folder — open `demo.md`
+or `bad.mmd` to see live squiggles, hover messages, Problems-panel entries, and
+the `Cmd .` quick-fix. See [`demo/README.md`](demo/README.md) for a walkthrough.
 
 **Try it from a terminal** (no launch config needed):
 
 ```bash
 code --extensionDevelopmentPath="$PWD/packages/vscode" --disable-extensions \
-  "$PWD/packages/vscode/e2e/suite/fixtures"
+  "$PWD/packages/vscode/demo"
 ```
 
 ### Testing

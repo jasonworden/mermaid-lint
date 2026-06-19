@@ -2,6 +2,9 @@ const assert = require('node:assert');
 const path = require('node:path');
 const vscode = require('vscode');
 
+// Shared with the human-facing demo: packages/vscode/demo/.
+const DEMO_DIR = path.join(__dirname, '..', '..', 'demo');
+
 function waitForDiagnostics(uri, predicate, timeoutMs) {
   return new Promise((resolve, reject) => {
     const deadline = Date.now() + timeoutMs;
@@ -18,7 +21,7 @@ function waitForDiagnostics(uri, predicate, timeoutMs) {
 
 suite('mermaid-lint-vscode (real VS Code host)', () => {
   test('flags an invalid .mmd file with an Error diagnostic', async () => {
-    const uri = vscode.Uri.file(path.join(__dirname, 'fixtures', 'bad.mmd'));
+    const uri = vscode.Uri.file(path.join(DEMO_DIR, 'bad.mmd'));
     const doc = await vscode.workspace.openTextDocument(uri);
     await vscode.window.showTextDocument(doc);
     const diags = await waitForDiagnostics(uri, (d) => d.length >= 1, 25000);
@@ -36,7 +39,7 @@ suite('mermaid-lint-vscode (real VS Code host)', () => {
   });
 
   test('reports no diagnostics for a valid .md file', async () => {
-    const uri = vscode.Uri.file(path.join(__dirname, 'fixtures', 'good.md'));
+    const uri = vscode.Uri.file(path.join(DEMO_DIR, 'good.md'));
     const doc = await vscode.workspace.openTextDocument(uri);
     await vscode.window.showTextDocument(doc);
     // give the extension time to (not) produce diagnostics
