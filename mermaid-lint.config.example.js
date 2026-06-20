@@ -10,6 +10,10 @@ export default {
   // files: ['docs/**/*.md', '**/*.mmd'],
   // Glob patterns to exclude from validation.
   // ignore: ['node_modules/**', 'dist/**', 'coverage/**'],
+  // Extra extensions for auto-discovery, beyond .md/.mdx/.markdown/.mmd. Accepts
+  // 'crv' or '.crv'. Merges with the --ext CLI flag. Files named explicitly on
+  // the command line are always linted, regardless of extension.
+  // extensions: ['crv'],
   // Treat semantic warnings (e.g. duplicate node IDs) as errors. Default: false.
   // strict: true,
   // Set to false to disable semantic checks entirely (syntax errors only). Default: true.

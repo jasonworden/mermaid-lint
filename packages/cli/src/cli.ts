@@ -27,6 +27,7 @@ interface Args {
   stdin: boolean;
   include: string[];
   exclude: string[];
+  ext: string[];
   error: string | null;
   fix: boolean;
 }
@@ -71,6 +72,7 @@ function parseArgs(argv: string[]): Args {
     stdin: false,
     include: [],
     exclude: [],
+    ext: [],
     error: null,
     fix: false,
   };
@@ -116,6 +118,13 @@ function parseArgs(argv: string[]): Args {
         break;
       }
       args.exclude.push(val);
+    } else if (a === '--ext' || a.startsWith('--ext=')) {
+      const val = a.startsWith('--ext=') ? a.slice('--ext='.length) : argv[++i];
+      if (!val) {
+        args.error = '--ext requires an extension argument (e.g. --ext crv)';
+        break;
+      }
+      args.ext.push(...val.split(','));
     } else if (a.startsWith('--')) {
       args.error = `unknown flag: ${a}`;
       break;
@@ -140,7 +149,7 @@ function expandGlobs(paths: string[]): string[] {
 }
 
 function printHelp(): void {
-  process.stdout.write(`Usage: mermaid-lint [--all] [--quiet] [--strict] [--no-semantic] [--no-gitignore] [--include <glob>] [--exclude <glob>] [--format text|json] [paths...] [-]
+  process.stdout.write(`Usage: mermaid-lint [--all] [--quiet] [--strict] [--no-semantic] [--no-gitignore] [--include <glob>] [--exclude <glob>] [--ext <list>] [--format text|json] [paths...] [-]
 
   paths              Files or glob patterns to validate. Overrides default discovery.
   -                  Read from stdin (pipe: cat file.mmd | mermaid-lint -).
@@ -149,6 +158,9 @@ function printHelp(): void {
   --no-gitignore     Scan filesystem instead of git-tracked files; finds gitignored docs.
   --include <glob>   Add a glob pattern to validate (repeatable; merges with positional paths).
   --exclude <glob>   Exclude files matching glob (repeatable; stacks with config ignore).
+  --ext <list>       Extra extensions for discovery, e.g. --ext crv,foo (repeatable;
+                     merges with config "extensions"). Files named directly are
+                     always linted regardless of extension.
   --quiet            Suppress per-file progress and warnings; only failures + summary.
   --strict           Exit 1 if any warnings are present (in addition to errors).
   --no-semantic      Disable semantic checks (e.g. duplicate node IDs).
@@ -404,6 +416,7 @@ async function main(argv: string[]): Promise<number> {
   }
 
   const ignore = [...(config.ignore ?? []), ...args.exclude];
+  const extensions = [...args.ext, ...(config.extensions ?? [])];
 
   const shouldDiscover =
     expandedPaths.length > 0 || args.all || args.noGitignore || !stdinEntry;
@@ -413,6 +426,7 @@ async function main(argv: string[]): Promise<number> {
         paths: expandedPaths.length ? expandedPaths : undefined,
         ignore,
         noGitignore: args.noGitignore,
+        extensions,
       })
     : [];
 

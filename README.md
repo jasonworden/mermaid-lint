@@ -32,6 +32,8 @@ npx mermaid-lint                        # validate git-tracked *.md / *.mdx / *.
 npx mermaid-lint --all                  # scan every supported file on disk
 npx mermaid-lint "docs/**/*.md"         # glob pattern (quoted to prevent shell expansion)
 npx mermaid-lint --include "docs/**/*.md" --exclude "docs/archive/**"  # named glob flags
+npx mermaid-lint --ext crv              # also discover *.crv files (Carve, etc.)
+npx mermaid-lint docs/page.crv          # explicitly-named files lint regardless of extension
 npx mermaid-lint -                      # read from stdin
 npx mermaid-lint --no-gitignore         # scan filesystem (include gitignored files)
 npx mermaid-lint --quiet                # failures only
@@ -362,8 +364,8 @@ flowchart LR
     validate --> err
 ```
 
-- **Discovery:** `git ls-files -- '*.md' '*.mdx' '*.markdown' '*.mmd'` by default; `--all` falls back to recursive filesystem scan
-- **Extraction:** Parses fenced ` ```mermaid ``` ` blocks (handles CRLF, indentation, info-strings, unclosed fences); `.mmd` files treated as a single diagram
+- **Discovery:** `git ls-files -- '*.md' '*.mdx' '*.markdown' '*.mmd'` by default; `--all` falls back to recursive filesystem scan. Add extensions with `--ext crv,foo` or `extensions: ['crv']` in config to discover other fenced-Markdown file types (e.g. [Carve](https://github.com/markup-carve/carve) `.crv`). Files you name explicitly are always linted, whatever their extension.
+- **Extraction:** Parses fenced ` ```mermaid ``` ` blocks (handles CRLF, indentation, info-strings, unclosed fences); only `.mmd` files are treated as a single whole-file diagram — every other extension uses fenced-block extraction
 - **Validation:** Primary pass via [`@mermanjs/web`](https://github.com/Latias94/merman) WASM (Rust, ~3.7–4.4× faster). On any error, falls back to `mermaid.parse()` via jsdom for precise line/col locations and authoritative verdict
 
 ## Semantic warnings

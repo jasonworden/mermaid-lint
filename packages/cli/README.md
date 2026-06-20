@@ -18,6 +18,8 @@ npx mermaid-lint
 mermaid-lint                        # validate git-tracked *.md / *.mdx / *.markdown / *.mmd
 mermaid-lint --all                  # scan every supported file on disk
 mermaid-lint "docs/**/*.md"         # glob pattern (quoted to prevent shell expansion)
+mermaid-lint --ext crv              # also discover *.crv files (Carve, etc.)
+mermaid-lint docs/page.crv          # explicitly-named files lint regardless of extension
 mermaid-lint --quiet                # failures only
 mermaid-lint --format json          # machine-readable JSON output
 mermaid-lint --strict               # treat semantic warnings as errors (exit 1)
@@ -34,6 +36,7 @@ Drop a `mermaid-lint.config.js` in your project root:
 export default {
   files: ['docs/**/*.md', '**/*.mmd'],
   ignore: ['dist/**'],
+  extensions: ['crv'], // extra extensions for discovery, beyond .md/.mdx/.markdown/.mmd
   strict: false,
   semantic: true,
   format: 'text',

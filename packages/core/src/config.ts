@@ -6,6 +6,12 @@ export interface MermaidLintConfig {
   strict?: boolean;
   semantic?: boolean;
   format?: 'text' | 'json';
+  /**
+   * Extra file extensions to include in auto-discovery, beyond the built-in
+   * markdown family (`.md`, `.mdx`, `.markdown`, `.mmd`). E.g. `["crv"]` to
+   * lint Mermaid fences in Carve files. Merges with the `--ext` CLI flag.
+   */
+  extensions?: string[];
 }
 
 export async function loadConfig(cwd?: string): Promise<MermaidLintConfig> {
