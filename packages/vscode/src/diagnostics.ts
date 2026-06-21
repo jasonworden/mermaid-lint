@@ -17,6 +17,11 @@ export interface ComputeOptions {
   semantic?: boolean;
   /** Treat semantic warnings as errors (default false). */
   strict?: boolean;
+  /**
+   * Which code-fence markers to recognize. Defaults to both backtick and tilde
+   * (CommonMark); restrict to e.g. `['backtick']` to ignore `~~~mermaid`.
+   */
+  fences?: ('backtick' | 'tilde')[];
 }
 
 function makeDiag(
@@ -51,11 +56,11 @@ export async function computeMermaidDiagnostics(
   text: string,
   options: ComputeOptions = {},
 ): Promise<MermaidDiagnostic[]> {
-  const { semantic = true, strict = false } = options;
+  const { semantic = true, strict = false, fences } = options;
   const { extractMermaidBlocks, validateBlock } = await loadCore();
   const isMmd = path.endsWith('.mmd');
   const lines = text.replace(/\r\n/g, '\n').split('\n');
-  const blocks = extractMermaidBlocks(path, text);
+  const blocks = extractMermaidBlocks(path, text, fences ? { fences } : {});
   const out: MermaidDiagnostic[] = [];
 
   await Promise.all(

@@ -2,9 +2,12 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import {
+  ALL_FENCE_MARKERS,
+  type FenceMarker,
   discoverFiles,
   extractMermaidBlocks,
   fixText,
+  isFenceMarker,
   loadConfig,
   validateBlock,
 } from '@mermaid-lint/core';
@@ -189,6 +192,7 @@ async function runTextMode(
   quiet: boolean,
   noSemantic: boolean,
   strict: boolean,
+  fences: readonly FenceMarker[],
   stdinEntry?: { path: string; content: string },
 ): Promise<number> {
   let blockCount = 0;
@@ -197,7 +201,7 @@ async function runTextMode(
   const typeCounts: Record<string, number> = {};
 
   const processContent = async (filePath: string, text: string) => {
-    const blocks = extractMermaidBlocks(filePath, text);
+    const blocks = extractMermaidBlocks(filePath, text, { fences });
     for (const block of blocks) {
       blockCount++;
       typeCounts[block.type] = (typeCounts[block.type] ?? 0) + 1;
@@ -269,6 +273,7 @@ async function runJsonMode(
   files: string[],
   noSemantic: boolean,
   strict: boolean,
+  fences: readonly FenceMarker[],
   stdinEntry?: { path: string; content: string },
 ): Promise<number> {
   let failures = 0;
@@ -277,7 +282,7 @@ async function runJsonMode(
 
   const processContent = async (filePath: string, text: string) => {
     const diagrams: DiagramResult[] = [];
-    const blocks = extractMermaidBlocks(filePath, text);
+    const blocks = extractMermaidBlocks(filePath, text, { fences });
     for (const block of blocks) {
       const r = await validateBlock(block);
       const blockWarnings = noSemantic ? [] : r.warnings;
@@ -396,6 +401,16 @@ async function main(argv: string[]): Promise<number> {
     return 2;
   }
 
+  if (config.fences !== undefined) {
+    if (!Array.isArray(config.fences) || !config.fences.every(isFenceMarker)) {
+      process.stderr.write(
+        'config error: fences must be an array of "backtick" and/or "tilde"\n',
+      );
+      return 2;
+    }
+  }
+
+  const fences: readonly FenceMarker[] = config.fences ?? ALL_FENCE_MARKERS;
   const strict = args.strict || (config.strict ?? false);
   const noSemantic = args.noSemantic || config.semantic === false;
   const format: 'text' | 'json' = args.format ?? config.format ?? 'text';
@@ -445,6 +460,7 @@ async function main(argv: string[]): Promise<number> {
     if (stdinEntry) {
       const fixed = fixText(stdinEntry.content, {
         path: stdinEntry.path,
+        fences,
       });
       process.stdout.write(fixed);
       return 0;
@@ -456,7 +472,7 @@ async function main(argv: string[]): Promise<number> {
       } catch {
         continue;
       }
-      const fixed = fixText(content, { path: file });
+      const fixed = fixText(content, { path: file, fences });
       if (fixed !== content) {
         writeFileSync(file, fixed, 'utf8');
         process.stderr.write(`fixed: ${file}\n`);
@@ -465,8 +481,8 @@ async function main(argv: string[]): Promise<number> {
   }
 
   return format === 'json'
-    ? runJsonMode(files, noSemantic, strict, stdinEntry)
-    : runTextMode(files, args.quiet, noSemantic, strict, stdinEntry);
+    ? runJsonMode(files, noSemantic, strict, fences, stdinEntry)
+    : runTextMode(files, args.quiet, noSemantic, strict, fences, stdinEntry);
 }
 
 const code = await main(process.argv.slice(2));

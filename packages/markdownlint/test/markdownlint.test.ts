@@ -3,11 +3,14 @@ import { lint } from 'markdownlint/promise';
 import { describe, expect, it } from 'vitest';
 import mermaidRule from '../index.js';
 
-function lintMd(content: string): Promise<LintResults> {
+function lintMd(
+  content: string,
+  ruleConfig: unknown = true,
+): Promise<LintResults> {
   return lint({
     strings: { 'test.md': content },
     customRules: [mermaidRule],
-    config: { default: false, ML001: true },
+    config: { default: false, ML001: ruleConfig },
   });
 }
 
@@ -83,6 +86,24 @@ describe('@mermaid-lint/markdownlint', () => {
     const errors = result['test.md'];
     expect(errors).toHaveLength(1);
     expect(errors[0].lineNumber).toBe(1);
+  });
+
+  it('reports an error inside a tilde fence', async () => {
+    const md = '~~~mermaid\nflowchart LR\n  A -->|broken label B\n~~~\n';
+    const result = await lintMd(md);
+    expect(result['test.md'].length).toBeGreaterThan(0);
+  });
+
+  it('ignores tilde fences when config restricts to backtick', async () => {
+    const md = '~~~mermaid\nflowchart LR\n  A -->|broken label B\n~~~\n';
+    const result = await lintMd(md, { fences: ['backtick'] });
+    expect(result['test.md']).toHaveLength(0);
+  });
+
+  it('still flags backtick fences when config restricts to backtick', async () => {
+    const md = '```mermaid\nflowchart LR\n  A -->|broken label B\n```\n';
+    const result = await lintMd(md, { fences: ['backtick'] });
+    expect(result['test.md'].length).toBeGreaterThan(0);
   });
 
   it('rule has correct names, tags, and description', () => {

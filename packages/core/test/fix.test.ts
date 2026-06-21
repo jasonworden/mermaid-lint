@@ -106,6 +106,37 @@ describe('fixText', () => {
     });
   });
 
+  describe('commonmark fences', () => {
+    it('normalizes arrows inside a tilde fence', () => {
+      const input = '~~~mermaid\nflowchart LR\n  A -> B\n~~~\n';
+      expect(fixText(input)).toBe('~~~mermaid\nflowchart LR\n  A --> B\n~~~\n');
+    });
+
+    it('normalizes arrows inside a four-backtick fence', () => {
+      const input = '````mermaid\nflowchart LR\n  A -> B\n````\n';
+      expect(fixText(input)).toBe(
+        '````mermaid\nflowchart LR\n  A --> B\n````\n',
+      );
+    });
+
+    it('closes an unclosed tilde fence with a tilde fence', () => {
+      const input = '~~~mermaid\nflowchart LR\n  A --> B\n';
+      expect(fixText(input)).toBe('~~~mermaid\nflowchart LR\n  A --> B\n~~~\n');
+    });
+
+    it('closes an unclosed four-backtick fence with four backticks', () => {
+      const input = '````mermaid\nflowchart LR\n  A --> B\n';
+      expect(fixText(input)).toBe(
+        '````mermaid\nflowchart LR\n  A --> B\n````\n',
+      );
+    });
+
+    it('leaves tilde fences untouched when restricted to backtick', () => {
+      const input = '~~~mermaid\nflowchart LR\n  A -> B\n~~~\n';
+      expect(fixText(input, { fences: ['backtick'] })).toBe(input);
+    });
+  });
+
   describe('idempotency', () => {
     it('is idempotent on already-valid diagrams', () => {
       const input = '```mermaid\nflowchart LR\n  A --> B\n```\n';

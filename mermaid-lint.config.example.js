@@ -20,4 +20,8 @@ export default {
   // semantic: true,
   // Output format: 'text' (human-readable, default) or 'json' (machine-readable).
   // format: 'text',
+  // Code-fence markers to recognize. Default: ['backtick', 'tilde'] (CommonMark).
+  // 'backtick' → ```mermaid … ```   'tilde' → ~~~mermaid … ~~~
+  // Restrict to ['backtick'] to ignore tilde fences.
+  // fences: ['backtick', 'tilde'],
 };

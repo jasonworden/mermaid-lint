@@ -87,7 +87,7 @@ describe('mermaid-lint CLI', () => {
     const r = run(['--format', 'json', join(tmp, 'ok.md')], tmp);
     expect(r.status).toBe(0);
     const json = JSON.parse(r.stdout);
-    expect(json.version).toBe('0.13.0');
+    expect(json.version).toBe('0.14.0');
     expect(json.files).toHaveLength(1);
     expect(json.files[0].diagrams[0].ok).toBe(true);
     expect(json.files[0].diagrams[0].type).toBe('flowchart');
@@ -196,7 +196,7 @@ describe('mermaid-lint CLI', () => {
     const r = run(['--format', 'json', join(tmp, 'dup.md')], tmp);
     expect(r.status).toBe(0);
     const json = JSON.parse(r.stdout);
-    expect(json.version).toBe('0.13.0');
+    expect(json.version).toBe('0.14.0');
     expect(json.files[0].diagrams[0].warnings).toHaveLength(1);
     expect(json.files[0].diagrams[0].warnings[0].rule).toBe('duplicate-ids');
     expect(json.summary.warnings).toBe(1);
@@ -620,6 +620,61 @@ describe('mermaid-lint CLI', () => {
       );
       expect(r.status).toBe(0);
       expect(r.stdout).toContain('A --> B');
+    });
+  });
+
+  describe('commonmark fences', () => {
+    it('validates a tilde-fenced diagram', () => {
+      const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+      writeFileSync(
+        join(tmp, 'bad.md'),
+        '~~~mermaid\nflowchart LR\n  A -->|broken\n~~~\n',
+      );
+      const r = run([join(tmp, 'bad.md')], tmp);
+      expect(r.status).toBe(1);
+      expect(r.stdout).toContain('parse error');
+    });
+
+    it('ignores tilde fences when config restricts to backtick', () => {
+      const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+      writeFileSync(
+        join(tmp, '.mermaidlintrc.json'),
+        JSON.stringify({ fences: ['backtick'] }),
+      );
+      writeFileSync(
+        join(tmp, 'bad.md'),
+        '~~~mermaid\nflowchart LR\n  A -->|broken\n~~~\n',
+      );
+      // Tilde fence not recognized → no diagrams → no failures.
+      const r = run([join(tmp, 'bad.md')], tmp);
+      expect(r.status).toBe(0);
+      expect(r.stderr).toContain('checked 0 diagrams');
+    });
+
+    it('exits 2 with error when config fences is invalid', () => {
+      const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+      writeFileSync(
+        join(tmp, '.mermaidlintrc.json'),
+        JSON.stringify({ fences: ['curly'] }),
+      );
+      writeFileSync(
+        join(tmp, 'ok.md'),
+        '```mermaid\nflowchart LR\n  A-->B\n```\n',
+      );
+      const r = run([join(tmp, 'ok.md')], tmp);
+      expect(r.status).toBe(2);
+      expect(r.stderr).toContain('config error');
+    });
+
+    it('--fix closes an unclosed tilde fence with tildes', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+      const file = join(dir, 'test.md');
+      writeFileSync(file, 'text\n~~~mermaid\nflowchart LR\n  A --> B\n');
+      const r = run(['--fix', file], dir);
+      expect(r.status).toBe(0);
+      expect(readFileSync(file, 'utf8')).toBe(
+        'text\n~~~mermaid\nflowchart LR\n  A --> B\n~~~\n',
+      );
     });
   });
 

@@ -1,4 +1,8 @@
-import { type Block, extractMermaidBlocks } from './extract.js';
+import {
+  type Block,
+  type ExtractOptions,
+  extractMermaidBlocks,
+} from './extract.js';
 import { validateBlock } from './validate.js';
 
 export type Severity = 'error' | 'warning';
@@ -80,8 +84,9 @@ export async function blockToDiagnostics(block: Block): Promise<Diagnostic[]> {
 export async function lintMarkdown(
   path: string,
   text: string,
+  options: ExtractOptions = {},
 ): Promise<Diagnostic[]> {
-  const blocks = extractMermaidBlocks(path, text);
+  const blocks = extractMermaidBlocks(path, text, options);
   const perBlock = await Promise.all(blocks.map(blockToDiagnostics));
   const lineCount = text.replace(/\r\n/g, '\n').split('\n').length;
   const diagnostics = perBlock.flat();
