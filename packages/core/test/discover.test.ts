@@ -95,15 +95,47 @@ describe('discoverFiles', () => {
     expect(result).toHaveLength(2);
   });
 
-  it('filters out non-markdown files from explicit paths', () => {
+  it('keeps explicit paths regardless of extension', () => {
+    // Explicit paths are always linted — the whitelist only gates discovery.
     const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
     const md = join(tmp, 'doc.md');
-    const ts = join(tmp, 'index.ts');
+    const crv = join(tmp, 'page.crv');
     writeFileSync(md, '# doc');
-    writeFileSync(ts, 'export {}');
-    const result = discoverFiles({ paths: [md, ts] });
+    writeFileSync(crv, '```mermaid\nflowchart LR\n  A-->B\n```');
+    const result = discoverFiles({ paths: [md, crv] });
     expect(result).toContain(md);
-    expect(result).not.toContain(ts);
+    expect(result).toContain(crv);
+  });
+
+  it('discovers extra extensions with all:true', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(join(tmp, 'page.crv'), '```mermaid\nflowchart LR\n```');
+    writeFileSync(join(tmp, 'doc.md'), '# doc');
+    writeFileSync(join(tmp, 'other.txt'), 'nope');
+    const result = discoverFiles({ root: tmp, all: true, extensions: ['crv'] });
+    expect(result.some((p) => p.endsWith('.crv'))).toBe(true);
+    expect(result.some((p) => p.endsWith('.md'))).toBe(true);
+    expect(result.some((p) => p.endsWith('.txt'))).toBe(false);
+  });
+
+  it('does not discover extra extensions without the extensions option', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(join(tmp, 'page.crv'), '```mermaid\nflowchart LR\n```');
+    const result = discoverFiles({ root: tmp, all: true });
+    expect(result.some((p) => p.endsWith('.crv'))).toBe(false);
+  });
+
+  it('normalizes extension forms (case and leading dot)', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(join(tmp, 'a.crv'), '```mermaid\nflowchart LR\n```');
+    const withDot = discoverFiles({
+      root: tmp,
+      all: true,
+      extensions: ['.CRV'],
+    });
+    expect(withDot.some((p) => p.endsWith('.crv'))).toBe(true);
+    const bare = discoverFiles({ root: tmp, all: true, extensions: ['crv'] });
+    expect(bare.some((p) => p.endsWith('.crv'))).toBe(true);
   });
 
   it('ignore patterns match absolute paths from all:true mode', () => {

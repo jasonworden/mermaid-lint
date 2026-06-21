@@ -87,7 +87,7 @@ describe('mermaid-lint CLI', () => {
     const r = run(['--format', 'json', join(tmp, 'ok.md')], tmp);
     expect(r.status).toBe(0);
     const json = JSON.parse(r.stdout);
-    expect(json.version).toBe('0.11.0');
+    expect(json.version).toBe('0.12.0');
     expect(json.files).toHaveLength(1);
     expect(json.files[0].diagrams[0].ok).toBe(true);
     expect(json.files[0].diagrams[0].type).toBe('flowchart');
@@ -196,7 +196,7 @@ describe('mermaid-lint CLI', () => {
     const r = run(['--format', 'json', join(tmp, 'dup.md')], tmp);
     expect(r.status).toBe(0);
     const json = JSON.parse(r.stdout);
-    expect(json.version).toBe('0.11.0');
+    expect(json.version).toBe('0.12.0');
     expect(json.files[0].diagrams[0].warnings).toHaveLength(1);
     expect(json.files[0].diagrams[0].warnings[0].rule).toBe('duplicate-ids');
     expect(json.summary.warnings).toBe(1);
@@ -620,6 +620,89 @@ describe('mermaid-lint CLI', () => {
       );
       expect(r.status).toBe(0);
       expect(r.stdout).toContain('A --> B');
+    });
+  });
+
+  describe('custom file extensions', () => {
+    it('lints an explicitly-named .crv file without --ext', () => {
+      const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+      const file = join(tmp, 'doc.crv');
+      writeFileSync(file, '```mermaid\nflowchart LR\n  A --> B\n```\n');
+      const r = run([file], tmp);
+      expect(r.status).toBe(0);
+    });
+
+    it('reports errors in an explicitly-named .crv file', () => {
+      const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+      const file = join(tmp, 'bad.crv');
+      writeFileSync(file, '```mermaid\nflowchart LR\n  A -->|broken\n```\n');
+      const r = run([file], tmp);
+      expect(r.status).toBe(1);
+      expect(r.stdout).toContain('parse error');
+    });
+
+    it('discovers .crv files with --ext during --all scan', () => {
+      const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+      writeFileSync(
+        join(tmp, 'bad.crv'),
+        '```mermaid\nflowchart LR\n  A -->|broken\n```\n',
+      );
+      const r = run(['--all', '--ext', 'crv'], tmp);
+      expect(r.status).toBe(1);
+      expect(r.stdout).toContain('bad.crv');
+    });
+
+    it('ignores .crv files during --all scan without --ext', () => {
+      const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+      writeFileSync(
+        join(tmp, 'bad.crv'),
+        '```mermaid\nflowchart LR\n  A -->|broken\n```\n',
+      );
+      const r = run(['--all'], tmp);
+      // No supported files discovered → usage exit 2, not a validation run.
+      expect(r.status).toBe(2);
+    });
+
+    it('reads extensions from config (package.json#mermaidLint)', () => {
+      const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+      writeFileSync(
+        join(tmp, 'package.json'),
+        JSON.stringify({ mermaidLint: { extensions: ['crv'] } }),
+      );
+      writeFileSync(
+        join(tmp, 'bad.crv'),
+        '```mermaid\nflowchart LR\n  A -->|broken\n```\n',
+      );
+      const r = run(['--all'], tmp);
+      expect(r.status).toBe(1);
+      expect(r.stdout).toContain('bad.crv');
+    });
+
+    it('accepts comma-separated and dotted/uppercase --ext values', () => {
+      const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+      writeFileSync(
+        join(tmp, 'a.crv'),
+        '```mermaid\nflowchart LR\n  A --> B\n```\n',
+      );
+      writeFileSync(
+        join(tmp, 'b.foo'),
+        '```mermaid\nflowchart LR\n  C --> D\n```\n',
+      );
+      const r = run(['--all', '--ext', '.CRV,foo'], tmp);
+      expect(r.status).toBe(0);
+      expect(r.stderr).toContain('2 files');
+    });
+
+    it('errors when --ext has no argument', () => {
+      const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+      const r = run(['--ext'], tmp);
+      expect(r.status).toBe(2);
+      expect(r.stderr).toContain('--ext requires');
+    });
+
+    it('documents --ext in --help', () => {
+      const r = run(['--help'], '.');
+      expect(r.stdout).toContain('--ext');
     });
   });
 });
