@@ -1,66 +1,80 @@
 # AGENTS.md
 
-Guidance for AI agents and contributors working in this repo. Keep changes
-consistent with what CI runs so local results match CI.
+Orientation for AI agents and contributors. Keep changes consistent with what
+CI runs, and follow the existing patterns in the package you're editing.
 
-## Toolchain
+## What this is
 
-This is a **pnpm workspace** monorepo. Use the repo's pinned tooling — never a
-globally installed or `npx`-fetched version (see [Running tools](#running-tools)).
+`mermaid-lint` validates [Mermaid](https://mermaid.js.org/) diagrams embedded in
+Markdown (and standalone `.mmd` files). It's a **pnpm workspace** monorepo: one
+core engine plus thin adapters that plug it into different linters and editors.
 
-| Tool | Version | Source of truth |
-|---|---|---|
-| **pnpm** | `10.34.3` | `packageManager` field in `package.json` (CI's `pnpm/action-setup` reads it) |
-| **Node** | `>=20` (CI runs `24`) | `engines.node`; `.github/workflows/ci.yml` |
-| **TypeScript** | `5.9.x` (`^5.0.0`) | root `devDependencies` |
-| **Vitest** | `4.1.x` (`^4.1.9`) | root `devDependencies` |
-| **Vite** | `6.4.x` (`^6.4.3`) | root `devDependencies` |
-| **Biome** (lint + format) | `1.9.4` (`^1.9.4`) | root `devDependencies` |
-| **husky** | `9.1.x` | root `devDependencies` (pre-commit runs `lint-staged`) |
-| **lint-staged** | `17.0.x` | runs `biome check --write` on staged JS/TS |
+Validation is **two-tier**: a fast Rust/WASM parser ([merman](https://github.com/Latias94/merman))
+is the fast path; on any error it falls back to **mermaid.js itself** (the
+authoritative parser) for precise line/col and verdict. Separately, semantic
+checks flag diagrams that parse but render wrong (e.g. duplicate node IDs) —
+these are *warnings*, opt-in via `strict`. See
+[docs/parsing-vs-linting.md](docs/parsing-vs-linting.md) for the why.
 
-Consumer-side peer requirements worth knowing:
+## Packages
 
-- `@mermaid-lint/markdownlint` requires `markdownlint >= 0.37` and, when run via
-  markdownlint-cli2, **`markdownlint-cli2 >= 0.18`** — older cli2 versions bundle
-  a markdownlint that predates async custom rules and silently skip the rule.
+| Package | What it is |
+|---|---|
+| `@mermaid-lint/core` | The engine: extraction, validation, semantic checks, discovery, config, autofix. Everything else depends on it. |
+| `@mermaid-lint/cli` | `mermaid-lint` command — scans files / stdin, `--fix`, text or JSON output. |
+| `@mermaid-lint/markdownlint` | markdownlint async custom rule (`ML001`). |
+| `@mermaid-lint/remark` | remark-lint plugin. |
+| `@mermaid-lint/textlint` | textlint rule. |
+| `@mermaid-lint/jest` / `@mermaid-lint/vitest` | Test-runner matchers/adapters. |
+| `mermaid-lint-vscode` | VS Code extension — inline squiggles, hover, quick-fix. |
 
-## Common commands
+**Integrations are thin.** They extract Mermaid blocks from the host's AST (or
+via core's extractor) and delegate to core's shared adapter —
+`blockToDiagnostics(block)` / `lintMarkdown(path, text, opts)` in
+`packages/core/src/markdown-adapter.ts` — which returns normalized `Diagnostic`
+objects. When changing validation behavior, change it in core; the adapters
+should stay lockstep. Note that `remark`/`textlint` rely on the host's own
+CommonMark parser, while `cli`/`markdownlint`/`jest`/`vitest`/`vscode` use
+core's `extractMermaidBlocks`.
+
+### Core source map (`packages/core/src/`)
+
+- `extract.ts` / `fences.ts` — find Mermaid fenced blocks (CommonMark fences).
+- `validate.ts` + `merman.ts` — the two-tier parser (WASM → mermaid.js).
+- `semantic.ts` — opt-in semantic warnings.
+- `markdown-adapter.ts` — `blockToDiagnostics` / `lintMarkdown` (the shared API).
+- `config.ts` — `.mermaidlintrc` / config-file loading.
+- `fix.ts` — `--fix` autofixer. `discover.ts` — file discovery. `type-detect.ts` — diagram-type sniffing.
+
+## Build, test, lint
 
 ```sh
 pnpm install                                   # install workspace deps
 pnpm -r build                                  # build every package (tsc / esbuild)
 pnpm test                                      # vitest run (core, cli, adapters)
 pnpm --filter @mermaid-lint/jest test          # jest adapter suite
-pnpm --filter mermaid-lint-vscode test:e2e     # VS Code extension host e2e (needs a display)
-pnpm lint                                       # biome check . (lint + format check)
+pnpm --filter mermaid-lint-vscode test:e2e     # VS Code extension-host e2e (needs a display)
+pnpm lint                                       # biome check . (lint + format)
 ```
 
-CI (`.github/workflows/ci.yml`) runs, in order: `pnpm lint` → `pnpm -r build`
-→ `pnpm test` → jest adapter → (separate job) the VS Code e2e. Run these
-locally before pushing.
+CI (`.github/workflows/ci.yml`) runs `pnpm lint` → `pnpm -r build` → `pnpm test`
+→ jest adapter, plus a separate VS Code e2e job. Run these locally before
+pushing. **Lint/format is [Biome](https://biomejs.dev), not ESLint** — and run
+the repo's pinned binaries rather than `npx`; see
+[docs/package-manager.md](docs/package-manager.md).
 
-## Running tools
+## Conventions
 
-**Prefer the repo's pinned binary over an ambient one.** A check that runs the
-wrong tool version can pass locally and fail in CI (or vice versa).
+- **Match the surrounding code** — comment density, naming, and idioms vary a
+  little per package; follow the file you're in.
+- **Commits:** Conventional Commits (`feat:`, `fix:`, `chore:`, `docs:`…).
+- **Versioning:** the `@mermaid-lint/*` packages move in **lockstep**; bump them
+  together (minor for features, patch for fixes). `mermaid-lint-vscode` versions
+  on its own track. CI publishes on a `v*` tag.
+- **Don't skip hooks** (`--no-verify`); if husky/lint-staged blocks, fix the cause.
 
-- ✅ Run package scripts: `pnpm lint`, `pnpm test`, `pnpm -r build`.
-- ✅ Run a local binary directly: `./node_modules/.bin/<tool>` (e.g.
-  `./node_modules/.bin/biome check .`).
-- ✅ Run a tool through pnpm: `pnpm exec <tool>`.
-- ❌ Avoid `npx <tool>` and `pnpm dlx <tool>` for gating checks — both can
-  resolve to a different version than the repo pins.
+## More docs
 
-### Lint / format is Biome (not ESLint)
-
-`pnpm lint` runs `biome check .`. When verifying a lint/format result that
-gates a commit or PR, run the **repo's** Biome binary so the output matches CI:
-
-```sh
-./node_modules/.bin/biome check .          # check (matches `pnpm lint` / CI)
-./node_modules/.bin/biome check --write .  # apply fixes
-```
-
-Do **not** rely on `npx biome` — it may resolve a different Biome version and
-report a misleading "no issues" result.
+- [docs/parsing-vs-linting.md](docs/parsing-vs-linting.md) — parsing vs. linting, and why some hosts can't run the validator.
+- [docs/package-manager.md](docs/package-manager.md) — pinned toolchain versions and the "use the repo's binary, not `npx`" rule.
+- [README.md](README.md) — user-facing usage, configuration, and per-integration setup.
