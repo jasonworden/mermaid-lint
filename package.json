@@ -3,6 +3,10 @@
   "private": true,
   "license": "MIT",
   "type": "module",
+  "packageManager": "pnpm@10.34.3",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "build": "pnpm -r build",
     "pretest": "pnpm -r build",
