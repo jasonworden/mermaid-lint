@@ -43,9 +43,7 @@ export function activate(context: vscode.ExtensionContext): void {
       fences?: ('backtick' | 'tilde')[];
     }>
   >();
-  function getConfig(
-    doc: vscode.TextDocument,
-  ): Promise<{
+  function getConfig(doc: vscode.TextDocument): Promise<{
     semantic?: boolean;
     strict?: boolean;
     fences?: ('backtick' | 'tilde')[];
