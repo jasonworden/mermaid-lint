@@ -140,7 +140,13 @@ function applyOnce(
   return isMmd ? fixMmd(src) : fixMarkdown(src, fences);
 }
 
+/**
+ * Options for {@link fixText}.
+ *
+ * @public
+ */
 export interface FixOptions {
+  /** Source path; a `.mmd` extension fixes the whole file as one diagram. */
   path?: string;
   /**
    * Which code-fence markers to recognize, matching `extractMermaidBlocks`.
@@ -149,6 +155,17 @@ export interface FixOptions {
   fences?: readonly FenceMarker[];
 }
 
+/**
+ * Auto-fix common Mermaid mistakes in a document, returning the corrected text.
+ * Applies safe rewrites inside Mermaid blocks only — normalizing flowchart
+ * arrows (`->` to `-->`), inserting missing sequence-message colons, and closing
+ * unclosed fences — re-running until the output stabilizes (max 10 passes).
+ *
+ * @param src - Original document contents.
+ * @param opts - Path and fence options (see {@link FixOptions}).
+ * @returns The fixed text, unchanged if nothing matched.
+ * @public
+ */
 export function fixText(src: string, opts?: FixOptions): string {
   const isMmd = opts?.path?.endsWith('.mmd') ?? false;
   const fences = opts?.fences ?? ALL_FENCE_MARKERS;

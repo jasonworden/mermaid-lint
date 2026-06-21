@@ -1,11 +1,22 @@
 import { lilconfig } from 'lilconfig';
 import type { FenceMarker } from './fences.js';
 
+/**
+ * Resolved mermaid-lint configuration, as loaded from a config file or the
+ * `mermaidLint` field in `package.json`.
+ *
+ * @public
+ */
 export interface MermaidLintConfig {
+  /** Glob patterns of files to lint. */
   files?: string[];
+  /** Glob patterns to exclude. */
   ignore?: string[];
+  /** Treat semantic warnings as errors. */
   strict?: boolean;
+  /** Enable semantic checks (e.g. duplicate-id detection). */
   semantic?: boolean;
+  /** Output format for the CLI. */
   format?: 'text' | 'json';
   /**
    * Extra file extensions to include in auto-discovery, beyond the built-in
@@ -21,6 +32,15 @@ export interface MermaidLintConfig {
   fences?: FenceMarker[];
 }
 
+/**
+ * Search for and load a mermaid-lint config via lilconfig (`.mermaidlintrc*`,
+ * `mermaid-lint.config.*`, or the `mermaidLint` key in `package.json`),
+ * starting from `cwd` and walking up. Returns `{}` when none is found.
+ *
+ * @param cwd - Directory to begin the search from. Defaults to the process cwd.
+ * @returns The resolved {@link MermaidLintConfig} (empty if none found).
+ * @public
+ */
 export async function loadConfig(cwd?: string): Promise<MermaidLintConfig> {
   const result = await lilconfig('mermaid-lint', {
     searchPlaces: [

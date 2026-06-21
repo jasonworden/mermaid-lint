@@ -6,15 +6,34 @@ import {
 } from './fences.js';
 import { detectDiagramType } from './type-detect.js';
 
+/**
+ * A single Mermaid diagram extracted from a source document, with the location
+ * of its opening fence and the raw diagram body.
+ *
+ * @public
+ */
 export interface Block {
+  /** Source file path the block came from. */
   path: string;
+  /** 1-indexed line of the opening fence (or line 1 for whole-file `.mmd`). */
   line: number;
+  /** 1-indexed column of the opening fence. */
   col: number;
-  /** For indented fences, body lines retain the source indentation prefix. */
+  /**
+   * Raw diagram source. For indented fences, body lines retain the source
+   * indentation prefix. The sentinel `'__UNCLOSED_FENCE__'` marks a fence with
+   * no closing marker.
+   */
   body: string;
+  /** Detected diagram type (e.g. `'flowchart'`, `'sequenceDiagram'`, `'unknown'`). */
   type: string;
 }
 
+/**
+ * Options controlling how {@link extractMermaidBlocks} scans a document.
+ *
+ * @public
+ */
 export interface ExtractOptions {
   /**
    * Which code-fence markers to recognize. Defaults to both `'backtick'`
@@ -24,6 +43,17 @@ export interface ExtractOptions {
   fences?: readonly FenceMarker[];
 }
 
+/**
+ * Extract every Mermaid diagram from a Markdown document, or treat the whole
+ * file as one diagram when `path` ends in `.mmd`. CRLF line endings are
+ * normalized before scanning.
+ *
+ * @param path - Source path; a `.mmd` extension switches to whole-file mode.
+ * @param text - File contents to scan.
+ * @param options - Fence markers to recognize (see {@link ExtractOptions}).
+ * @returns One {@link Block} per Mermaid block found, in document order.
+ * @public
+ */
 export function extractMermaidBlocks(
   path: string,
   text: string,

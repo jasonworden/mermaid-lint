@@ -35,6 +35,11 @@ jobs:
       - name: Test (jest adapter)
         run: pnpm --filter @mermaid-lint/jest test
 
+      # Prove the @mermaid-lint/core API reference still builds. The docs.yml
+      # workflow deploys this output to Cloudflare Pages on push to main.
+      - name: API docs build check (typedoc)
+        run: pnpm --filter @mermaid-lint/core docs
+
   e2e:
     # Real VS Code Extension Host test for mermaid-lint-vscode. Runs the
     # @vscode/test-electron suite headlessly under xvfb (Electron needs a

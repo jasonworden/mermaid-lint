@@ -3,11 +3,21 @@ import { existsSync, readdirSync, statSync } from 'node:fs';
 import { isAbsolute, join, relative } from 'node:path';
 import micromatch from 'micromatch';
 
+/**
+ * Options for {@link discoverFiles}.
+ *
+ * @public
+ */
 export interface DiscoverOptions {
+  /** Directory to search from. Defaults to `'.'`. */
   root?: string;
+  /** Include untracked files (walk the tree instead of `git ls-files`). */
   all?: boolean;
+  /** Explicit file paths to lint; bypasses discovery and the extension filter. */
   paths?: string[];
+  /** Glob patterns (micromatch) to exclude from the result. */
   ignore?: string[];
+  /** Ignore `.gitignore` and walk the tree directly (implies `all`-style discovery). */
   noGitignore?: boolean;
   /**
    * Extra file extensions to include in auto-discovery, in addition to the
@@ -36,6 +46,16 @@ function hasExt(name: string, allowed: Set<string>): boolean {
   return dot >= 0 && allowed.has(name.slice(dot));
 }
 
+/**
+ * Discover lintable files. By default returns git-tracked markdown-family files
+ * (`.md`, `.mdx`, `.markdown`, `.mmd`) under `root`; `all`/`noGitignore` walk
+ * the tree instead, explicit `paths` bypass discovery, and `ignore` globs prune
+ * the result.
+ *
+ * @param opts - Discovery options (see {@link DiscoverOptions}).
+ * @returns Matching file paths.
+ * @public
+ */
 export function discoverFiles(opts: DiscoverOptions = {}): string[] {
   const {
     root = '.',
