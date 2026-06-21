@@ -1,13 +1,15 @@
 {
   "name": "@mermaid-lint/cli",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "type": "module",
   "description": "Validate Mermaid diagrams in Markdown files",
   "bin": {
     "mermaid-lint": "./dist/cli.js"
   },
   "files": ["dist", "src"],
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "build": "tsc"
   },

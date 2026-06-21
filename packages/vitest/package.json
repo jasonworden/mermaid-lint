@@ -1,6 +1,6 @@
 {
   "name": "@mermaid-lint/vitest",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "type": "module",
   "description": "Vitest adapter for mermaid-lint",
   "exports": {
@@ -11,7 +11,9 @@
   },
   "types": "./dist/index.d.ts",
   "files": ["dist", "index.ts"],
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "build": "tsc"
   },

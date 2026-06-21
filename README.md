@@ -20,6 +20,7 @@ Catches real syntax errors as you type — here the [VS Code extension](packages
 | [`@mermaid-lint/cli`](packages/cli) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/cli.svg)](https://www.npmjs.com/package/@mermaid-lint/cli) | CLI — `npx mermaid-lint` |
 | [`@mermaid-lint/remark`](packages/remark) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/remark.svg)](https://www.npmjs.com/package/@mermaid-lint/remark) | remark-lint plugin |
 | [`@mermaid-lint/markdownlint`](packages/markdownlint) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/markdownlint.svg)](https://www.npmjs.com/package/@mermaid-lint/markdownlint) | markdownlint async custom rule |
+| [`@mermaid-lint/textlint`](packages/textlint) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/textlint.svg)](https://www.npmjs.com/package/@mermaid-lint/textlint) | textlint rule (async) |
 | [`@mermaid-lint/vitest`](packages/vitest) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/vitest.svg)](https://www.npmjs.com/package/@mermaid-lint/vitest) | Vitest adapter |
 | [`@mermaid-lint/jest`](packages/jest) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/jest.svg)](https://www.npmjs.com/package/@mermaid-lint/jest) | Jest adapter |
 | [`@mermaid-lint/core`](packages/core) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/core.svg)](https://www.npmjs.com/package/@mermaid-lint/core) | Core utilities (extract, validate, discover) |
@@ -288,6 +289,42 @@ inline diagnostics as you type. (`.mmd` files are not covered — see the table
 above.)
 
 Requires `markdownlint >= 0.37.0` for async custom rule support.
+
+## textlint
+
+A [textlint](https://textlint.org) rule that validates ```` ```mermaid ````
+blocks as part of a textlint run. textlint awaits a Promise returned from a rule,
+so — unlike ESLint, whose rules are synchronous — it runs the **full** async
+validator (merman + mermaid.js), the same engine the CLI uses.
+
+```bash
+npm install --save-dev textlint @textlint/textlint-plugin-markdown @mermaid-lint/textlint
+```
+
+```js
+// .textlintrc.js
+module.exports = {
+  plugins: ['@textlint/markdown'],
+  rules: {
+    '@mermaid-lint/textlint': true,
+  },
+};
+```
+
+Run it: `npx textlint "**/*.md"`. Pass `{ strict: true }` to also report semantic
+warnings (e.g. duplicate node IDs):
+
+```js
+rules: {
+  '@mermaid-lint/textlint': { strict: true },
+},
+```
+
+> **Why textlint and not ESLint?** ESLint rules must be synchronous, so they
+> cannot run Mermaid's async parser. See the
+> [parsing-vs-linting explainer](docs/parsing-vs-linting.md) and tracking issues
+> [#39](https://github.com/jasonworden/mermaid-lint/issues/39) (ESLint) and
+> [#38](https://github.com/jasonworden/mermaid-lint/issues/38) (Biome).
 
 ## VS Code extension
 

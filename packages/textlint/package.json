@@ -1,8 +1,8 @@
 {
-  "name": "@mermaid-lint/markdownlint",
+  "name": "@mermaid-lint/textlint",
   "version": "0.13.0",
   "type": "module",
-  "description": "markdownlint async custom rule for Mermaid diagram validation",
+  "description": "textlint rule for Mermaid diagram validation",
   "exports": {
     ".": {
       "import": "./dist/index.js",
@@ -11,20 +11,19 @@
   },
   "types": "./dist/index.d.ts",
   "files": ["dist", "index.ts"],
-  "engines": {
-    "node": ">=20"
-  },
+  "engines": { "node": ">=20" },
   "scripts": {
     "build": "tsc"
   },
   "peerDependencies": {
-    "markdownlint": ">=0.37.0"
+    "textlint": ">=13.0.0"
   },
   "dependencies": {
     "@mermaid-lint/core": "workspace:*"
   },
   "devDependencies": {
-    "markdownlint": "^0.38.0",
-    "markdownlint-cli2": "^0.18.0"
+    "@textlint/kernel": "^15.0.0",
+    "@textlint/textlint-plugin-markdown": "^15.0.0",
+    "@textlint/types": "^15.0.0"
   }
 }

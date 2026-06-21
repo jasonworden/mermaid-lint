@@ -1,4 +1,4 @@
-import { extractMermaidBlocks, validateBlock } from '@mermaid-lint/core';
+import { lintMarkdown } from '@mermaid-lint/core';
 import type { RuleOnError, RuleParams } from 'markdownlint';
 
 const mermaidRule = {
@@ -14,33 +14,21 @@ const mermaidRule = {
   asynchronous: true,
   function: async (params: RuleParams, onError: RuleOnError): Promise<void> => {
     const { lines } = params;
-    // Delegate fence detection (indented fences, .mmd files, unclosed fences)
-    // to core's canonical extractor so this rule stays in lockstep with it.
-    const blocks = extractMermaidBlocks(params.name, lines.join('\n'));
+    // Delegate extraction, validation, and absolute line mapping to core's
+    // shared Markdown adapter so this rule stays in lockstep with every other
+    // integration. markdownlint surfaces syntax errors only (no warnings).
+    const diagnostics = await lintMarkdown(params.name, lines.join('\n'));
 
-    await Promise.all(
-      blocks.map(async (block) => {
-        const result = await validateBlock(block);
-        if (result.ok) return;
-
-        const { error } = result;
-        // error.line is 1-indexed relative to the fence body, so document line
-        // = opener line + body line. Structural errors (unclosed/empty fence)
-        // carry no line; report those at the fence opener. Clamp to the
-        // document so an unclosed fence at EOF can't point past the last line.
-        const absLine =
-          error.line === undefined ? block.line : block.line + error.line;
-        const lineNumber = Math.min(Math.max(absLine, 1), lines.length);
-        const errorLine = lines[lineNumber - 1] ?? '';
-        const col = error.col ?? 1;
-        const rangeLength = errorLine.length - col + 1;
-        onError({
-          lineNumber,
-          detail: error.message,
-          ...(rangeLength > 0 ? { range: [col, rangeLength] } : {}),
-        });
-      }),
-    );
+    for (const d of diagnostics) {
+      if (d.severity !== 'error') continue;
+      const errorLine = lines[d.line - 1] ?? '';
+      const rangeLength = errorLine.length - d.column + 1;
+      onError({
+        lineNumber: d.line,
+        detail: d.message,
+        ...(rangeLength > 0 ? { range: [d.column, rangeLength] } : {}),
+      });
+    }
   },
 };
 
