@@ -5,6 +5,11 @@ import {
 } from './extract.js';
 import { validateBlock } from './validate.js';
 
+/**
+ * Diagnostic severity: a syntax `error` or a semantic `warning`.
+ *
+ * @public
+ */
 export type Severity = 'error' | 'warning';
 
 /**
@@ -13,6 +18,8 @@ export type Severity = 'error' | 'warning';
  * This is the single shape every Markdown integration (markdownlint, remark,
  * textlint, …) consumes, so they all share one extract → validate → report
  * path instead of each re-deriving line mapping and error shaping.
+ *
+ * @public
  */
 export interface Diagnostic {
   /** 1-indexed line in the source document. */
@@ -35,6 +42,8 @@ export interface Diagnostic {
  *   opener line itself is the offset added to the 1-indexed body line.
  * - For a whole-file `.mmd` block, the body starts at line 1, so the offset is
  *   `block.line - 1` (i.e. 0 when `block.line` is 1).
+ *
+ * @internal
  */
 function toAbsLine(block: Block, relLine: number | undefined): number {
   if (relLine === undefined) return block.line;
@@ -48,6 +57,10 @@ function toAbsLine(block: Block, relLine: number | undefined): number {
  * (severity `warning`) are returned; consumers filter by severity as needed
  * (e.g. markdownlint surfaces only errors; remark/textlint add warnings in
  * strict mode).
+ *
+ * @param block - The block to validate.
+ * @returns Diagnostics with document-absolute line/column coordinates.
+ * @public
  */
 export async function blockToDiagnostics(block: Block): Promise<Diagnostic[]> {
   const result = await validateBlock(block);
@@ -79,7 +92,14 @@ export async function blockToDiagnostics(block: Block): Promise<Diagnostic[]> {
 /**
  * Extract every Mermaid block from a Markdown (or `.mmd`) document and return
  * all diagnostics with absolute coordinates. Lines are clamped to the document
- * so a structural error at EOF can't point past the last line.
+ * so a structural error at EOF can't point past the last line. This is the main
+ * entry point for Markdown tool integrations.
+ *
+ * @param path - Source path (a `.mmd` extension switches to whole-file mode).
+ * @param text - Document contents.
+ * @param options - Fence markers to recognize (see {@link ExtractOptions}).
+ * @returns Every diagnostic across all blocks, with absolute coordinates.
+ * @public
  */
 export async function lintMarkdown(
   path: string,

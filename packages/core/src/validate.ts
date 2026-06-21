@@ -4,12 +4,27 @@ import { type SemanticWarning, checkSemantics } from './semantic.js';
 
 export type { SemanticWarning };
 
+/**
+ * A syntax error from diagram validation, with an optional location relative to
+ * the diagram body.
+ *
+ * @public
+ */
 export interface ValidationError {
+  /** Human-readable error message. */
   message: string;
+  /** 1-indexed line within the diagram body, when known. */
   line?: number;
+  /** 1-indexed column within the diagram body, when known. */
   col?: number;
 }
 
+/**
+ * Outcome of {@link validateBlock}: either valid (with any semantic warnings)
+ * or invalid (with the syntax error and any warnings collected so far).
+ *
+ * @public
+ */
 export type ValidationResult =
   | { ok: true; warnings: SemanticWarning[] }
   | { ok: false; error: ValidationError; warnings: SemanticWarning[] };
@@ -72,12 +87,32 @@ async function runMermaidValidation(
   }
 }
 
+/**
+ * Validate raw diagram source with the bundled mermaid.js parser, the
+ * authoritative engine for error location and final verdict. Boots a jsdom
+ * window lazily on first call. Returns a syntax error without semantic
+ * warnings; use {@link validateBlock} for the full pipeline.
+ *
+ * @param body - Raw Mermaid diagram source.
+ * @returns `{ ok: true }` if mermaid.js parses it, else `{ ok: false, error }`.
+ * @public
+ */
 export async function validateWithMermaidJS(
   body: string,
 ): Promise<{ ok: true } | { ok: false; error: ValidationError }> {
   return runMermaidValidation(body);
 }
 
+/**
+ * Validate an extracted {@link Block} end to end: structural checks (unclosed /
+ * empty fence), semantic warnings, then the fast Rust (`merman`) parser with a
+ * mermaid.js fallback for anything merman rejects. mermaid.js is treated as
+ * authoritative on the final verdict.
+ *
+ * @param block - The block to validate.
+ * @returns A {@link ValidationResult} carrying the verdict and any warnings.
+ * @public
+ */
 export async function validateBlock(block: Block): Promise<ValidationResult> {
   const { body } = block;
 

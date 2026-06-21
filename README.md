@@ -9,9 +9,46 @@ Validate Mermaid diagrams embedded in Markdown files. Uses the official `mermaid
 [![CI](https://github.com/jasonworden/mermaid-lint/actions/workflows/ci.yml/badge.svg)](https://github.com/jasonworden/mermaid-lint/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+⚡ **3.4–4.0× faster** than the previous release — a Rust/WASM fast path validates the happy path in ~0.1 ms/diagram; the heavyweight `mermaid.parse()` loads only when a diagram actually errors. [See the benchmarks ↓](#performance)
+
 Catches real syntax errors as you type — here the [VS Code extension](packages/vscode) flagging an unterminated edge label in a `.mmd` file:
 
 ![Invalid Mermaid diagram flagged inline in VS Code](packages/vscode/media/demo-mmd.png)
+
+## Quick start
+
+```bash
+npx mermaid-lint            # validate every Mermaid block in your git-tracked Markdown
+```
+
+No install, no config. mermaid-lint discovers your `.md` / `.mdx` / `.markdown` / `.mmd` files, validates every ` ```mermaid ` block, and reports the precise line and column of any error:
+
+```text
+docs/architecture.md:42:5: error: Expecting 'SPACE', got 'TXT' (sequenceDiagram)
+```
+
+The exit code is non-zero on failure, so it drops straight into CI or a pre-commit hook. From here:
+
+- **Editor** — [VS Code extension](#vs-code-extension): live squiggles as you type, for both ` ```mermaid ` blocks and standalone `.mmd` files
+- **Tests** — [Vitest](#vitest) / [Jest](#jest) adapters: fail your test run on a broken diagram
+- **Lint pipeline** — [remark](#remark) · [markdownlint](#markdownlint) · [textlint](#textlint)
+- **CI** — [GitHub Action](#github-actions) with inline PR annotations
+- **Library** — [`@mermaid-lint/core`](https://docs.mermaidlint.com): the programmatic API, with full reference docs at [docs.mermaidlint.com](https://docs.mermaidlint.com)
+
+## Why mermaid-lint
+
+|  | mermaid-lint | markdownlint (alone) | Manual review |
+|---|:---:|:---:|:---:|
+| Catches Mermaid **syntax errors** | ✅ | ❌ lints Markdown, not diagram bodies | ⚠️ easy to miss |
+| Precise **line / column** of the error | ✅ | — | ❌ |
+| All **19 Mermaid diagram types** | ✅ | — | ⚠️ |
+| **Semantic** warnings (e.g. duplicate node IDs) | ✅ | ❌ | ❌ |
+| **Auto-fix** mechanical issues (`--fix`) | ✅ | ❌ | ❌ |
+| **Editor** squiggles as you type | ✅ VS Code | ❌ | ❌ |
+| Runs in **CI** / pre-commit | ✅ | ✅ | ❌ |
+| Setup | `npx mermaid-lint` | rule config | — |
+
+> markdownlint *can* validate Mermaid — via the [`@mermaid-lint/markdownlint`](#markdownlint) custom rule. The "markdownlint (alone)" column is plain markdownlint without it.
 
 ## Packages
 
@@ -23,7 +60,7 @@ Catches real syntax errors as you type — here the [VS Code extension](packages
 | [`@mermaid-lint/textlint`](packages/textlint) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/textlint.svg)](https://www.npmjs.com/package/@mermaid-lint/textlint) | textlint rule (async) |
 | [`@mermaid-lint/vitest`](packages/vitest) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/vitest.svg)](https://www.npmjs.com/package/@mermaid-lint/vitest) | Vitest adapter |
 | [`@mermaid-lint/jest`](packages/jest) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/jest.svg)](https://www.npmjs.com/package/@mermaid-lint/jest) | Jest adapter |
-| [`@mermaid-lint/core`](packages/core) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/core.svg)](https://www.npmjs.com/package/@mermaid-lint/core) | Core utilities (extract, validate, discover) |
+| [`@mermaid-lint/core`](packages/core) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/core.svg)](https://www.npmjs.com/package/@mermaid-lint/core) | Core utilities (extract, validate, discover) — [API docs](https://docs.mermaidlint.com) |
 | [`mermaid-lint-vscode`](packages/vscode) | _(unreleased)_ | VS Code extension — live squiggles for `.md` + `.mmd` |
 
 ## CLI

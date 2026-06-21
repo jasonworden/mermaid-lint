@@ -1,0 +1,9 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "name": "@mermaid-lint/core",
+  "entryPoints": ["index.ts"],
+  "tsconfig": "tsconfig.json",
+  "out": "docs",
+  "readme": "README.md",
+  "excludeInternal": true
+}

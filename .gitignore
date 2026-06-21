@@ -12,3 +12,6 @@ docs/superpowers/
 .envrc
 .claude/worktrees/
 .superpowers/
+
+# typedoc-generated API docs for @mermaid-lint/core
+packages/core/docs/

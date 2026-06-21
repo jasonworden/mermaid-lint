@@ -1,8 +1,17 @@
 import type { Block } from './extract.js';
 
+/**
+ * A non-fatal semantic finding (e.g. a duplicate node id) raised by
+ * {@link checkSemantics}, distinct from a syntax error.
+ *
+ * @public
+ */
 export interface SemanticWarning {
+  /** Stable rule name, e.g. `'duplicate-ids'`. */
   rule: string;
+  /** Human-readable description of the finding. */
   message: string;
+  /** 1-indexed line within the diagram body, when known. */
   line?: number;
 }
 
@@ -62,6 +71,16 @@ function isSuppressed(lines: string[], rule: string): boolean {
   return false;
 }
 
+/**
+ * Run semantic checks on a {@link Block}. Currently flags duplicate flowchart
+ * node ids declared with conflicting labels; only `flowchart`/`graph` diagrams
+ * are checked, and an in-diagram `%% mermaid-lint-disable` directive suppresses
+ * findings.
+ *
+ * @param block - The block to inspect.
+ * @returns Any {@link SemanticWarning}s found (empty when none apply).
+ * @public
+ */
 export function checkSemantics(block: Block): SemanticWarning[] {
   if (block.type !== 'flowchart' && block.type !== 'graph') return [];
   const lines = block.body.split('\n');

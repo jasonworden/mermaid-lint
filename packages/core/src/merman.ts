@@ -22,12 +22,14 @@ function ensureInit(): Promise<void> {
   return _initPromise;
 }
 
+/** @internal */
 export interface MermanResult {
   valid: boolean;
   code_name: string;
   error?: string;
 }
 
+/** @internal */
 export function isMermanUnsupported(r: MermanResult): boolean {
   return (
     r.code_name === 'MERMAN_NO_DIAGRAM' ||
@@ -35,6 +37,7 @@ export function isMermanUnsupported(r: MermanResult): boolean {
   );
 }
 
+/** @internal */
 export async function validateWithMerman(body: string): Promise<MermanResult> {
   await ensureInit();
   try {

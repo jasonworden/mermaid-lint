@@ -1,0 +1,49 @@
+name: docs
+
+# Build the @mermaid-lint/core API reference (typedoc) and deploy the static
+# HTML to Cloudflare Pages at https://docs.mermaidlint.com.
+#
+# One-time setup (Cloudflare dashboard + repo secrets) is documented in
+# docs/cloudflare-docs-setup.md. The apex mermaidlint.com redirect is handled
+# separately by the mermaidlint-redirect Worker and is unrelated to this job.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Allow one concurrent deployment; let an in-flight run finish.
+concurrency:
+  group: cloudflare-pages-docs
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # pnpm version comes from the "packageManager" field in package.json.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build core
+        run: pnpm --filter @mermaid-lint/core build
+
+      - name: Generate API docs (typedoc)
+        run: pnpm --filter @mermaid-lint/core docs
+
+      - name: Deploy to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm dlx wrangler@4.99.0 pages deploy packages/core/docs --project-name mermaid-lint-docs --branch main

@@ -6,7 +6,8 @@
       "**/pnpm-lock.yaml",
       "**/.git",
       "**/dist",
-      "**/.vscode-test"
+      "**/.vscode-test",
+      "packages/core/docs"
     ]
   },
   "linter": {
