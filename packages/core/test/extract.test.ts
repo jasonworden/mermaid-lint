@@ -95,4 +95,61 @@ describe('extractMermaidBlocks', () => {
     expect(blocks).toHaveLength(1);
     expect(blocks[0].body).toBe('');
   });
+
+  it('extracts a tilde fence', () => {
+    const md = '~~~mermaid\nflowchart LR\n  A-->B\n~~~\n';
+    const blocks = extractMermaidBlocks('test.md', md);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].body).toBe('flowchart LR\n  A-->B');
+    expect(blocks[0].type).toBe('flowchart');
+  });
+
+  it('extracts a fence with more than three backticks', () => {
+    const md = '````mermaid\nflowchart LR\n  A-->B\n````\n';
+    const blocks = extractMermaidBlocks('test.md', md);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].body).toBe('flowchart LR\n  A-->B');
+  });
+
+  it('lets a four-backtick fence wrap a body containing triple backticks', () => {
+    const md = '````mermaid\nflowchart LR\n  A-->B\n```\n````\n';
+    const blocks = extractMermaidBlocks('test.md', md);
+    expect(blocks).toHaveLength(1);
+    // The inner ``` is part of the body, not a closing fence (too short).
+    expect(blocks[0].body).toBe('flowchart LR\n  A-->B\n```');
+  });
+
+  it('closes a fence with a longer run of the same char', () => {
+    const md = '```mermaid\nflowchart LR\n  A-->B\n`````\n';
+    const blocks = extractMermaidBlocks('test.md', md);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].body).toBe('flowchart LR\n  A-->B');
+  });
+
+  it('does not close a backtick fence with tildes', () => {
+    const md = '```mermaid\nflowchart LR\n  A-->B\n~~~\n';
+    const blocks = extractMermaidBlocks('test.md', md);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].body).toBe('__UNCLOSED_FENCE__');
+  });
+
+  it('ignores tilde fences when fences is restricted to backtick', () => {
+    const md = '~~~mermaid\nflowchart LR\n  A-->B\n~~~\n';
+    const blocks = extractMermaidBlocks('test.md', md, {
+      fences: ['backtick'],
+    });
+    expect(blocks).toHaveLength(0);
+  });
+
+  it('ignores backtick fences when fences is restricted to tilde', () => {
+    const md = '```mermaid\nflowchart LR\n  A-->B\n```\n';
+    const blocks = extractMermaidBlocks('test.md', md, { fences: ['tilde'] });
+    expect(blocks).toHaveLength(0);
+  });
+
+  it('extracts nothing from markdown when fences is empty', () => {
+    const md = '```mermaid\nflowchart LR\n```\n~~~mermaid\ngraph TD\n~~~\n';
+    const blocks = extractMermaidBlocks('test.md', md, { fences: [] });
+    expect(blocks).toHaveLength(0);
+  });
 });

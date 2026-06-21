@@ -37,11 +37,19 @@ export function activate(context: vscode.ExtensionContext): void {
   // Per-folder config cache; cleared when a config file changes.
   const configCache = new Map<
     string,
-    Promise<{ semantic?: boolean; strict?: boolean }>
+    Promise<{
+      semantic?: boolean;
+      strict?: boolean;
+      fences?: ('backtick' | 'tilde')[];
+    }>
   >();
   function getConfig(
     doc: vscode.TextDocument,
-  ): Promise<{ semantic?: boolean; strict?: boolean }> {
+  ): Promise<{
+    semantic?: boolean;
+    strict?: boolean;
+    fences?: ('backtick' | 'tilde')[];
+  }> {
     const folder = vscode.workspace.getWorkspaceFolder(doc.uri);
     const key = folder?.uri.fsPath ?? '';
     let cached = configCache.get(key);
@@ -78,6 +86,7 @@ export function activate(context: vscode.ExtensionContext): void {
     const diags = await computeMermaidDiagnostics(doc.fileName, doc.getText(), {
       semantic: cfg.semantic,
       strict: cfg.strict,
+      fences: cfg.fences,
     });
     // Drop stale results: a newer edit superseded this run.
     if (doc.version !== versionAtStart) return;

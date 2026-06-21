@@ -1,5 +1,22 @@
-import { lintMarkdown } from '@mermaid-lint/core';
+import {
+  type FenceMarker,
+  isFenceMarker,
+  lintMarkdown,
+} from '@mermaid-lint/core';
 import type { RuleOnError, RuleParams } from 'markdownlint';
+
+/**
+ * Read an optional `fences` array from this rule's markdownlint config, e.g.
+ * `{ "ML001": { "fences": ["backtick"] } }`. Invalid values fall back to the
+ * CommonMark default (both backtick and tilde) so a typo never silently
+ * disables linting.
+ */
+function readFences(config: unknown): FenceMarker[] | undefined {
+  if (typeof config !== 'object' || config === null) return undefined;
+  const { fences } = config as { fences?: unknown };
+  if (!Array.isArray(fences) || !fences.every(isFenceMarker)) return undefined;
+  return fences;
+}
 
 const mermaidRule = {
   names: ['ML001', 'mermaid'],
@@ -14,10 +31,15 @@ const mermaidRule = {
   asynchronous: true,
   function: async (params: RuleParams, onError: RuleOnError): Promise<void> => {
     const { lines } = params;
+    const fences = readFences(params.config);
     // Delegate extraction, validation, and absolute line mapping to core's
     // shared Markdown adapter so this rule stays in lockstep with every other
     // integration. markdownlint surfaces syntax errors only (no warnings).
-    const diagnostics = await lintMarkdown(params.name, lines.join('\n'));
+    const diagnostics = await lintMarkdown(
+      params.name,
+      lines.join('\n'),
+      fences ? { fences } : {},
+    );
 
     for (const d of diagnostics) {
       if (d.severity !== 'error') continue;

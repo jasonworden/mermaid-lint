@@ -1,14 +1,9 @@
-const CLOSE_RE_CACHE = new Map<string, RegExp>();
-
-function getCloseRe(indent: string): RegExp {
-  let re = CLOSE_RE_CACHE.get(indent);
-  if (!re) {
-    const escaped = indent.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    re = new RegExp(`^${escaped}\`\`\`\\s*$`, 'm');
-    CLOSE_RE_CACHE.set(indent, re);
-  }
-  return re;
-}
+import {
+  ALL_FENCE_MARKERS,
+  type FenceMarker,
+  makeFenceCloseRe,
+  makeFenceOpenRe,
+} from './fences.js';
 
 type DiagramType = 'flowchart' | 'graph' | 'sequenceDiagram' | 'other';
 
@@ -72,13 +67,14 @@ function fixBody(body: string, type: DiagramType): string {
   return body;
 }
 
-function fixMarkdown(src: string): string {
+function fixMarkdown(src: string, fences: readonly FenceMarker[]): string {
+  const openRe = makeFenceOpenRe(fences);
   const lines = src.split('\n');
   const result: string[] = [];
   let i = 0;
 
   while (i < lines.length) {
-    const m = /^([ \t]*)```mermaid([ \t][^\n]*)?\s*$/.exec(lines[i]);
+    const m = openRe?.exec(lines[i]);
     if (!m) {
       result.push(lines[i]);
       i++;
@@ -86,12 +82,13 @@ function fixMarkdown(src: string): string {
     }
 
     const indent = m[1];
+    const marker = m[2];
     const opener = lines[i];
     result.push(opener);
     i++;
 
     const bodyLines: string[] = [];
-    const closeRe = getCloseRe(indent);
+    const closeRe = makeFenceCloseRe(indent, marker);
     let closed = false;
 
     while (i < lines.length) {
@@ -120,7 +117,7 @@ function fixMarkdown(src: string): string {
           ? fixedLines.pop()
           : undefined;
       result.push(...fixedLines);
-      result.push(`${indent}\`\`\``);
+      result.push(`${indent}${marker}`);
       if (trailingEmpty !== undefined) {
         result.push(trailingEmpty);
       }
@@ -135,20 +132,30 @@ function fixMmd(src: string): string {
   return fixBody(src, type);
 }
 
-function applyOnce(src: string, isMmd: boolean): string {
-  return isMmd ? fixMmd(src) : fixMarkdown(src);
+function applyOnce(
+  src: string,
+  isMmd: boolean,
+  fences: readonly FenceMarker[],
+): string {
+  return isMmd ? fixMmd(src) : fixMarkdown(src, fences);
 }
 
 export interface FixOptions {
   path?: string;
+  /**
+   * Which code-fence markers to recognize, matching `extractMermaidBlocks`.
+   * Defaults to both `'backtick'` and `'tilde'` (CommonMark).
+   */
+  fences?: readonly FenceMarker[];
 }
 
 export function fixText(src: string, opts?: FixOptions): string {
   const isMmd = opts?.path?.endsWith('.mmd') ?? false;
+  const fences = opts?.fences ?? ALL_FENCE_MARKERS;
   const MAX_PASSES = 10;
   let current = src;
   for (let pass = 0; pass < MAX_PASSES; pass++) {
-    const next = applyOnce(current, isMmd);
+    const next = applyOnce(current, isMmd, fences);
     if (next === current) break;
     current = next;
   }

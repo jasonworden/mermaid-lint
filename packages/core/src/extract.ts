@@ -1,3 +1,9 @@
+import {
+  ALL_FENCE_MARKERS,
+  type FenceMarker,
+  makeFenceCloseRe,
+  makeFenceOpenRe,
+} from './fences.js';
 import { detectDiagramType } from './type-detect.js';
 
 export interface Block {
@@ -9,15 +15,20 @@ export interface Block {
   type: string;
 }
 
-// Captures leading space/tab indent and optional info-string after `mermaid`
-const FENCE_RE = /^([ \t]*)```mermaid([ \t][^\n]*)?\s*$/;
-
-function makeCloseRe(indent: string): RegExp {
-  const escaped = indent.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return new RegExp(`^${escaped}\`\`\`\\s*$`);
+export interface ExtractOptions {
+  /**
+   * Which code-fence markers to recognize. Defaults to both `'backtick'`
+   * (```` ```mermaid ````) and `'tilde'` (`~~~mermaid`), matching CommonMark.
+   * Restrict to e.g. `['backtick']` to ignore tilde fences.
+   */
+  fences?: readonly FenceMarker[];
 }
 
-export function extractMermaidBlocks(path: string, text: string): Block[] {
+export function extractMermaidBlocks(
+  path: string,
+  text: string,
+  options: ExtractOptions = {},
+): Block[] {
   const normalized = text.replace(/\r\n/g, '\n');
 
   if (path.endsWith('.mmd')) {
@@ -25,19 +36,23 @@ export function extractMermaidBlocks(path: string, text: string): Block[] {
     return [{ path, line: 1, col: 1, body, type: detectDiagramType(body) }];
   }
 
+  const openRe = makeFenceOpenRe(options.fences ?? ALL_FENCE_MARKERS);
+  if (!openRe) return [];
+
   const lines = normalized.split('\n');
   const blocks: Block[] = [];
   let i = 0;
   while (i < lines.length) {
-    const m = FENCE_RE.exec(lines[i]);
+    const m = openRe.exec(lines[i]);
     if (!m) {
       i++;
       continue;
     }
     const indent = m[1];
+    const marker = m[2];
     const openerLine = i + 1;
     const col = indent.length + 1;
-    const closeRe = makeCloseRe(indent);
+    const closeRe = makeFenceCloseRe(indent, marker);
     const bodyLines: string[] = [];
     i++;
     let closed = false;

@@ -1,4 +1,5 @@
 import { lilconfig } from 'lilconfig';
+import type { FenceMarker } from './fences.js';
 
 export interface MermaidLintConfig {
   files?: string[];
@@ -12,6 +13,12 @@ export interface MermaidLintConfig {
    * lint Mermaid fences in Carve files. Merges with the `--ext` CLI flag.
    */
   extensions?: string[];
+  /**
+   * Which code-fence markers to recognize for Mermaid blocks. Defaults to both
+   * `"backtick"` (```` ```mermaid ````) and `"tilde"` (`~~~mermaid`), matching
+   * CommonMark. Restrict to e.g. `["backtick"]` to ignore tilde fences.
+   */
+  fences?: FenceMarker[];
 }
 
 export async function loadConfig(cwd?: string): Promise<MermaidLintConfig> {
