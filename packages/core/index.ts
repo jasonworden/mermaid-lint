@@ -7,6 +7,11 @@ export type {
   SemanticWarning,
 } from './src/validate.js';
 export { checkSemantics } from './src/semantic.js';
+export {
+  blockToDiagnostics,
+  lintMarkdown,
+} from './src/markdown-adapter.js';
+export type { Diagnostic, Severity } from './src/markdown-adapter.js';
 export { discoverFiles } from './src/discover.js';
 export type { DiscoverOptions } from './src/discover.js';
 export { detectDiagramType } from './src/type-detect.js';

@@ -1,4 +1,8 @@
-import { detectDiagramType, validateBlock } from '@mermaid-lint/core';
+import {
+  type Block,
+  blockToDiagnostics,
+  detectDiagramType,
+} from '@mermaid-lint/core';
 import type { Code, Root } from 'mdast';
 import { lintRule } from 'unified-lint-rule';
 import { visit } from 'unist-util-visit';
@@ -18,39 +22,29 @@ const remarkLintMermaid = lintRule<Root, Options>(
 
     visit(tree, 'code', (node: Code) => {
       if (node.lang !== 'mermaid' || !node.position) return;
+      // Build a block from the mdast node and hand it to core's shared adapter,
+      // which validates and returns diagnostics with absolute document
+      // coordinates. node.position.start.line is the ```mermaid fence line.
+      const block: Block = {
+        path: file.path ?? '<stdin>',
+        line: node.position.start.line,
+        col: node.position.start.column,
+        body: node.value,
+        type: detectDiagramType(node.value),
+      };
       tasks.push(
-        (async () => {
-          const block = {
-            path: file.path ?? '<stdin>',
-            line: node.position?.start.line ?? 1,
-            col: node.position?.start.column ?? 1,
-            body: node.value,
-            type: detectDiagramType(node.value),
-          };
-          const result = await validateBlock(block);
-          if (!result.ok) {
-            const { error } = result;
-            // error.line is 1-indexed relative to the fence body.
-            // node.position.start.line is the ```mermaid fence line.
-            // The body starts one line after the fence, so absolute line =
-            // fenceLine + (error.line ?? 1).
-            const fenceLine = node.position?.start.line ?? 1;
-            const point = {
-              line: fenceLine + (error.line ?? 1),
-              column: error.col ?? 1,
-            };
-            file.message(error.message, point, 'remark-lint:mermaid');
-          }
-          if (strict) {
-            for (const w of result.warnings) {
+        blockToDiagnostics(block).then((diagnostics) => {
+          for (const d of diagnostics) {
+            // Syntax errors always report; semantic warnings only in strict mode.
+            if (d.severity === 'error' || strict) {
               file.message(
-                w.message,
-                node.position?.start,
+                d.message,
+                { line: d.line, column: d.column },
                 'remark-lint:mermaid',
               );
             }
           }
-        })(),
+        }),
       );
     });
 
