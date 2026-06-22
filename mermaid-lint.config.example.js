@@ -19,12 +19,17 @@ export default {
   // Set to false to disable ALL semantic rules (syntax errors only). Default: true.
   // semantic: true,
   // Per-rule severity ('off' | 'warn' | 'error'), layered over the defaults.
-  // Most rules default to 'warn'; 'duplicate-ids' defaults to 'error'.
+  // Most rules default to 'warn'; 'duplicate-ids' defaults to 'error' and
+  // 'no-orphan-nodes' defaults to 'off' (opt-in).
   // rules: {
-  //   'prefer-flowchart': 'warn',   // legacy `graph` keyword → prefer `flowchart`
-  //   'require-direction': 'warn',  // `flowchart`/`graph` with no direction
-  //   'no-experimental': 'warn',    // `*-beta` diagram types (unstable syntax)
-  //   'duplicate-ids': 'error',     // same node id, conflicting labels
+  //   'prefer-flowchart': 'warn',     // legacy `graph` keyword → prefer `flowchart`
+  //   'require-direction': 'warn',    // `flowchart`/`graph` with no direction
+  //   'no-experimental': 'warn',      // `*-beta` diagram types (unstable syntax)
+  //   'duplicate-ids': 'error',       // same node id, conflicting labels
+  //   'no-duplicate-edges': 'warn',   // same edge defined twice (renders stacked)
+  //   'no-self-loop': 'warn',         // a node with an edge to itself (`A --> A`)
+  //   'no-empty-labels': 'warn',      // a node with an empty label (`A[ ]`)
+  //   'no-orphan-nodes': 'off',       // declared but unconnected node (opt-in)
   // },
   // Output format: 'text' (human-readable, default) or 'json' (machine-readable).
   // format: 'text',

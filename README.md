@@ -467,6 +467,10 @@ In addition to syntax errors, mermaid-lint runs a set of semantic rules over dia
 | `prefer-flowchart` | `warn` | The legacy `graph` keyword — `flowchart` is current and enables per-subgraph `direction` | graph |
 | `require-direction` | `warn` | `flowchart`/`graph` with no direction — silently defaults to `TD` | flowchart / graph |
 | `no-experimental` | `warn` | `*-beta` diagram types — unstable syntax that may break on a Mermaid upgrade | all |
+| `no-duplicate-edges` | `warn` | The same edge defined more than once — renders stacked, usually a copy-paste mistake | flowchart / graph |
+| `no-self-loop` | `warn` | A node with an edge to itself (`A --> A`) — almost always unintentional | flowchart / graph |
+| `no-empty-labels` | `warn` | A node with an empty label (`A[ ]`) — renders a blank shape | flowchart / graph |
+| `no-orphan-nodes` | `off` | A node declared but never connected by an edge. Off by default (opt-in): can false-positive on subgraph-only members | flowchart / graph |
 
 ```
 docs/api.md:7:1: error: duplicate-ids: node "A" declared with label "Start" (line 2) and "Begin" (line 7)

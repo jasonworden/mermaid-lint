@@ -76,8 +76,9 @@ Two layers, two meanings:
 2. **Linting / "is it good?"** — Stage 2,
    [`checkSemantics`](../packages/core/src/semantic.ts), runs a set of rules over
    a diagram that *does* parse: the legacy `graph` keyword, a missing direction,
-   experimental diagram types, duplicate IDs with conflicting labels, and similar
-   smells. Each rule carries a **per-rule severity** resolved from
+   experimental diagram types, duplicate IDs with conflicting labels, duplicate or
+   self-looping edges, empty node labels, orphaned nodes, and similar smells. Each
+   rule carries a **per-rule severity** resolved from
    [`rules.ts`](../packages/core/src/rules.ts) (`off` | `warn` | `error`),
    following [Biome's model](https://biomejs.dev/linter/): most rules default to
    `warn` (the diagram renders, but something is suboptimal), while a rule whose
