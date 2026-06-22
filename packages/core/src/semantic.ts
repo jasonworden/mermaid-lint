@@ -189,7 +189,7 @@ const noDuplicateEdges: Rule = {
     const findings: RuleFinding[] = [];
 
     for (const e of edges) {
-      const key = `${e.source} ${e.target}`;
+      const key = `${e.source} ${e.target} ${e.label ?? ''}`;
       const firstLine = seen.get(key);
       if (firstLine === undefined) {
         seen.set(key, e.line);

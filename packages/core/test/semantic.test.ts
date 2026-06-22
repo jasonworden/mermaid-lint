@@ -270,6 +270,28 @@ describe('checkSemantics', () => {
       expect(only(b, 'no-duplicate-edges')).toEqual([]);
     });
 
+    it('does NOT fire when edges have distinct labels (A -->|yes| B and A -->|no| B)', () => {
+      const b = block('flowchart LR\n  A -->|yes| B\n  A -->|no| B');
+      expect(only(b, 'no-duplicate-edges')).toEqual([]);
+    });
+
+    it('fires when both edges have the same non-empty label (A -->|x| B twice)', () => {
+      const b = block('flowchart LR\n  A -->|x| B\n  A -->|x| B');
+      const warnings = only(b, 'no-duplicate-edges');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].message).toContain('duplicate edge');
+    });
+
+    it('fires when both edges are unlabelled (A --> B twice)', () => {
+      const b = block('flowchart LR\n  A --> B\n  A --> B');
+      expect(only(b, 'no-duplicate-edges')).toHaveLength(1);
+    });
+
+    it('does NOT fire when one edge is labelled and one is not (A --> B and A -->|x| B)', () => {
+      const b = block('flowchart LR\n  A --> B\n  A -->|x| B');
+      expect(only(b, 'no-duplicate-edges')).toEqual([]);
+    });
+
     it('is suppressed by %% mermaid-lint-disable no-duplicate-edges', () => {
       const b = block(
         'flowchart LR\n  %% mermaid-lint-disable no-duplicate-edges\n  A --> B\n  A --> B',
