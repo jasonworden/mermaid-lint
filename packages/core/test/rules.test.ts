@@ -30,6 +30,10 @@ describe('resolveRules', () => {
     expect(RULE_DEFAULTS['prefer-flowchart']).toBe('warn');
     expect(RULE_DEFAULTS['require-direction']).toBe('warn');
     expect(RULE_DEFAULTS['no-experimental']).toBe('warn');
+    expect(RULE_DEFAULTS['no-duplicate-edges']).toBe('warn');
+    expect(RULE_DEFAULTS['no-self-loop']).toBe('warn');
+    expect(RULE_DEFAULTS['no-empty-labels']).toBe('warn');
+    expect(RULE_DEFAULTS['no-orphan-nodes']).toBe('off');
   });
 
   it('layers user overrides over the defaults', () => {

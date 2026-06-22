@@ -37,7 +37,11 @@ export type RuleId =
   | 'duplicate-ids'
   | 'prefer-flowchart'
   | 'require-direction'
-  | 'no-experimental';
+  | 'no-experimental'
+  | 'no-duplicate-edges'
+  | 'no-self-loop'
+  | 'no-empty-labels'
+  | 'no-orphan-nodes';
 
 /**
  * User-facing `rules` configuration: a partial map of rule id to desired
@@ -56,8 +60,10 @@ export type ResolvedRules = Record<RuleId, RuleSeverity>;
 
 /**
  * Default severity for each rule. `duplicate-ids` is `error` (a conflicting
- * duplicate id silently drops a label — wrong output); the rest are advisory
- * `warn`.
+ * duplicate id silently drops a label — wrong output); `no-duplicate-edges`,
+ * `no-self-loop`, and `no-empty-labels` are advisory `warn`; `no-orphan-nodes`
+ * defaults to `off` (opt-in) due to false-positive risk from subgraph-only
+ * members and legend nodes; the original four are `warn` except `duplicate-ids`.
  *
  * @public
  */
@@ -66,6 +72,10 @@ export const RULE_DEFAULTS: ResolvedRules = {
   'prefer-flowchart': 'warn',
   'require-direction': 'warn',
   'no-experimental': 'warn',
+  'no-duplicate-edges': 'warn',
+  'no-self-loop': 'warn',
+  'no-empty-labels': 'warn',
+  'no-orphan-nodes': 'off',
 };
 
 /** Every known rule id, derived from the defaults table. */
