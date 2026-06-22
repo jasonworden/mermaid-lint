@@ -41,7 +41,10 @@ export type RuleId =
   | 'no-duplicate-edges'
   | 'no-self-loop'
   | 'no-empty-labels'
-  | 'no-orphan-nodes';
+  | 'no-orphan-nodes'
+  | 'no-activate-without-deactivate'
+  | 'prefer-explicit-participants'
+  | 'no-duplicate-methods';
 
 /**
  * User-facing `rules` configuration: a partial map of rule id to desired
@@ -65,6 +68,13 @@ export type ResolvedRules = Record<RuleId, RuleSeverity>;
  * defaults to `off` (opt-in) due to false-positive risk from subgraph-only
  * members and legend nodes; the original four are `warn` except `duplicate-ids`.
  *
+ * Phase 3 adds three sequence/class rules: `no-activate-without-deactivate`
+ * (`warn`) catches dangling activation bars in sequence diagrams;
+ * `prefer-explicit-participants` defaults to `off` because Mermaid's
+ * auto-create pattern is intentional and widely used — opt in to enforce it;
+ * `no-duplicate-methods` (`warn`) catches duplicate method signatures in class
+ * diagrams.
+ *
  * @public
  */
 export const RULE_DEFAULTS: ResolvedRules = {
@@ -76,6 +86,9 @@ export const RULE_DEFAULTS: ResolvedRules = {
   'no-self-loop': 'warn',
   'no-empty-labels': 'warn',
   'no-orphan-nodes': 'off',
+  'no-activate-without-deactivate': 'warn',
+  'prefer-explicit-participants': 'off',
+  'no-duplicate-methods': 'warn',
 };
 
 /** Every known rule id, derived from the defaults table. */

@@ -471,6 +471,9 @@ In addition to syntax errors, mermaid-lint runs a set of semantic rules over dia
 | `no-self-loop` | `warn` | A node with an edge to itself (`A --> A`) — almost always unintentional | flowchart / graph |
 | `no-empty-labels` | `warn` | A node with an empty label (`A[ ]`) — renders a blank shape | flowchart / graph |
 | `no-orphan-nodes` | `off` | A node declared but never connected by an edge. Off by default (opt-in): can false-positive on subgraph-only members | flowchart / graph |
+| `no-activate-without-deactivate` | `warn` | An `activate`/`+` with no matching `deactivate`/`-` (or vice versa) — leaves a dangling activation bar | sequenceDiagram |
+| `prefer-explicit-participants` | `off` | A participant used in a message before being declared — Mermaid auto-creates it. Off by default (opt-in) | sequenceDiagram |
+| `no-duplicate-methods` | `warn` | The same method signature declared twice on one class — renders both | classDiagram |
 
 ```
 docs/api.md:7:1: error: duplicate-ids: node "A" declared with label "Start" (line 2) and "Begin" (line 7)

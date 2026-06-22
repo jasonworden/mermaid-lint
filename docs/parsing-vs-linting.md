@@ -77,7 +77,8 @@ Two layers, two meanings:
    [`checkSemantics`](../packages/core/src/semantic.ts), runs a set of rules over
    a diagram that *does* parse: the legacy `graph` keyword, a missing direction,
    experimental diagram types, duplicate IDs with conflicting labels, duplicate or
-   self-looping edges, empty node labels, orphaned nodes, and similar smells. Each
+   self-looping edges, empty node labels, orphaned nodes, unbalanced sequence
+   activations, and duplicate class methods, among similar smells. Each
    rule carries a **per-rule severity** resolved from
    [`rules.ts`](../packages/core/src/rules.ts) (`off` | `warn` | `error`),
    following [Biome's model](https://biomejs.dev/linter/): most rules default to
