@@ -5,5 +5,18 @@
   "tsconfig": "tsconfig.json",
   "out": "docs",
   "readme": "README.md",
-  "excludeInternal": true
+  "excludeInternal": true,
+  "hostedBaseUrl": "https://docs.mermaidlint.com/",
+  "favicon": "assets/favicon.png",
+  "customCss": "assets/typedoc.css",
+  "customJs": "assets/typedoc.js",
+  "lightHighlightTheme": "github-light",
+  "darkHighlightTheme": "github-dark",
+  "titleLink": "https://docs.mermaidlint.com/",
+  "navigationLinks": {
+    "Docs": "https://docs.mermaidlint.com/",
+    "npm": "https://www.npmjs.com/package/@mermaid-lint/core",
+    "GitHub": "https://github.com/jasonworden/mermaid-lint"
+  },
+  "customFooterHtml": "<a href=\"https://github.com/jasonworden/mermaid-lint\">mermaid-lint</a> — validate Mermaid diagrams in Markdown · MIT licensed"
 }

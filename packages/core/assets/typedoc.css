@@ -1,0 +1,187 @@
+/*
+ * mermaid-lint brand theme for the @mermaid-lint/core API reference.
+ *
+ * TypeDoc maps raw `--light-color-*` / `--dark-color-*` values onto the active
+ * `--color-*` set across four scheme contexts (prefers-color-scheme + the
+ * [data-theme] toggle). Overriding the raw values here therefore re-brands both
+ * light and dark mode at once. Everything below the variable block is layout
+ * polish layered on top of the stock theme.
+ */
+
+:root {
+  /* Brand: the mermaid-tail pink from the project icon. */
+  --ml-pink: #c2185b;
+  --ml-pink-strong: #a01248;
+  --ml-pink-bright: #ff7eb0;
+
+  --light-color-link: var(--ml-pink);
+  --dark-color-link: var(--ml-pink-bright);
+  --light-color-focus-outline: #e0558c;
+  --dark-color-focus-outline: var(--ml-pink-bright);
+  --light-color-active-menu-item: #fbe0ea;
+  --dark-color-active-menu-item: #50273a;
+
+  --ml-font: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    Roboto, Helvetica, Arial, sans-serif;
+  --ml-mono: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+}
+
+body {
+  font-family: var(--ml-font);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* --- Header / brand title ---------------------------------------------- */
+
+.tsd-toolbar-contents .title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ml-pink);
+}
+
+:root[data-theme="dark"] .tsd-toolbar-contents .title,
+.tsd-toolbar-contents .title:hover {
+  color: var(--ml-pink-bright);
+}
+
+/* Logo injected by typedoc.js — sized and aligned here. */
+.tsd-toolbar-contents .title .ml-logo {
+  display: inline-block;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+}
+
+.tsd-page-toolbar {
+  border-bottom: 1px solid color-mix(in srgb, var(--ml-pink) 18%, transparent);
+  backdrop-filter: saturate(1.2);
+}
+
+/* --- Navigation links in the header ------------------------------------ */
+
+.tsd-navigation-links a:hover {
+  color: var(--ml-pink);
+}
+
+/* --- Headings ----------------------------------------------------------- */
+
+.tsd-typography h1,
+.tsd-typography h2,
+.tsd-typography h3 {
+  letter-spacing: -0.015em;
+}
+
+.tsd-typography h2 {
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--color-text) 12%, transparent);
+}
+
+/* --- Links -------------------------------------------------------------- */
+
+a {
+  text-underline-offset: 0.15em;
+}
+
+.tsd-typography a:hover {
+  text-decoration: underline;
+}
+
+/* --- Panels / cards ----------------------------------------------------- */
+
+.tsd-panel {
+  border: 1px solid color-mix(in srgb, var(--color-text) 9%, transparent);
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+}
+
+.tsd-panel-group.tsd-index-group .tsd-index-panel {
+  border-radius: 12px;
+}
+
+/* --- Tables (the core README API tables) -------------------------------- */
+
+.tsd-typography table {
+  border-collapse: collapse;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--color-text) 12%, transparent);
+}
+
+.tsd-typography th,
+.tsd-typography td {
+  border: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
+  padding: 0.55rem 0.85rem;
+  text-align: left;
+}
+
+.tsd-typography thead th {
+  background: color-mix(in srgb, var(--ml-pink) 12%, var(--color-background));
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.tsd-typography tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--color-text) 3%, transparent);
+}
+
+.tsd-typography tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* --- Code --------------------------------------------------------------- */
+
+.tsd-typography code,
+.tsd-typography pre {
+  font-family: var(--ml-mono);
+  font-size: 0.9em;
+}
+
+.tsd-typography :not(pre) > code {
+  background: color-mix(in srgb, var(--ml-pink) 10%, var(--color-background));
+  color: color-mix(in srgb, var(--ml-pink-strong) 80%, var(--color-text));
+  padding: 0.12em 0.4em;
+  border-radius: 6px;
+}
+
+.tsd-typography pre {
+  border: 1px solid color-mix(in srgb, var(--color-text) 10%, transparent);
+  border-radius: 12px;
+  padding: 1rem 1.1rem;
+}
+
+/* --- Sidebar navigation ------------------------------------------------- */
+
+.tsd-navigation a,
+.tsd-navigation summary {
+  border-radius: 8px;
+}
+
+.tsd-navigation a.current {
+  font-weight: 600;
+}
+
+/* --- Search ------------------------------------------------------------- */
+
+#tsd-search .field input,
+.tsd-toolbar .tsd-widget {
+  border-radius: 8px;
+}
+
+/* --- Footer ------------------------------------------------------------- */
+
+.tsd-generator {
+  opacity: 0.8;
+  font-size: 0.85em;
+}
+
+.tsd-generator a {
+  color: var(--color-link);
+}
