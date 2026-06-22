@@ -197,6 +197,59 @@ describe('extractEdges', () => {
   });
 
   // -------------------------------------------------------------------------
+  // Hyphenated / special-char inline labels (regression: labels with - or =)
+  // -------------------------------------------------------------------------
+  describe('hyphenated and special-char inline labels', () => {
+    it('-- start-to-end --> yields A→B (hyphen in dash-inline label)', () => {
+      expect(edges('A -- start-to-end --> B')).toEqual([
+        { source: 'A', target: 'B', line: 1 },
+      ]);
+    });
+
+    it('-- yes-or-no --> yields A→B', () => {
+      expect(edges('A -- yes-or-no --> B')).toEqual([
+        { source: 'A', target: 'B', line: 1 },
+      ]);
+    });
+
+    it('-- some-text --- yields A→B (hyphen in undirected dash-inline label)', () => {
+      expect(edges('A -- some-text --- B')).toEqual([
+        { source: 'A', target: 'B', line: 1 },
+      ]);
+    });
+
+    it('== a=b ==> yields A→B (= in thick-inline label)', () => {
+      expect(edges('A == a=b ==> B')).toEqual([
+        { source: 'A', target: 'B', line: 1 },
+      ]);
+    });
+
+    it('-. a-b .-> yields A→B (hyphen in dotted-inline label)', () => {
+      expect(edges('A -. a-b .-> B')).toEqual([
+        { source: 'A', target: 'B', line: 1 },
+      ]);
+    });
+
+    it('two-inline-label chain A -- x --> B -- y --> C yields A→B and B→C', () => {
+      expect(edges('A -- x --> B -- y --> C')).toEqual([
+        { source: 'A', target: 'B', line: 1 },
+        { source: 'B', target: 'C', line: 1 },
+      ]);
+    });
+
+    it('two-hyphen-label chain A -- x-y --> B -- p-q --> C yields A→B and B→C', () => {
+      expect(edges('A -- x-y --> B -- p-q --> C')).toEqual([
+        { source: 'A', target: 'B', line: 1 },
+        { source: 'B', target: 'C', line: 1 },
+      ]);
+    });
+
+    it('A == B (bare two-char ==) produces no edge (not a valid Mermaid link)', () => {
+      expect(edges('A == B')).toEqual([]);
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // Multi-line and line numbers
   // -------------------------------------------------------------------------
   describe('multi-line and line numbers', () => {

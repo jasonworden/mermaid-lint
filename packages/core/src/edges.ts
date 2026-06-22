@@ -57,20 +57,28 @@ const SKIP_KEYWORDS = new Set([
  * Alternation order (most-specific first to avoid partial matches):
  *   1. Dotted with text:  `-. text .->`  or  `-. text .-`
  *   2. Dotted plain:      `-.->` or `-.-`
- *   3. Thick with text:   `== text ==>` (space + word required to avoid `==`)
- *   4. Thick plain:       `===` or `==>` or `==`
+ *   3. Thick with text:   `== text ==>` or `== text ===`
+ *   4. Thick plain:       `===` or `==>`
  *   5. Invisible:         `~~~`
- *   6. Dashed with text:  `-- text -->` (space + word required to avoid `--`)
+ *   6. Dashed with text:  `-- text -->` or `-- text ---`
  *   7. Dashed plain:      `-->` or `---` or `--`
  *
- * For inline-text forms the pattern requires `\s+\w` after the opening dashes
- * so bare `--` and `==` never accidentally consume a following word token.
+ * Inline-text forms use lazy `.*?` so the label run stops at the first
+ * occurrence of the closing operator token (`-->`, `---`, `==>`, `===`,
+ * `.->`, `.-`).  This prevents labels that contain `-` or `=` characters
+ * from being mis-split into phantom node groups.  A non-whitespace character
+ * is still required after the opening dashes/equals so that bare `--` / `==`
+ * operators do not accidentally consume a following word as a label.
+ *
+ * Bare `==` is intentionally omitted: it is not a valid Mermaid flowchart
+ * link and its presence risked false-positive edges on lines that happen to
+ * contain `==` (e.g. equality comparisons in node labels).
  *
  * The `g` flag is required so callers can use `split` (which interleaves
  * capture groups) or `exec` in a loop.
  */
 const LINK_OP_RE =
-  /(-\.[^.>]*\.->|-\.[^.>]*\.-|-\.->|-\.-|==\s+\w[^=]*==>|===|==>|==\s+\w[^=]*==|==|~~~|--\s+\w[^-]*-->|-->|--\s+\w[^-]*--|---|--)/g;
+  /(-\.\s*\S.*?\.->|-\.\s*\S.*?\.-(?!>)|-\.->|-\.-|==\s+\S.*?==>|==\s+\S.*?===|===|==>|~~~|--\s+\S.*?-->|--\s+\S.*?---(?!>)|-->|---|--)/g;
 
 /**
  * Pipe-label regex: `|...|` that appears immediately before or after a node
@@ -83,7 +91,7 @@ const PIPE_LABEL_RE = /\|[^|]*\|/g;
  * A valid Mermaid node id is `\w[\w-]*`.  After de-bracketing we extract just
  * the leading id token from a (possibly padded) group segment.
  */
-const ID_RE = /^[\w][\w-]*/;
+const ID_RE = /^\w[\w-]*/;
 
 // ---------------------------------------------------------------------------
 // Bracket stripping
