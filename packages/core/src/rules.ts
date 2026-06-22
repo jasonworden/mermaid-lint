@@ -68,7 +68,7 @@ export type ResolvedRules = Record<RuleId, RuleSeverity>;
  * defaults to `off` (opt-in) due to false-positive risk from subgraph-only
  * members and legend nodes; the original four are `warn` except `duplicate-ids`.
  *
- * Phase 3 adds three sequence/class rules: `no-activate-without-deactivate`
+ * The sequence/class rules follow the same pattern: `no-activate-without-deactivate`
  * (`warn`) catches dangling activation bars in sequence diagrams;
  * `prefer-explicit-participants` defaults to `off` because Mermaid's
  * auto-create pattern is intentional and widely used — opt in to enforce it;
