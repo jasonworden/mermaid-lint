@@ -15,6 +15,7 @@
   "titleLink": "https://docs.mermaidlint.com/",
   "navigationLinks": {
     "Docs": "https://docs.mermaidlint.com/",
+    "Blog": "https://jasonworden.com/blog/introducing-mermaid-lint/",
     "npm": "https://www.npmjs.com/package/@mermaid-lint/core",
     "GitHub": "https://github.com/jasonworden/mermaid-lint"
   },
