@@ -251,4 +251,181 @@ describe('checkSemantics', () => {
       expect(only(b, 'no-experimental', rules)).toEqual([]);
     });
   });
+
+  describe('no-duplicate-edges rule', () => {
+    it('fires on a duplicate edge (warn)', () => {
+      const b = block('flowchart LR\n  A --> B\n  A --> B');
+      const warnings = only(b, 'no-duplicate-edges');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].severity).toBe('warn');
+      expect(warnings[0].line).toBe(3);
+      expect(warnings[0].message).toContain('duplicate edge');
+      expect(warnings[0].message).toContain('`A`');
+      expect(warnings[0].message).toContain('`B`');
+      expect(warnings[0].message).toContain('first on line 2');
+    });
+
+    it('returns [] when no duplicates', () => {
+      const b = block('flowchart LR\n  A --> B\n  A --> C');
+      expect(only(b, 'no-duplicate-edges')).toEqual([]);
+    });
+
+    it('does NOT fire when edges have distinct labels (A -->|yes| B and A -->|no| B)', () => {
+      const b = block('flowchart LR\n  A -->|yes| B\n  A -->|no| B');
+      expect(only(b, 'no-duplicate-edges')).toEqual([]);
+    });
+
+    it('fires when both edges have the same non-empty label (A -->|x| B twice)', () => {
+      const b = block('flowchart LR\n  A -->|x| B\n  A -->|x| B');
+      const warnings = only(b, 'no-duplicate-edges');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].message).toContain('duplicate edge');
+    });
+
+    it('fires when both edges are unlabelled (A --> B twice)', () => {
+      const b = block('flowchart LR\n  A --> B\n  A --> B');
+      expect(only(b, 'no-duplicate-edges')).toHaveLength(1);
+    });
+
+    it('does NOT fire when one edge is labelled and one is not (A --> B and A -->|x| B)', () => {
+      const b = block('flowchart LR\n  A --> B\n  A -->|x| B');
+      expect(only(b, 'no-duplicate-edges')).toEqual([]);
+    });
+
+    it('is suppressed by %% mermaid-lint-disable no-duplicate-edges', () => {
+      const b = block(
+        'flowchart LR\n  %% mermaid-lint-disable no-duplicate-edges\n  A --> B\n  A --> B',
+      );
+      expect(only(b, 'no-duplicate-edges')).toEqual([]);
+    });
+
+    it('returns [] when configured off', () => {
+      const b = block('flowchart LR\n  A --> B\n  A --> B');
+      const rules: ResolvedRules = {
+        ...RULE_DEFAULTS,
+        'no-duplicate-edges': 'off',
+      };
+      expect(only(b, 'no-duplicate-edges', rules)).toEqual([]);
+    });
+  });
+
+  describe('no-self-loop rule', () => {
+    it('fires on a self-loop (warn)', () => {
+      const b = block('flowchart LR\n  A --> A');
+      const warnings = only(b, 'no-self-loop');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].severity).toBe('warn');
+      expect(warnings[0].line).toBe(2);
+      expect(warnings[0].message).toContain('`A`');
+      expect(warnings[0].message).toContain('self-loop');
+    });
+
+    it('returns [] when no self-loops', () => {
+      const b = block('flowchart LR\n  A --> B');
+      expect(only(b, 'no-self-loop')).toEqual([]);
+    });
+
+    it('is suppressed by %% mermaid-lint-disable no-self-loop', () => {
+      const b = block(
+        'flowchart LR\n  %% mermaid-lint-disable no-self-loop\n  A --> A',
+      );
+      expect(only(b, 'no-self-loop')).toEqual([]);
+    });
+
+    it('returns [] when configured off', () => {
+      const b = block('flowchart LR\n  A --> A');
+      const rules: ResolvedRules = {
+        ...RULE_DEFAULTS,
+        'no-self-loop': 'off',
+      };
+      expect(only(b, 'no-self-loop', rules)).toEqual([]);
+    });
+  });
+
+  describe('no-empty-labels rule', () => {
+    it('fires on a node with an empty label (warn)', () => {
+      const b = block('flowchart LR\n  A[ ] --> B');
+      const warnings = only(b, 'no-empty-labels');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].severity).toBe('warn');
+      expect(warnings[0].message).toContain('`A`');
+      expect(warnings[0].message).toContain('empty label');
+    });
+
+    it('returns [] when all labels are non-empty', () => {
+      const b = block('flowchart LR\n  A[Start] --> B[End]');
+      expect(only(b, 'no-empty-labels')).toEqual([]);
+    });
+
+    it('returns [] for bare id with no brackets', () => {
+      const b = block('flowchart LR\n  A --> B');
+      expect(only(b, 'no-empty-labels')).toEqual([]);
+    });
+
+    it('is suppressed by %% mermaid-lint-disable no-empty-labels', () => {
+      const b = block(
+        'flowchart LR\n  %% mermaid-lint-disable no-empty-labels\n  A[ ] --> B',
+      );
+      expect(only(b, 'no-empty-labels')).toEqual([]);
+    });
+
+    it('fires on empty parens A() (rounded shape with empty label)', () => {
+      const b = block('flowchart LR\n  A() --> B');
+      const warnings = only(b, 'no-empty-labels');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].severity).toBe('warn');
+      expect(warnings[0].message).toContain('`A`');
+      expect(warnings[0].message).toContain('empty label');
+    });
+
+    it('returns [] when configured off', () => {
+      const b = block('flowchart LR\n  A[ ] --> B');
+      const rules: ResolvedRules = {
+        ...RULE_DEFAULTS,
+        'no-empty-labels': 'off',
+      };
+      expect(only(b, 'no-empty-labels', rules)).toEqual([]);
+    });
+  });
+
+  describe('no-orphan-nodes rule', () => {
+    it('returns [] by default (off)', () => {
+      const b = block('flowchart LR\n  A --> B\n  C[Lonely]');
+      expect(only(b, 'no-orphan-nodes')).toEqual([]);
+    });
+
+    it('fires on an orphan node when enabled (warn)', () => {
+      const b = block('flowchart LR\n  A --> B\n  C[Lonely]');
+      const rules: ResolvedRules = {
+        ...RULE_DEFAULTS,
+        'no-orphan-nodes': 'warn',
+      };
+      const warnings = only(b, 'no-orphan-nodes', rules);
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].severity).toBe('warn');
+      expect(warnings[0].line).toBe(3);
+      expect(warnings[0].message).toContain('`C`');
+      expect(warnings[0].message).toContain('never connected');
+    });
+
+    it('returns [] when all declared nodes are referenced in edges', () => {
+      const b = block('flowchart LR\n  A[Start] --> B[End]');
+      const rules: ResolvedRules = {
+        ...RULE_DEFAULTS,
+        'no-orphan-nodes': 'warn',
+      };
+      expect(only(b, 'no-orphan-nodes', rules)).toEqual([]);
+    });
+
+    it('is suppressed by %% mermaid-lint-disable no-orphan-nodes', () => {
+      const b = block(
+        'flowchart LR\n  %% mermaid-lint-disable no-orphan-nodes\n  A --> B\n  C[Lonely]',
+      );
+      const rules: ResolvedRules = {
+        ...RULE_DEFAULTS,
+        'no-orphan-nodes': 'warn',
+      };
+      expect(only(b, 'no-orphan-nodes', rules)).toEqual([]);
+    });
+  });
 });
