@@ -428,4 +428,237 @@ describe('checkSemantics', () => {
       expect(only(b, 'no-orphan-nodes', rules)).toEqual([]);
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // Phase 3 — sequence & class diagram rules
+  // ---------------------------------------------------------------------------
+
+  describe('no-activate-without-deactivate rule', () => {
+    function seqBlock(body: string): Block {
+      return block(body, 'sequenceDiagram');
+    }
+
+    it('returns [] for a balanced explicit activate/deactivate pair', () => {
+      const b = seqBlock(
+        'sequenceDiagram\n  Alice->>Bob: Hello\n  activate Bob\n  Bob-->>Alice: Hi\n  deactivate Bob',
+      );
+      expect(only(b, 'no-activate-without-deactivate')).toEqual([]);
+    });
+
+    it('fires when activate has no matching deactivate (warn)', () => {
+      const b = seqBlock(
+        'sequenceDiagram\n  Alice->>Bob: Hello\n  activate Bob\n  Bob-->>Alice: Hi',
+      );
+      const warnings = only(b, 'no-activate-without-deactivate');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].severity).toBe('warn');
+      expect(warnings[0].message).toContain('`Bob`');
+      expect(warnings[0].message).toContain('never deactivated');
+    });
+
+    it('fires when deactivate has no matching activate', () => {
+      const b = seqBlock(
+        'sequenceDiagram\n  Alice->>Bob: Hello\n  deactivate Bob',
+      );
+      const warnings = only(b, 'no-activate-without-deactivate');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].message).toContain('`deactivate`');
+      expect(warnings[0].message).toContain('`Bob`');
+      expect(warnings[0].message).toContain('no matching `activate`');
+    });
+
+    it('returns [] for balanced shorthand +/- arrows', () => {
+      const b = seqBlock(
+        'sequenceDiagram\n  Alice->>+Bob: Hello\n  Bob-->>-Alice: Hi',
+      );
+      expect(only(b, 'no-activate-without-deactivate')).toEqual([]);
+    });
+
+    it('fires when shorthand + has no matching - (dangling activation)', () => {
+      const b = seqBlock(
+        'sequenceDiagram\n  Alice->>+Bob: Hello\n  Bob-->>Alice: Hi',
+      );
+      const warnings = only(b, 'no-activate-without-deactivate');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].message).toContain('`Bob`');
+      expect(warnings[0].message).toContain('never deactivated');
+    });
+
+    it('returns [] for multiple stacked balanced activations', () => {
+      const b = seqBlock(
+        'sequenceDiagram\n  activate Alice\n  activate Alice\n  deactivate Alice\n  deactivate Alice',
+      );
+      expect(only(b, 'no-activate-without-deactivate')).toEqual([]);
+    });
+
+    it('is suppressed by %% mermaid-lint-disable no-activate-without-deactivate', () => {
+      const b = seqBlock(
+        'sequenceDiagram\n  %% mermaid-lint-disable no-activate-without-deactivate\n  activate Bob\n  Alice->>Bob: Hello',
+      );
+      expect(only(b, 'no-activate-without-deactivate')).toEqual([]);
+    });
+
+    it('returns [] when configured off', () => {
+      const b = seqBlock(
+        'sequenceDiagram\n  activate Bob\n  Alice->>Bob: Hello',
+      );
+      const rules: ResolvedRules = {
+        ...RULE_DEFAULTS,
+        'no-activate-without-deactivate': 'off',
+      };
+      expect(only(b, 'no-activate-without-deactivate', rules)).toEqual([]);
+    });
+
+    it('severity defaults to warn', () => {
+      const b = seqBlock('sequenceDiagram\n  activate Bob\n  Alice->>Bob: Hi');
+      const warnings = only(b, 'no-activate-without-deactivate');
+      expect(warnings[0].severity).toBe('warn');
+    });
+  });
+
+  describe('prefer-explicit-participants rule', () => {
+    function seqBlock(body: string): Block {
+      return block(body, 'sequenceDiagram');
+    }
+    const enabledRules: ResolvedRules = {
+      ...RULE_DEFAULTS,
+      'prefer-explicit-participants': 'warn',
+    };
+
+    it('returns [] by default (rule is off)', () => {
+      const b = seqBlock('sequenceDiagram\n  Alice->>Bob: Hello');
+      expect(only(b, 'prefer-explicit-participants')).toEqual([]);
+    });
+
+    it('returns [] when participants are declared before use', () => {
+      const b = seqBlock(
+        'sequenceDiagram\n  participant Alice\n  participant Bob\n  Alice->>Bob: Hello',
+      );
+      expect(only(b, 'prefer-explicit-participants', enabledRules)).toEqual([]);
+    });
+
+    it('fires when a participant is used before being declared', () => {
+      const b = seqBlock(
+        'sequenceDiagram\n  Alice->>Bob: Hello\n  participant Alice\n  participant Bob',
+      );
+      const warnings = only(b, 'prefer-explicit-participants', enabledRules);
+      // Alice and Bob both used before declared — 2 findings
+      expect(warnings).toHaveLength(2);
+      expect(warnings[0].message).toContain('`Alice`');
+      expect(warnings[1].message).toContain('`Bob`');
+      expect(warnings[0].message).toContain('auto-creates');
+    });
+
+    it('fires only for undeclared participant when one is declared and one is not', () => {
+      // participant A as Alice declared, B never declared
+      const b = seqBlock(
+        'sequenceDiagram\n  participant A as Alice\n  A->>B: Hello',
+      );
+      const warnings = only(b, 'prefer-explicit-participants', enabledRules);
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].message).toContain('`B`');
+    });
+
+    it('emits only one finding per undeclared id (not one per message)', () => {
+      const b = seqBlock(
+        'sequenceDiagram\n  Alice->>Bob: First\n  Alice->>Bob: Second',
+      );
+      const warnings = only(b, 'prefer-explicit-participants', enabledRules);
+      // Alice and Bob each fire once
+      expect(warnings).toHaveLength(2);
+    });
+
+    it('is suppressed by %% mermaid-lint-disable prefer-explicit-participants', () => {
+      const b = seqBlock(
+        'sequenceDiagram\n  %% mermaid-lint-disable prefer-explicit-participants\n  Alice->>Bob: Hello',
+      );
+      expect(only(b, 'prefer-explicit-participants', enabledRules)).toEqual([]);
+    });
+
+    it('severity follows the configured value', () => {
+      const b = seqBlock('sequenceDiagram\n  Alice->>Bob: Hello');
+      const warnings = only(b, 'prefer-explicit-participants', enabledRules);
+      expect(warnings[0].severity).toBe('warn');
+    });
+  });
+
+  describe('no-duplicate-methods rule', () => {
+    function classBlock(body: string): Block {
+      return block(body, 'classDiagram');
+    }
+
+    it('returns [] when no duplicate methods exist', () => {
+      const b = classBlock(
+        'classDiagram\n  class Foo {\n    +bar() int\n    +baz() string\n  }',
+      );
+      expect(only(b, 'no-duplicate-methods')).toEqual([]);
+    });
+
+    it('fires when a method is declared twice in a class block (warn)', () => {
+      const b = classBlock(
+        'classDiagram\n  class Foo {\n    +bar() int\n    +bar() int\n  }',
+      );
+      const warnings = only(b, 'no-duplicate-methods');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].severity).toBe('warn');
+      expect(warnings[0].message).toContain('`bar()`');
+      expect(warnings[0].message).toContain('`Foo`');
+      expect(warnings[0].message).toContain('first on line');
+    });
+
+    it('fires when a method is declared twice via inline syntax', () => {
+      const b = classBlock('classDiagram\n  Foo : +bar()\n  Foo : +bar()');
+      const warnings = only(b, 'no-duplicate-methods');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].message).toContain('`bar()`');
+      expect(warnings[0].message).toContain('`Foo`');
+    });
+
+    it('returns [] for distinct overloads (different param signatures)', () => {
+      const b = classBlock(
+        'classDiagram\n  class Foo {\n    +bar(int x) string\n    +bar(String s) string\n  }',
+      );
+      expect(only(b, 'no-duplicate-methods')).toEqual([]);
+    });
+
+    it('returns [] when same method name appears on two different classes', () => {
+      const b = classBlock(
+        'classDiagram\n  class Foo {\n    +bar()\n  }\n  class Baz {\n    +bar()\n  }',
+      );
+      expect(only(b, 'no-duplicate-methods')).toEqual([]);
+    });
+
+    it('returns [] for repeated attribute (no parens) — not a method', () => {
+      const b = classBlock(
+        'classDiagram\n  class Foo {\n    +int count\n    +int count\n  }',
+      );
+      expect(only(b, 'no-duplicate-methods')).toEqual([]);
+    });
+
+    it('is suppressed by %% mermaid-lint-disable no-duplicate-methods', () => {
+      const b = classBlock(
+        'classDiagram\n  %% mermaid-lint-disable no-duplicate-methods\n  class Foo {\n    +bar()\n    +bar()\n  }',
+      );
+      expect(only(b, 'no-duplicate-methods')).toEqual([]);
+    });
+
+    it('returns [] when configured off', () => {
+      const b = classBlock(
+        'classDiagram\n  class Foo {\n    +bar()\n    +bar()\n  }',
+      );
+      const rules: ResolvedRules = {
+        ...RULE_DEFAULTS,
+        'no-duplicate-methods': 'off',
+      };
+      expect(only(b, 'no-duplicate-methods', rules)).toEqual([]);
+    });
+
+    it('severity defaults to warn', () => {
+      const b = classBlock(
+        'classDiagram\n  class Foo {\n    +bar()\n    +bar()\n  }',
+      );
+      const warnings = only(b, 'no-duplicate-methods');
+      expect(warnings[0].severity).toBe('warn');
+    });
+  });
 });

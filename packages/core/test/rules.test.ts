@@ -34,6 +34,9 @@ describe('resolveRules', () => {
     expect(RULE_DEFAULTS['no-self-loop']).toBe('warn');
     expect(RULE_DEFAULTS['no-empty-labels']).toBe('warn');
     expect(RULE_DEFAULTS['no-orphan-nodes']).toBe('off');
+    expect(RULE_DEFAULTS['no-activate-without-deactivate']).toBe('warn');
+    expect(RULE_DEFAULTS['prefer-explicit-participants']).toBe('off');
+    expect(RULE_DEFAULTS['no-duplicate-methods']).toBe('warn');
   });
 
   it('layers user overrides over the defaults', () => {
