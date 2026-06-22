@@ -195,7 +195,7 @@ const noDuplicateEdges: Rule = {
         seen.set(key, e.line);
       } else {
         findings.push({
-          message: `edge \`${e.source} --> ${e.target}\` is defined more than once (first on line ${firstLine}); duplicate edges render stacked and are usually a copy-paste mistake.`,
+          message: `duplicate edge: \`${e.source}\` → \`${e.target}\` is defined more than once (first on line ${firstLine}); duplicate edges render stacked and are usually a copy-paste mistake.`,
           line: e.line,
         });
       }

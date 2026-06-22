@@ -259,7 +259,9 @@ describe('checkSemantics', () => {
       expect(warnings).toHaveLength(1);
       expect(warnings[0].severity).toBe('warn');
       expect(warnings[0].line).toBe(3);
-      expect(warnings[0].message).toContain('A --> B');
+      expect(warnings[0].message).toContain('duplicate edge');
+      expect(warnings[0].message).toContain('`A`');
+      expect(warnings[0].message).toContain('`B`');
       expect(warnings[0].message).toContain('first on line 2');
     });
 
@@ -291,6 +293,7 @@ describe('checkSemantics', () => {
       const warnings = only(b, 'no-self-loop');
       expect(warnings).toHaveLength(1);
       expect(warnings[0].severity).toBe('warn');
+      expect(warnings[0].line).toBe(2);
       expect(warnings[0].message).toContain('`A`');
       expect(warnings[0].message).toContain('self-loop');
     });
@@ -342,6 +345,15 @@ describe('checkSemantics', () => {
         'flowchart LR\n  %% mermaid-lint-disable no-empty-labels\n  A[ ] --> B',
       );
       expect(only(b, 'no-empty-labels')).toEqual([]);
+    });
+
+    it('fires on empty parens A() (rounded shape with empty label)', () => {
+      const b = block('flowchart LR\n  A() --> B');
+      const warnings = only(b, 'no-empty-labels');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].severity).toBe('warn');
+      expect(warnings[0].message).toContain('`A`');
+      expect(warnings[0].message).toContain('empty label');
     });
 
     it('returns [] when configured off', () => {
