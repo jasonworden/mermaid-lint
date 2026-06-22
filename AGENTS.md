@@ -70,7 +70,16 @@ the repo's pinned binaries rather than `npx`; see
 - **Commits:** Conventional Commits (`feat:`, `fix:`, `chore:`, `docs:`…).
 - **Versioning:** the `@mermaid-lint/*` packages move in **lockstep**; bump them
   together (minor for features, patch for fixes). `mermaid-lint-vscode` versions
-  on its own track. CI publishes on a `v*` tag.
+  on its own track. CI publishes on a `v*` tag. When you bump the version, also
+  update the `--format json` `version` assertions in
+  `packages/cli/test/cli.test.ts` (they hard-code the current version).
+- **Every published package needs a `README.md`.** npm shows "no README data"
+  for any package without one, and a README only reaches npm on the *next*
+  publish — so a README added after a version shipped won't appear until the
+  version is bumped again. When you add a package (or change one's purpose/API),
+  add or update its `README.md` in the same change; keep it in sync with the
+  matching section of the root [README.md](README.md). `mermaid-lint-vscode` is
+  `private` (Marketplace, not npm) but still ships a README.
 - **Don't skip hooks** (`--no-verify`); if husky/lint-staged blocks, fix the cause.
 
 ## More docs
