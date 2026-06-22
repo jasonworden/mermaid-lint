@@ -300,7 +300,7 @@ const noOrphanNodes: Rule = {
 };
 
 // ---------------------------------------------------------------------------
-// Phase 3 — sequence & class diagram helpers and rules
+// Sequence & class diagram helpers and rules
 // ---------------------------------------------------------------------------
 
 /**

@@ -430,7 +430,7 @@ describe('checkSemantics', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // Phase 3 — sequence & class diagram rules
+  // Sequence & class diagram rules
   // ---------------------------------------------------------------------------
 
   describe('no-activate-without-deactivate rule', () => {
