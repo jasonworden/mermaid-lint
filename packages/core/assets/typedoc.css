@@ -168,6 +168,18 @@ a {
   font-weight: 600;
 }
 
+/*
+ * The header links (Docs/Blog/npm/GitHub) render as #tsd-sidebar-links at the
+ * top of the sidebar, butting directly against the page navigation with no gap.
+ * Add breathing room + a subtle divider so the two groups read as distinct.
+ */
+#tsd-sidebar-links {
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--color-text) 10%, transparent);
+}
+
 /* --- Search ------------------------------------------------------------- */
 
 #tsd-search .field input,
