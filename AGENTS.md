@@ -81,6 +81,11 @@ the repo's pinned binaries rather than `npx`; see
   matching section of the root [README.md](README.md). `mermaid-lint-vscode` is
   `private` (Marketplace, not npm) but still ships a README.
 - **Don't skip hooks** (`--no-verify`); if husky/lint-staged blocks, fix the cause.
+- **API docs (Cloudflare Pages):** keep `"router": "structure"` in
+  `packages/core/typedoc.json`. The default `kind` router emits a top-level
+  `functions/` dir, which collides with Cloudflare Pages' reserved Functions
+  directory and silently drops those pages from the deploy. CI enforces this via
+  `scripts/check-docs-cloudflare-safe.mjs`; see [docs/cloudflare-docs-setup.md](docs/cloudflare-docs-setup.md).
 
 ## More docs
 

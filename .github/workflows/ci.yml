@@ -37,8 +37,12 @@ jobs:
 
       # Prove the @mermaid-lint/core API reference still builds. The docs.yml
       # workflow deploys this output to Cloudflare Pages on push to main.
-      - name: API docs build check (typedoc)
-        run: pnpm --filter @mermaid-lint/core docs
+      # Build the API reference, then fail if the output gains a Cloudflare Pages
+      # reserved path (e.g. a top-level functions/ dir) that would break the deploy.
+      - name: API docs build + Cloudflare Pages safety check (typedoc)
+        run: |
+          pnpm --filter @mermaid-lint/core docs
+          node scripts/check-docs-cloudflare-safe.mjs packages/core/docs
 
   e2e:
     # Real VS Code Extension Host test for mermaid-lint-vscode. Runs the

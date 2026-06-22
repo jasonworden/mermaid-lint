@@ -39,8 +39,12 @@ jobs:
       - name: Build core
         run: pnpm --filter @mermaid-lint/core build
 
-      - name: Generate API docs (typedoc)
-        run: pnpm --filter @mermaid-lint/core docs
+      # Generate the API reference, then block the deploy if the output has a
+      # Cloudflare Pages reserved path (e.g. a top-level functions/ dir).
+      - name: Generate API docs (typedoc) + Cloudflare Pages safety check
+        run: |
+          pnpm --filter @mermaid-lint/core docs
+          node scripts/check-docs-cloudflare-safe.mjs packages/core/docs
 
       - name: Deploy to Cloudflare Pages
         env:
