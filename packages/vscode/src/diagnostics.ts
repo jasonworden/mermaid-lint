@@ -83,14 +83,12 @@ export async function computeMermaidDiagnostics(
       }
       if (semantic) {
         for (const w of result.warnings) {
+          // A rule resolved to `error` is always an error; `strict` elevates
+          // the remaining `warn`-severity findings to errors too.
+          const severity: Severity =
+            w.severity === 'error' || strict ? 'error' : 'warning';
           out.push(
-            makeDiag(
-              lines,
-              toDocLine(w.line),
-              undefined,
-              w.message,
-              strict ? 'error' : 'warning',
-            ),
+            makeDiag(lines, toDocLine(w.line), undefined, w.message, severity),
           );
         }
       }

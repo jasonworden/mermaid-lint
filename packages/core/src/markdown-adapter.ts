@@ -3,6 +3,7 @@ import {
   type ExtractOptions,
   extractMermaidBlocks,
 } from './extract.js';
+import { RULE_DEFAULTS, type ResolvedRules } from './rules.js';
 import { validateBlock } from './validate.js';
 
 /**
@@ -59,11 +60,16 @@ function toAbsLine(block: Block, relLine: number | undefined): number {
  * strict mode).
  *
  * @param block - The block to validate.
+ * @param rules - Resolved per-rule severities for the semantic pass. Defaults
+ *   to {@link RULE_DEFAULTS}.
  * @returns Diagnostics with document-absolute line/column coordinates.
  * @public
  */
-export async function blockToDiagnostics(block: Block): Promise<Diagnostic[]> {
-  const result = await validateBlock(block);
+export async function blockToDiagnostics(
+  block: Block,
+  rules: ResolvedRules = RULE_DEFAULTS,
+): Promise<Diagnostic[]> {
+  const result = await validateBlock(block, rules);
   const diagnostics: Diagnostic[] = [];
 
   if (!result.ok) {
@@ -82,7 +88,9 @@ export async function blockToDiagnostics(block: Block): Promise<Diagnostic[]> {
       column: block.col,
       message: w.message,
       ruleId: w.rule,
-      severity: 'warning',
+      // A semantic rule resolved to `error` is reported as an error diagnostic;
+      // `warn` becomes a `warning`.
+      severity: w.severity === 'error' ? 'error' : 'warning',
     });
   }
 
@@ -98,6 +106,8 @@ export async function blockToDiagnostics(block: Block): Promise<Diagnostic[]> {
  * @param path - Source path (a `.mmd` extension switches to whole-file mode).
  * @param text - Document contents.
  * @param options - Fence markers to recognize (see {@link ExtractOptions}).
+ * @param rules - Resolved per-rule severities for the semantic pass. Defaults
+ *   to {@link RULE_DEFAULTS}.
  * @returns Every diagnostic across all blocks, with absolute coordinates.
  * @public
  */
@@ -105,9 +115,12 @@ export async function lintMarkdown(
   path: string,
   text: string,
   options: ExtractOptions = {},
+  rules: ResolvedRules = RULE_DEFAULTS,
 ): Promise<Diagnostic[]> {
   const blocks = extractMermaidBlocks(path, text, options);
-  const perBlock = await Promise.all(blocks.map(blockToDiagnostics));
+  const perBlock = await Promise.all(
+    blocks.map((block) => blockToDiagnostics(block, rules)),
+  );
   const lineCount = text.replace(/\r\n/g, '\n').split('\n').length;
   const diagnostics = perBlock.flat();
   for (const d of diagnostics) {

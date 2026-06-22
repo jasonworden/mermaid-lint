@@ -50,10 +50,9 @@ describe('@mermaid-lint/remark', () => {
     expect(msg.line).toBe(5);
   });
 
-  it('strict mode: reports semantic warnings as errors', async () => {
-    // duplicate-ids warning: same node ID used with different labels
-    const md =
-      '```mermaid\nflowchart LR\n  A[Start] --> B\n  A[Begin] --> C\n```\n';
+  it('strict mode: reports warn-severity findings as errors', async () => {
+    // prefer-flowchart is a warn-severity rule: hidden by default, shown in strict.
+    const md = '```mermaid\ngraph LR\n  A --> B\n```\n';
     const fileDefault = await remark()
       .use(remarkLint)
       .use(remarkLintMermaid)

@@ -14,10 +14,18 @@ export default {
   // 'crv' or '.crv'. Merges with the --ext CLI flag. Files named explicitly on
   // the command line are always linted, regardless of extension.
   // extensions: ['crv'],
-  // Treat semantic warnings (e.g. duplicate node IDs) as errors. Default: false.
+  // Treat warn-severity findings as errors (exit 1). Default: false.
   // strict: true,
-  // Set to false to disable semantic checks entirely (syntax errors only). Default: true.
+  // Set to false to disable ALL semantic rules (syntax errors only). Default: true.
   // semantic: true,
+  // Per-rule severity ('off' | 'warn' | 'error'), layered over the defaults.
+  // Most rules default to 'warn'; 'duplicate-ids' defaults to 'error'.
+  // rules: {
+  //   'prefer-flowchart': 'warn',   // legacy `graph` keyword → prefer `flowchart`
+  //   'require-direction': 'warn',  // `flowchart`/`graph` with no direction
+  //   'no-experimental': 'warn',    // `*-beta` diagram types (unstable syntax)
+  //   'duplicate-ids': 'error',     // same node id, conflicting labels
+  // },
   // Output format: 'text' (human-readable, default) or 'json' (machine-readable).
   // format: 'text',
   // Code-fence markers to recognize. Default: ['backtick', 'tilde'] (CommonMark).

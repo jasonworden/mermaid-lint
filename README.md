@@ -209,8 +209,17 @@ export default {
   // Treat semantic warnings as errors — equivalent to --strict
   strict: false,
 
-  // false disables semantic checks — equivalent to --no-semantic
+  // false disables ALL semantic rules — equivalent to --no-semantic
   semantic: true,
+
+  // Per-rule severity ('off' | 'warn' | 'error'), layered over the defaults.
+  // Most rules default to 'warn'; 'duplicate-ids' defaults to 'error'.
+  rules: {
+    'prefer-flowchart': 'warn',  // legacy `graph` keyword → prefer `flowchart`
+    'require-direction': 'warn', // `flowchart`/`graph` with no direction (defaults to TD)
+    'no-experimental': 'warn',   // `*-beta` diagram types (unstable syntax)
+    'duplicate-ids': 'error',    // same node id, conflicting labels (wrong output)
+  },
 
   // 'text' (default) or 'json'
   format: 'text',
@@ -448,17 +457,23 @@ flowchart LR
 - **Extraction:** Parses CommonMark fenced `mermaid` blocks — backtick (` ```mermaid ` ) and tilde (`~~~mermaid`) markers, variable-length fences (4+ chars, so a body can contain ` ``` `), CRLF, indentation, info-strings, and unclosed fences. Restrict recognized markers with the [`fences`](#configuration) config option. Only `.mmd` files are treated as a single whole-file diagram — every other extension uses fenced-block extraction
 - **Validation:** Primary pass via [`@mermanjs/web`](https://github.com/Latias94/merman) WASM (Rust, ~3.7–4.4× faster). On any error, falls back to `mermaid.parse()` via jsdom for precise line/col locations and authoritative verdict
 
-## Semantic warnings
+## Semantic rules
 
-In addition to syntax errors, mermaid-lint detects semantic issues that `mermaid.parse()` accepts but which produce broken rendered diagrams.
+In addition to syntax errors, mermaid-lint runs a set of semantic rules over diagrams that `mermaid.parse()` accepts but which are legacy, ambiguous, or render incorrectly. Each rule has a **per-rule severity** (`off` | `warn` | `error`) following [Biome's model](https://biomejs.dev/linter/): most rules default to `warn` (advisory — only fails the run under `--strict`), while a rule whose violation is unambiguously wrong defaults to `error` (fails the run outright). Tune any rule via the [`rules` config key](#configuration).
 
-**Duplicate node IDs with conflicting labels** (flowchart / graph only): Mermaid silently picks one label when the same node ID is declared twice with different labels. mermaid-lint flags the conflict:
+| Rule | Default | Flags | Scope |
+|---|---|---|---|
+| `duplicate-ids` | `error` | Same node id declared twice with conflicting labels — Mermaid silently drops one | flowchart / graph |
+| `prefer-flowchart` | `warn` | The legacy `graph` keyword — `flowchart` is current and enables per-subgraph `direction` | graph |
+| `require-direction` | `warn` | `flowchart`/`graph` with no direction — silently defaults to `TD` | flowchart / graph |
+| `no-experimental` | `warn` | `*-beta` diagram types — unstable syntax that may break on a Mermaid upgrade | all |
 
 ```
-docs/api.md:7:1: warning: duplicate-ids: node "A" declared with label "Start" (line 2) and "Begin" (line 7)
+docs/api.md:7:1: error: duplicate-ids: node "A" declared with label "Start" (line 2) and "Begin" (line 7)
+docs/api.md:2:1: warning: prefer-flowchart: use `flowchart` instead of `graph`: …
 ```
 
-Suppress per-diagram with a Mermaid comment:
+Suppress one rule per-diagram with a Mermaid comment:
 
 ```
 %% mermaid-lint-disable duplicate-ids
@@ -466,7 +481,7 @@ flowchart LR
   A[Start] --> B[End]
 ```
 
-Or disable globally for a run with `--no-semantic`.
+Use a bare `%% mermaid-lint-disable` to suppress all rules in a diagram, or disable everything for a run with `--no-semantic`.
 
 ## Diagram types
 

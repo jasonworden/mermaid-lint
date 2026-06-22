@@ -60,8 +60,8 @@ diagram body
    │        parse(body) throws ──▶ syntax error  { message, line, col }
    │
    └── 2. LINT (any smells?) ──────────────────────────────────
-          checkSemantics(block)                semantic.ts
-            e.g. duplicate node IDs ──▶ warning  { rule, message, line }
+          checkSemantics(block, rules)         semantic.ts + rules.ts
+            e.g. duplicate node IDs ──▶ finding  { rule, message, line, severity }
 ```
 
 Two layers, two meanings:
@@ -74,11 +74,18 @@ Two layers, two meanings:
    (`severity: 'error'`) — the diagram is malformed and would not render.
 
 2. **Linting / "is it good?"** — Stage 2,
-   [`checkSemantics`](../packages/core/src/semantic.ts), runs rules over a
-   diagram that *does* parse: duplicate IDs with conflicting labels, and similar
-   smells. These are **warnings** (`severity: 'warning'`) — the diagram renders,
-   but something is probably wrong. They're opt-in via `strict` mode in the
-   editor/lint integrations because they're advisory, not fatal.
+   [`checkSemantics`](../packages/core/src/semantic.ts), runs a set of rules over
+   a diagram that *does* parse: the legacy `graph` keyword, a missing direction,
+   experimental diagram types, duplicate IDs with conflicting labels, and similar
+   smells. Each rule carries a **per-rule severity** resolved from
+   [`rules.ts`](../packages/core/src/rules.ts) (`off` | `warn` | `error`),
+   following [Biome's model](https://biomejs.dev/linter/): most rules default to
+   `warn` (the diagram renders, but something is suboptimal), while a rule whose
+   violation is unambiguously wrong (e.g. `duplicate-ids`, where a conflicting
+   label is silently dropped) defaults to `error`. `warn` findings are advisory
+   and only fail the run under `strict`; `error` findings fail it outright.
+   Users tune any rule via the `rules` config key or suppress one in-diagram with
+   `%% mermaid-lint-disable <rule>`.
 
 The shared [`markdown-adapter.ts`](../packages/core/src/markdown-adapter.ts)
 normalizes both into one `Diagnostic` shape (`error` | `warning`), so every

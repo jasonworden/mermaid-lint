@@ -48,9 +48,9 @@ describe('@mermaid-lint/textlint', () => {
     expect(messages[0].line).toBe(5);
   });
 
-  it('reports semantic warnings only in strict mode', async () => {
-    const md =
-      '```mermaid\nflowchart LR\n  A[Start] --> B\n  A[Begin] --> C\n```\n';
+  it('reports warn-severity findings only in strict mode', async () => {
+    // prefer-flowchart is a warn-severity rule: hidden by default, shown in strict.
+    const md = '```mermaid\ngraph LR\n  A --> B\n```\n';
     const lenient = await lint(md);
     expect(lenient.messages).toHaveLength(0);
 
