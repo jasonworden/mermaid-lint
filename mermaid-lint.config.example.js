@@ -30,6 +30,9 @@ export default {
   //   'no-self-loop': 'warn',         // a node with an edge to itself (`A --> A`)
   //   'no-empty-labels': 'warn',      // a node with an empty label (`A[ ]`)
   //   'no-orphan-nodes': 'off',       // declared but unconnected node (opt-in)
+  //   'no-activate-without-deactivate': 'warn', // unbalanced sequence activate/deactivate
+  //   'prefer-explicit-participants': 'off',    // participant used before declaration (opt-in)
+  //   'no-duplicate-methods': 'warn', // same method signature twice on one class
   // },
   // Output format: 'text' (human-readable, default) or 'json' (machine-readable).
   // format: 'text',
