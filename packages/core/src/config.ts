@@ -1,5 +1,6 @@
 import { lilconfig } from 'lilconfig';
 import type { FenceMarker } from './fences.js';
+import type { RulesConfig } from './rules.js';
 
 /**
  * Resolved mermaid-lint configuration, as loaded from a config file or the
@@ -16,6 +17,12 @@ export interface MermaidLintConfig {
   strict?: boolean;
   /** Enable semantic checks (e.g. duplicate-id detection). */
   semantic?: boolean;
+  /**
+   * Per-rule severity overrides (`"off"` | `"warn"` | `"error"`), layered over
+   * the built-in defaults. E.g. `{ "prefer-flowchart": "off", "duplicate-ids":
+   * "error" }`. Ignored when `semantic` is `false` (which disables every rule).
+   */
+  rules?: RulesConfig;
   /** Output format for the CLI. */
   format?: 'text' | 'json';
   /**

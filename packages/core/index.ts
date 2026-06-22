@@ -10,6 +10,19 @@ export type {
 } from './src/validate.js';
 export { checkSemantics } from './src/semantic.js';
 export {
+  ALL_RULE_IDS,
+  RULE_DEFAULTS,
+  isRuleSeverity,
+  resolveRules,
+} from './src/rules.js';
+export type {
+  EmittedSeverity,
+  ResolvedRules,
+  RuleId,
+  RuleSeverity,
+  RulesConfig,
+} from './src/rules.js';
+export {
   blockToDiagnostics,
   lintMarkdown,
 } from './src/markdown-adapter.js';

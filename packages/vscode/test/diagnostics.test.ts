@@ -6,8 +6,10 @@ import { computeFix } from '../src/fix.js';
 // (`|broken label B` with no closing `|`), which mermaid reports on body line 2.
 const VALID_MD = '```mermaid\nflowchart LR\n  A --> B\n```\n';
 // A syntactically-valid flowchart that declares node A twice with different
-// labels — triggers core's duplicate-ids semantic warning on body line 3.
+// labels — triggers core's duplicate-ids rule (error severity) on body line 3.
 const DUP_MMD = 'flowchart LR\n  A[First] --> B\n  A[Second] --> C\n';
+// A valid diagram that only trips a warn-severity rule (prefer-flowchart).
+const WARN_MMD = 'graph LR\n  A --> B\n';
 
 describe('computeMermaidDiagnostics — markdown', () => {
   it('returns no diagnostics for a valid mermaid block', async () => {
@@ -77,22 +79,29 @@ describe('computeMermaidDiagnostics — .mmd files', () => {
   });
 });
 
-describe('computeMermaidDiagnostics — semantic warnings', () => {
-  it('reports a duplicate-id warning as a warning by default', async () => {
+describe('computeMermaidDiagnostics — semantic findings', () => {
+  it('reports a duplicate-id finding as an error by default', async () => {
+    // duplicate-ids defaults to error severity, so it is an error even without strict.
     const diags = await computeMermaidDiagnostics('d.mmd', DUP_MMD);
+    expect(diags).toHaveLength(1);
+    expect(diags[0].severity).toBe('error');
+  });
+
+  it('reports a warn-severity finding as a warning by default', async () => {
+    const diags = await computeMermaidDiagnostics('d.mmd', WARN_MMD);
     expect(diags).toHaveLength(1);
     expect(diags[0].severity).toBe('warning');
   });
 
-  it('elevates warnings to errors under strict', async () => {
-    const diags = await computeMermaidDiagnostics('d.mmd', DUP_MMD, {
+  it('elevates warn-severity findings to errors under strict', async () => {
+    const diags = await computeMermaidDiagnostics('d.mmd', WARN_MMD, {
       strict: true,
     });
     expect(diags).toHaveLength(1);
     expect(diags[0].severity).toBe('error');
   });
 
-  it('suppresses warnings when semantic is false', async () => {
+  it('suppresses findings when semantic is false', async () => {
     expect(
       await computeMermaidDiagnostics('d.mmd', DUP_MMD, { semantic: false }),
     ).toEqual([]);

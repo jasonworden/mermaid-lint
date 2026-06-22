@@ -67,15 +67,24 @@ describe('lintMarkdown', () => {
     expect(errors).toHaveLength(1);
   });
 
-  it('surfaces semantic warnings as warning diagnostics', async () => {
-    // Same node id with conflicting labels → duplicate-ids warning.
-    const md =
-      '```mermaid\nflowchart LR\n  A[Start] --> B\n  A[Begin] --> C\n```\n';
+  it('surfaces warn-severity findings as warning diagnostics', async () => {
+    // Legacy `graph` keyword → prefer-flowchart, a warn-severity rule.
+    const md = '```mermaid\ngraph LR\n  A --> B\n```\n';
     const warnings = (await lintMarkdown('test.md', md)).filter(
       (d) => d.severity === 'warning',
     );
     expect(warnings.length).toBeGreaterThan(0);
-    expect(warnings[0].ruleId).toBeTruthy();
+    expect(warnings[0].ruleId).toBe('prefer-flowchart');
+  });
+
+  it('surfaces error-severity findings as error diagnostics', async () => {
+    // Conflicting duplicate ids → duplicate-ids, an error-severity rule.
+    const md =
+      '```mermaid\nflowchart LR\n  A[Start] --> B\n  A[Begin] --> C\n```\n';
+    const errors = (await lintMarkdown('test.md', md)).filter(
+      (d) => d.severity === 'error' && d.ruleId === 'duplicate-ids',
+    );
+    expect(errors).toHaveLength(1);
   });
 });
 

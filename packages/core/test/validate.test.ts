@@ -51,13 +51,15 @@ describe('validateBlock', () => {
     expect(result.warnings).toEqual([]);
   });
 
-  it('returns semantic warnings on a valid diagram with conflicting node labels', async () => {
+  it('returns semantic findings on a valid diagram with conflicting node labels', async () => {
     const result = await validateBlock(
       makeBlock('flowchart LR\n  A[Start] --> B\n  A[Begin] --> C'),
     );
+    // A semantic error does not flip parse validity — the diagram still renders.
     expect(result.ok).toBe(true);
     expect(result.warnings).toHaveLength(1);
     expect(result.warnings[0].rule).toBe('duplicate-ids');
+    expect(result.warnings[0].severity).toBe('error');
   });
 });
 

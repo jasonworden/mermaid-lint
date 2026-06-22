@@ -4,11 +4,14 @@ import { createRequire } from 'node:module';
 import {
   ALL_FENCE_MARKERS,
   type FenceMarker,
+  type ResolvedRules,
   discoverFiles,
   extractMermaidBlocks,
   fixText,
   isFenceMarker,
+  isRuleSeverity,
   loadConfig,
+  resolveRules,
   validateBlock,
 } from '@mermaid-lint/core';
 import chalk from 'chalk';
@@ -41,7 +44,12 @@ interface DiagramResult {
   type: string;
   ok: boolean;
   error?: { message: string; line?: number; col?: number };
-  warnings: Array<{ rule: string; message: string; line?: number }>;
+  warnings: Array<{
+    rule: string;
+    message: string;
+    line?: number;
+    severity: 'warn' | 'error';
+  }>;
 }
 
 interface FileResult {
@@ -166,7 +174,9 @@ function printHelp(): void {
                      always linted regardless of extension.
   --quiet            Suppress per-file progress and warnings; only failures + summary.
   --strict           Exit 1 if any warnings are present (in addition to errors).
-  --no-semantic      Disable semantic checks (e.g. duplicate node IDs).
+  --no-semantic      Disable all semantic rule checks (e.g. duplicate node IDs).
+                     Per-rule severity is configurable via the "rules" config key
+                     ("off" | "warn" | "error").
   --format text      Human-readable output (default).
   --format json      Machine-readable JSON to stdout; stderr is silent.
   --fix              Fix mechanical errors in-place (arrow normalization,
@@ -174,8 +184,8 @@ function printHelp(): void {
   (config)           mermaid-lint.config.js / .mermaidlintrc / package.json#mermaidLint
 
 Exit codes:
-  0  all blocks valid (and no warnings, unless --no-semantic)
-  1  one or more blocks failed validation (or warnings with --strict)
+  0  all blocks valid (and no error-severity findings or --strict warnings)
+  1  a block failed to parse, an "error"-severity rule fired, or --strict + warnings
   2  usage error, IO error, or no files found
 `);
 }
@@ -190,7 +200,7 @@ async function readStdin(): Promise<string> {
 async function runTextMode(
   files: string[],
   quiet: boolean,
-  noSemantic: boolean,
+  rules: ResolvedRules,
   strict: boolean,
   fences: readonly FenceMarker[],
   stdinEntry?: { path: string; content: string },
@@ -205,7 +215,7 @@ async function runTextMode(
     for (const block of blocks) {
       blockCount++;
       typeCounts[block.type] = (typeCounts[block.type] ?? 0) + 1;
-      const r = await validateBlock(block);
+      const r = await validateBlock(block, rules);
       if (!r.ok) {
         failures++;
         const loc = r.error.line != null ? `:${r.error.line}` : '';
@@ -214,14 +224,20 @@ async function runTextMode(
           `${chalk.bold(block.path)}:${block.line}:${block.col}${loc}: ${chalk.red('parse error:')} ${msg}\n`,
         );
       }
-      if (!noSemantic) {
-        for (const w of r.warnings) {
+      for (const w of r.warnings) {
+        const bodyOffset = block.path.endsWith('.mmd')
+          ? block.line - 1
+          : block.line;
+        const absLine = bodyOffset + (w.line ?? 1);
+        if (w.severity === 'error') {
+          // An "error"-severity finding fails the run like a parse error.
+          failures++;
+          process.stdout.write(
+            `${chalk.bold(block.path)}:${absLine}:${block.col}: ${chalk.red('error:')} ${w.rule}: ${w.message}\n`,
+          );
+        } else {
           warningCount++;
           if (!quiet) {
-            const bodyOffset = block.path.endsWith('.mmd')
-              ? block.line - 1
-              : block.line;
-            const absLine = bodyOffset + (w.line ?? 1);
             process.stdout.write(
               `${chalk.bold(block.path)}:${absLine}:${block.col}: ${chalk.yellow('warning:')} ${w.rule}: ${w.message}\n`,
             );
@@ -271,28 +287,33 @@ async function runTextMode(
 
 async function runJsonMode(
   files: string[],
-  noSemantic: boolean,
+  rules: ResolvedRules,
   strict: boolean,
   fences: readonly FenceMarker[],
   stdinEntry?: { path: string; content: string },
 ): Promise<number> {
   let failures = 0;
   let totalWarnings = 0;
+  let errorFindings = 0;
+  let warnFindings = 0;
   const fileResults: FileResult[] = [];
 
   const processContent = async (filePath: string, text: string) => {
     const diagrams: DiagramResult[] = [];
     const blocks = extractMermaidBlocks(filePath, text, { fences });
     for (const block of blocks) {
-      const r = await validateBlock(block);
-      const blockWarnings = noSemantic ? [] : r.warnings;
-      totalWarnings += blockWarnings.length;
+      const r = await validateBlock(block, rules);
+      totalWarnings += r.warnings.length;
+      for (const w of r.warnings) {
+        if (w.severity === 'error') errorFindings++;
+        else warnFindings++;
+      }
       const dr: DiagramResult = {
         line: block.line,
         col: block.col,
         type: block.type,
         ok: r.ok,
-        warnings: blockWarnings,
+        warnings: r.warnings,
       };
       if (!r.ok) {
         failures++;
@@ -353,7 +374,9 @@ async function runJsonMode(
     },
   };
   process.stdout.write(`${JSON.stringify(output, null, 2)}\n`);
-  return failures > 0 || (strict && totalWarnings > 0) ? 1 : 0;
+  return failures > 0 || errorFindings > 0 || (strict && warnFindings > 0)
+    ? 1
+    : 0;
 }
 
 function printTypeDistribution(types: Record<string, number>): void {
@@ -410,9 +433,29 @@ async function main(argv: string[]): Promise<number> {
     }
   }
 
+  if (config.rules !== undefined) {
+    if (typeof config.rules !== 'object' || config.rules === null) {
+      process.stderr.write('config error: rules must be an object\n');
+      return 2;
+    }
+    for (const [rule, severity] of Object.entries(config.rules)) {
+      if (!isRuleSeverity(severity)) {
+        process.stderr.write(
+          `config error: rules.${rule} must be "off", "warn", or "error", got: ${JSON.stringify(severity)}\n`,
+        );
+        return 2;
+      }
+    }
+  }
+
   const fences: readonly FenceMarker[] = config.fences ?? ALL_FENCE_MARKERS;
   const strict = args.strict || (config.strict ?? false);
-  const noSemantic = args.noSemantic || config.semantic === false;
+  // `--no-semantic` / `config.semantic: false` disables every rule; otherwise
+  // the config `rules` map layers over the built-in defaults.
+  const rules = resolveRules({
+    rules: config.rules,
+    semantic: args.noSemantic || config.semantic === false ? false : undefined,
+  });
   const format: 'text' | 'json' = args.format ?? config.format ?? 'text';
 
   let expandedPaths: string[];
@@ -481,8 +524,8 @@ async function main(argv: string[]): Promise<number> {
   }
 
   return format === 'json'
-    ? runJsonMode(files, noSemantic, strict, fences, stdinEntry)
-    : runTextMode(files, args.quiet, noSemantic, strict, fences, stdinEntry);
+    ? runJsonMode(files, rules, strict, fences, stdinEntry)
+    : runTextMode(files, args.quiet, rules, strict, fences, stdinEntry);
 }
 
 const code = await main(process.argv.slice(2));

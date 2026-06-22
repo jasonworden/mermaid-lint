@@ -1,5 +1,6 @@
 import type { Block } from './extract.js';
 import { validateWithMerman } from './merman.js';
+import { RULE_DEFAULTS, type ResolvedRules } from './rules.js';
 import { type SemanticWarning, checkSemantics } from './semantic.js';
 
 export type { SemanticWarning };
@@ -110,10 +111,15 @@ export async function validateWithMermaidJS(
  * authoritative on the final verdict.
  *
  * @param block - The block to validate.
+ * @param rules - Resolved per-rule severities for the semantic pass. Defaults
+ *   to {@link RULE_DEFAULTS}.
  * @returns A {@link ValidationResult} carrying the verdict and any warnings.
  * @public
  */
-export async function validateBlock(block: Block): Promise<ValidationResult> {
+export async function validateBlock(
+  block: Block,
+  rules: ResolvedRules = RULE_DEFAULTS,
+): Promise<ValidationResult> {
   const { body } = block;
 
   if (body === '__UNCLOSED_FENCE__') {
@@ -131,7 +137,7 @@ export async function validateBlock(block: Block): Promise<ValidationResult> {
     };
   }
 
-  const warnings = checkSemantics(block);
+  const warnings = checkSemantics(block, rules);
 
   const mermanResult = await validateWithMerman(body);
 
