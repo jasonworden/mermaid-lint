@@ -57,8 +57,25 @@ const SKIP_KEYWORDS = new Set([
 ]);
 
 /**
+ * Optional trailing pipe label: `|...|` that may follow a connector operator.
+ * Appended to each connector alternative in LINK_OP_RE so the full token —
+ * connector plus its pipe label (if any) — is consumed as a single delimiter
+ * by `split`. This gives every operator token its own label without any
+ * cross-operator ordering assumption.
+ */
+const PIPE_SUFFIX = '(?:\\s*\\|[^|]*\\|)?';
+
+/**
  * Link-operator regex with a capturing group so `split` interleaves the full
- * matched operator text (including inline labels) between node-group tokens.
+ * matched operator text (including inline labels and an optional trailing pipe
+ * label) between node-group tokens.
+ *
+ * Each alternative matches the connector PLUS `PIPE_SUFFIX` so that a
+ * following `|label|` is consumed as part of the delimiter rather than left
+ * as a node-group fragment. This means:
+ *   - `line.split(LINK_OP_RE)` yields clean node-group segments at even indices.
+ *   - Each odd-index token is the full operator string, which may include the
+ *     pipe label (extracted by `labelFromOp`).
  *
  * Alternation order (most-specific first to avoid partial matches):
  *   1. Circle/cross both-ends:  `o--+o` `x--+x`
@@ -71,25 +88,51 @@ const SKIP_KEYWORDS = new Set([
  *   8. Thick with text:         `== text ==>` or `== text ===`
  *   9. Thick plain:             `={3,}` `={2,}>`
  *  10. Invisible:               `~~~`
- *  11. Dashed with text:        `-- text --->` or `-- text ---`  (allows 2+ trailing dashes/arrow)
+ *  11. Dashed with text:        `-- text --->` or `-- text ---`
  *  12. Dashed plain:            `-{2,}>` `-{3,}` (longest first)
  *
  * The `g` flag is required so callers can use `split` (which interleaves
- * capture groups) or `exec` in a loop.
+ * capture groups) or `test` in a guard.
  *
  * Note: bare `==` is intentionally omitted (not a valid Mermaid flowchart link).
  */
-const LINK_OP_RE =
-  /(o--+o|x--+x|<--+>|<--+|--+o|--+x|o--+|x--+|-\.\s*\S.*?\.->|-\.\s*\S.*?\.-(?!>)|-\.\.+->|-\.\.+-(?!>)|-\.->|-\.-|==\s+\S.*?==>|==\s+\S.*?===|={3,}>|={3,}|==>|~~~|--\s+\S.*?-{2,}>|--\s+\S.*?-{3,}(?!>)|-{2,}>|-{3,})/g;
-
-/**
- * Pipe-label regex: `|...|` that appears immediately before or after a node
- * group (after bracket-stripping has already removed node-shape brackets).
- * We need both the capturing and non-capturing form:
- * - `PIPE_LABEL_SCAN_RE` is used with `exec` to collect labels in order.
- * - `PIPE_LABEL_RE` strips them from the cleaned line.
- */
-const PIPE_LABEL_RE = /\|([^|]*)\|/g;
+const LINK_OP_RE = new RegExp(
+  `(${[
+    `o--+o${PIPE_SUFFIX}`,
+    `x--+x${PIPE_SUFFIX}`,
+    `<--+>${PIPE_SUFFIX}`,
+    `<--+${PIPE_SUFFIX}`,
+    `--+o${PIPE_SUFFIX}`,
+    `--+x${PIPE_SUFFIX}`,
+    `o--+${PIPE_SUFFIX}`,
+    `x--+${PIPE_SUFFIX}`,
+    // Dotted with inline text
+    `-\\.\\s*\\S.*?\\.->${PIPE_SUFFIX}`,
+    `-\\.\\s*\\S.*?\\.-(?!>)${PIPE_SUFFIX}`,
+    // Extended dotted (must come before plain dotted): `-..->`, `-...->` etc.
+    `-\\.\\.+->${PIPE_SUFFIX}`,
+    `-\\.\\.+(?!>)${PIPE_SUFFIX}`,
+    // Plain dotted
+    `-\\.->${PIPE_SUFFIX}`,
+    `-\\.-${PIPE_SUFFIX}`,
+    // Thick with inline text
+    `==\\s+\\S.*?==>${PIPE_SUFFIX}`,
+    `==\\s+\\S.*?===${PIPE_SUFFIX}`,
+    // Thick plain (longest first)
+    `={3,}>${PIPE_SUFFIX}`,
+    `={3,}${PIPE_SUFFIX}`,
+    `==>${PIPE_SUFFIX}`,
+    // Invisible
+    `~~~${PIPE_SUFFIX}`,
+    // Dashed with inline text
+    `--\\s+\\S.*?-{2,}>${PIPE_SUFFIX}`,
+    `--\\s+\\S.*?-{3,}(?!>)${PIPE_SUFFIX}`,
+    // Dashed plain (longest first)
+    `-{2,}>${PIPE_SUFFIX}`,
+    `-{3,}${PIPE_SUFFIX}`,
+  ].join('|')})`,
+  'g',
+);
 
 /**
  * A valid Mermaid node id is `\w[\w-]*`.  After de-bracketing we extract just
@@ -144,27 +187,34 @@ function stripBrackets(line: string): string {
 // ---------------------------------------------------------------------------
 
 /**
- * Extract the inline-text label from an operator token, if present.
- * Returns the trimmed label text, or `undefined` if the operator has no label.
+ * Extract the label from a single operator token (which may include a trailing
+ * pipe label captured by LINK_OP_RE).
  *
- * Inline-text operators have the form:
- *   `-- text -->` / `-- text ---`   → captures `text`
- *   `-. text .->` / `-. text .-`    → captures `text`
- *   `== text ==>` / `== text ===`   → captures `text`
+ * Priority:
+ *   1. Trailing pipe label `|...|` at the end of the token — this is the
+ *      per-operator pipe label consumed by LINK_OP_RE's PIPE_SUFFIX.
+ *   2. Inline-text label embedded in the connector itself:
+ *      `-- text -->` / `-- text ---+`  → `text`
+ *      `-. text .->` / `-. text .-`    → `text`
+ *      `== text ==>` / `== text ===`   → `text`
+ *   3. `undefined` if the operator has no label.
+ *
+ * Returns the trimmed label text, or `undefined`.
  */
-function inlineLabelFromOp(op: string): string | undefined {
-  // Dashed: `-- <label> -->` or `-- <label> ---+`
+function labelFromOp(op: string): string | undefined {
+  // Trailing pipe label (added by PIPE_SUFFIX in LINK_OP_RE).
+  const pipe = /\|([^|]*)\|\s*$/.exec(op);
+  if (pipe) return pipe[1].trim();
+
+  // Dashed inline: `-- <label> -->` or `-- <label> ---+` (directed or undirected).
   let m = /^--\s+(.+?)\s*-{2,}>?$/.exec(op);
   if (m) return m[1].trim();
-  // Also match `-- <label> ---` (undirected dashed)
-  m = /^--\s+(.+?)\s*-{3,}$/.exec(op);
-  if (m) return m[1].trim();
 
-  // Dotted: `-. <label> .->` or `-. <label> .-`
+  // Dotted inline: `-. <label> .->` or `-. <label> .-`.
   m = /^-\.\s+(.+?)\s*\.-(?:>)?$/.exec(op);
   if (m) return m[1].trim();
 
-  // Thick: `== <label> ==>` or `== <label> ===`
+  // Thick inline: `== <label> ==>` or `== <label> ===`.
   m = /^==\s+(.+?)\s*={2,}>?$/.exec(op);
   if (m) return m[1].trim();
 
@@ -204,76 +254,22 @@ export function extractEdges(lines: string[]): Edge[] {
     const firstToken = trimmed.split(/\s+/)[0];
     if (SKIP_KEYWORDS.has(firstToken)) continue;
 
-    // Strip shape-bracket contents so operators/pipes inside labels vanish.
+    // Strip shape-bracket contents so operators/pipes inside node labels vanish.
+    // This MUST happen before any pipe-label or operator scanning.
     const bracketStripped = stripBrackets(trimmed);
-
-    // Collect pipe labels in the order they appear (before stripping them),
-    // so we can zip them with the connectors that precede each one.
-    // Pipe labels appear immediately after a connector operator, e.g.:
-    //   A -->|label| B   or   A ---|label| B
-    // We scan the bracket-stripped text for `|...|` and record their text.
-    const pipeLabels: string[] = [];
-    PIPE_LABEL_RE.lastIndex = 0;
-    for (
-      let pm = PIPE_LABEL_RE.exec(bracketStripped);
-      pm !== null;
-      pm = PIPE_LABEL_RE.exec(bracketStripped)
-    ) {
-      pipeLabels.push(pm[1]);
-    }
-
-    // Strip pipe labels (|...|) so the `|` is not mis-parsed as an id character.
-    const clean = bracketStripped.replace(PIPE_LABEL_RE, '');
 
     // Check whether any link operator is present; if not, nothing to do.
     LINK_OP_RE.lastIndex = 0;
-    if (!LINK_OP_RE.test(clean)) continue;
+    if (!LINK_OP_RE.test(bracketStripped)) continue;
 
     // Split on link operators to get interleaved [group, op, group, op, group, …].
+    // Each operator token already includes its trailing pipe label (if any) via
+    // PIPE_SUFFIX, so no separate pipe-label pass is needed.
     LINK_OP_RE.lastIndex = 0;
-    const parts = clean.split(LINK_OP_RE);
+    const parts = bracketStripped.split(LINK_OP_RE);
     // Even indices (0, 2, 4, …) are node-group tokens; odd indices are matched operators.
     const groups = parts.filter((_, idx) => idx % 2 === 0);
     const ops = parts.filter((_, idx) => idx % 2 === 1);
-
-    // Determine the label for each operator (connector N → edge between group N and N+1):
-    // - If the operator has an inline text label, use that.
-    // - Otherwise, if there is a pipe label at position N in pipeLabels, use that.
-    // - Otherwise, label is undefined.
-    //
-    // Pipe labels always follow the operator token: `A -->|label| B`.
-    // After bracket-stripping and before pipe-label stripping, each `|...|` belongs
-    // to the immediately preceding operator. Since we stripped brackets first,
-    // `|...|` inside node labels are already gone. The Nth pipe label corresponds
-    // to the Nth connector (op index N-1... actually the operator at index N in ops
-    // is followed by the pipe label at ops index N in pipeLabels if there are no
-    // inline-text ops before it). However, inline-text ops consume their label inside
-    // the operator token itself and produce NO pipe label. So we need to pair pipe
-    // labels with operators that don't have inline labels, in order.
-    const connectorLabels: (string | undefined)[] = [];
-    let pipeIdx = 0;
-    for (const op of ops) {
-      const inlineLabel = inlineLabelFromOp(op);
-      if (inlineLabel !== undefined) {
-        connectorLabels.push(inlineLabel);
-        // This connector had an inline label; no pipe label consumed.
-      } else {
-        // Check if the next pipe label belongs to this connector.
-        // A pipe label belongs to an operator if pipeLabels[pipeIdx] was found
-        // between this operator and the next group in the original text.
-        // Since we process left-to-right and pipe labels also appear left-to-right,
-        // a pipe label at pipeLabels[pipeIdx] belongs to ops[pipeIdx minus any
-        // already-inline consumed]. But since inline-text ops embed their label
-        // inside the op string and produce NO pipe-label occurrence in the text,
-        // the remaining pipe labels align 1:1 with non-inline operators.
-        if (pipeIdx < pipeLabels.length) {
-          connectorLabels.push(pipeLabels[pipeIdx]);
-          pipeIdx++;
-        } else {
-          connectorLabels.push(undefined);
-        }
-      }
-    }
 
     // Parse each group token into its constituent ids (split on `&`).
     const groupIds: string[][] = groups.map((seg) =>
@@ -287,10 +283,11 @@ export function extractEdges(lines: string[]): Edge[] {
     );
 
     // Emit cartesian product edges for each consecutive pair of groups.
+    // Each operator carries its own label (pipe or inline), derived independently.
     for (let g = 0; g + 1 < groupIds.length; g++) {
       const sources = groupIds[g];
       const targets = groupIds[g + 1];
-      const label = connectorLabels[g];
+      const label = labelFromOp(ops[g]);
       for (const source of sources) {
         for (const target of targets) {
           result.push({ source, target, line: lineNum, label });

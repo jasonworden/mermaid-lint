@@ -433,4 +433,50 @@ describe('extractEdges', () => {
       ]);
     });
   });
+
+  // -------------------------------------------------------------------------
+  // Pipe-label alignment (regression: bare op before pipe-labelled op)
+  // -------------------------------------------------------------------------
+  describe('pipe-label alignment', () => {
+    it('A --> B -->|y| C — A→B label undefined, B→C label y (regression)', () => {
+      expect(edges('A --> B -->|y| C')).toEqual([
+        { source: 'A', target: 'B', line: 1, label: undefined },
+        { source: 'B', target: 'C', line: 1, label: 'y' },
+      ]);
+    });
+
+    it('A -->|x| B --> C — A→B label x, B→C label undefined', () => {
+      expect(edges('A -->|x| B --> C')).toEqual([
+        { source: 'A', target: 'B', line: 1, label: 'x' },
+        { source: 'B', target: 'C', line: 1, label: undefined },
+      ]);
+    });
+
+    it('A -->|x| B -->|y| C — A→B label x, B→C label y', () => {
+      expect(edges('A -->|x| B -->|y| C')).toEqual([
+        { source: 'A', target: 'B', line: 1, label: 'x' },
+        { source: 'B', target: 'C', line: 1, label: 'y' },
+      ]);
+    });
+
+    it('A & B -->|x| C — both edges carry label x', () => {
+      expect(edges('A & B -->|x| C')).toEqual([
+        { source: 'A', target: 'C', line: 1, label: 'x' },
+        { source: 'B', target: 'C', line: 1, label: 'x' },
+      ]);
+    });
+
+    it('A["a|b"] --> C — one edge A→C, label undefined (quoted pipe not a label)', () => {
+      expect(edges('A["a|b"] --> C')).toEqual([
+        { source: 'A', target: 'C', line: 1, label: undefined },
+      ]);
+    });
+
+    it('A -- t1 --> B -->|t2| C — A→B label t1, B→C label t2 (mixed inline and pipe)', () => {
+      expect(edges('A -- t1 --> B -->|t2| C')).toEqual([
+        { source: 'A', target: 'B', line: 1, label: 't1' },
+        { source: 'B', target: 'C', line: 1, label: 't2' },
+      ]);
+    });
+  });
 });
