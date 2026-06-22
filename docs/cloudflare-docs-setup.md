@@ -35,6 +35,25 @@ they can't be done from a PR.
 After that, every push to `main` redeploys the docs. Trigger a manual run any
 time from the Actions tab ("docs" workflow → Run workflow).
 
+## Gotcha: the `functions/` directory is reserved
+
+Cloudflare Pages treats a **top-level `functions/` directory** as
+[Pages Functions](https://developers.cloudflare.com/pages/functions/) (server
+code), and a top-level `_worker.js` as an advanced-mode Worker. Either makes
+`wrangler pages deploy` **drop those paths from the static upload** — the pages
+then 404 and fall back to the unstyled SPA index.
+
+TypeDoc's default `kind` router emits members into per-kind folders
+(`functions/`, `classes/`, …), so `functions/` lands at the deploy root and
+breaks every function page. We therefore set **`"router": "structure"`** in
+[`packages/core/typedoc.json`](../packages/core/typedoc.json), which uses a flat
+layout (`checkSemantics.html`, etc.) with no reserved directory.
+
+[`scripts/check-docs-cloudflare-safe.mjs`](../scripts/check-docs-cloudflare-safe.mjs)
+guards this — it runs in both CI (`ci.yml`) and the deploy workflow (`docs.yml`)
+and fails if a reserved path reappears at the docs root. Do not revert the router
+without re-checking the live site.
+
 ## What is *not* part of this
 
 The apex **`mermaidlint.com`** redirect is handled by a separate Cloudflare

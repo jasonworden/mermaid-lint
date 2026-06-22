@@ -6,6 +6,7 @@
   "out": "docs",
   "readme": "README.md",
   "excludeInternal": true,
+  "router": "structure",
   "hostedBaseUrl": "https://docs.mermaidlint.com/",
   "favicon": "assets/favicon.png",
   "customCss": "assets/typedoc.css",

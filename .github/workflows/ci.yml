@@ -40,6 +40,11 @@ jobs:
       - name: API docs build check (typedoc)
         run: pnpm --filter @mermaid-lint/core docs
 
+      # Fail the PR if the docs output gains a Cloudflare Pages reserved path
+      # (e.g. a top-level functions/ dir) that would break the live deploy.
+      - name: API docs Cloudflare Pages safety check
+        run: node scripts/check-docs-cloudflare-safe.mjs packages/core/docs
+
   e2e:
     # Real VS Code Extension Host test for mermaid-lint-vscode. Runs the
     # @vscode/test-electron suite headlessly under xvfb (Electron needs a
