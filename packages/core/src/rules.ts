@@ -53,7 +53,10 @@ export type RuleId =
   | 'state-self-transition'
   | 'er-duplicate-attribute'
   | 'er-duplicate-entity'
-  | 'er-standalone-entity';
+  | 'er-standalone-entity'
+  | 'gantt-duplicate-task-id'
+  | 'gantt-undefined-dependency'
+  | 'gantt-empty-section';
 
 /**
  * User-facing `rules` configuration: a partial map of rule id to desired
@@ -103,6 +106,13 @@ export type ResolvedRules = Record<RuleId, RuleSeverity>;
  * defaults to `off` (opt-in, like `no-orphan-nodes`) because an entity with a
  * defined block but no relationship is sometimes intentional.
  *
+ * The gantt rules are all advisory `warn`: `gantt-duplicate-task-id` (two tasks
+ * declared with the same explicit id — makes `after`/`until` references
+ * ambiguous), `gantt-undefined-dependency` (a task whose `after`/`until`
+ * references an id no task defines — Mermaid places it at the chart start),
+ * and `gantt-empty-section` (a `section` with no tasks — renders as an empty
+ * header).
+ *
  * @public
  */
 export const RULE_DEFAULTS: ResolvedRules = {
@@ -126,6 +136,9 @@ export const RULE_DEFAULTS: ResolvedRules = {
   'er-duplicate-attribute': 'warn',
   'er-duplicate-entity': 'warn',
   'er-standalone-entity': 'off',
+  'gantt-duplicate-task-id': 'warn',
+  'gantt-undefined-dependency': 'warn',
+  'gantt-empty-section': 'warn',
 };
 
 /** Every known rule id, derived from the defaults table. */
