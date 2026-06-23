@@ -1,3 +1,4 @@
+import type { RulesConfig } from '@mermaid-lint/core';
 import * as vscode from 'vscode';
 import { loadCore } from './core.js';
 import {
@@ -34,20 +35,19 @@ export function activate(context: vscode.ExtensionContext): void {
   const collection = vscode.languages.createDiagnosticCollection(SOURCE);
   context.subscriptions.push(collection);
 
-  // Per-folder config cache; cleared when a config file changes.
-  const configCache = new Map<
-    string,
-    Promise<{
-      semantic?: boolean;
-      strict?: boolean;
-      fences?: ('backtick' | 'tilde')[];
-    }>
-  >();
-  function getConfig(doc: vscode.TextDocument): Promise<{
+  // The subset of the mermaid-lint config the extension reads from a config
+  // file. `rules` is threaded so the editor honors per-rule severity exactly
+  // like the CLI does.
+  type FolderConfig = {
     semantic?: boolean;
     strict?: boolean;
     fences?: ('backtick' | 'tilde')[];
-  }> {
+    rules?: RulesConfig;
+  };
+
+  // Per-folder config cache; cleared when a config file changes.
+  const configCache = new Map<string, Promise<FolderConfig>>();
+  function getConfig(doc: vscode.TextDocument): Promise<FolderConfig> {
     const folder = vscode.workspace.getWorkspaceFolder(doc.uri);
     const key = folder?.uri.fsPath ?? '';
     let cached = configCache.get(key);
@@ -85,6 +85,7 @@ export function activate(context: vscode.ExtensionContext): void {
       semantic: cfg.semantic,
       strict: cfg.strict,
       fences: cfg.fences,
+      rules: cfg.rules,
     });
     // Drop stale results: a newer edit superseded this run.
     if (doc.version !== versionAtStart) return;

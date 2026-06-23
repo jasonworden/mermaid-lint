@@ -36,9 +36,19 @@ rules: {
 },
 ```
 
+Tune individual rules with `rules` (the same severity map as the CLI's `rules`
+config) — enable an off-by-default rule or silence one:
+
+```js
+rules: {
+  '@mermaid-lint/textlint': { rules: { 'no-orphan-nodes': 'error', 'no-self-loop': 'off' } },
+},
+```
+
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | `strict` | `boolean` | `false` | Also report semantic warnings, not just syntax errors. |
+| `rules` | `Record<string, 'off' \| 'warn' \| 'error'>` | `{}` | Per-rule severity overrides, layered over the built-in defaults. |
 
 > **Why textlint and not ESLint?** ESLint rules must be synchronous, so they cannot run Mermaid's async parser. See the [parsing-vs-linting explainer](https://github.com/jasonworden/mermaid-lint/blob/main/docs/parsing-vs-linting.md) and tracking issues [#39](https://github.com/jasonworden/mermaid-lint/issues/39) (ESLint) and [#38](https://github.com/jasonworden/mermaid-lint/issues/38) (Biome).
 

@@ -1,13 +1,22 @@
 import {
   type Block,
+  type RulesConfig,
   blockToDiagnostics,
   detectDiagramType,
+  resolveRules,
 } from '@mermaid-lint/core';
 import type { TextlintRuleModule } from '@textlint/types';
 
 export interface Options {
   /** Report semantic warnings (duplicate ids, etc.) in addition to errors. */
   strict?: boolean;
+  /**
+   * Per-rule severity overrides (`'off'` | `'warn'` | `'error'`), layered over
+   * the built-in defaults — e.g. `{ 'no-orphan-nodes': 'error' }` to enable an
+   * off-by-default rule, or `{ 'no-self-loop': 'off' }` to silence one. Same
+   * shape as the CLI's `rules` config key.
+   */
+  rules?: RulesConfig;
 }
 
 /**
@@ -21,6 +30,7 @@ const rule: TextlintRuleModule<Options> = (context, options = {}) => {
   const { Syntax, RuleError, report, getSource, locator, getFilePath } =
     context;
   const strict = options?.strict ?? false;
+  const resolved = resolveRules({ rules: options?.rules });
 
   return {
     [Syntax.CodeBlock](node) {
@@ -39,7 +49,7 @@ const rule: TextlintRuleModule<Options> = (context, options = {}) => {
       };
 
       // Returning the Promise makes textlint wait for async validation.
-      return blockToDiagnostics(block).then((diagnostics) => {
+      return blockToDiagnostics(block, resolved).then((diagnostics) => {
         const nodeSource = getSource(node);
         const sourceLines = nodeSource.split('\n');
 

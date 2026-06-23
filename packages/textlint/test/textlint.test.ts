@@ -57,4 +57,27 @@ describe('@mermaid-lint/textlint', () => {
     const strict = await lint(md, { strict: true });
     expect(strict.messages.length).toBeGreaterThan(0);
   });
+
+  it('rules: enables an off-by-default rule', async () => {
+    // no-orphan-nodes is `off` by default: C is declared but never connected.
+    const md = '```mermaid\nflowchart LR\n  A --> B\n  C[Orphan]\n```\n';
+    const lenient = await lint(md);
+    expect(lenient.messages).toHaveLength(0); // off by default
+
+    const enabled = await lint(md, { rules: { 'no-orphan-nodes': 'error' } });
+    expect(enabled.messages.length).toBeGreaterThan(0);
+  });
+
+  it('rules: silences a rule even under strict', async () => {
+    // no-self-loop is warn-severity; strict surfaces it, but `off` overrides.
+    const md = '```mermaid\nflowchart LR\n  A --> A\n```\n';
+    const strict = await lint(md, { strict: true });
+    expect(strict.messages.length).toBeGreaterThan(0);
+
+    const silenced = await lint(md, {
+      strict: true,
+      rules: { 'no-self-loop': 'off' },
+    });
+    expect(silenced.messages).toHaveLength(0);
+  });
 });

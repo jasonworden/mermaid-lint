@@ -108,6 +108,36 @@ describe('computeMermaidDiagnostics — semantic findings', () => {
   });
 });
 
+describe('computeMermaidDiagnostics — rules config', () => {
+  // no-orphan-nodes is off by default: C is declared but never connected.
+  const ORPHAN_MMD = 'flowchart LR\n  A --> B\n  C[Orphan]\n';
+  // no-self-loop is warn-severity by default.
+  const SELF_LOOP_MMD = 'flowchart LR\n  A --> A\n';
+
+  it('enables an off-by-default rule via rules', async () => {
+    expect(await computeMermaidDiagnostics('d.mmd', ORPHAN_MMD)).toEqual([]);
+
+    const diags = await computeMermaidDiagnostics('d.mmd', ORPHAN_MMD, {
+      rules: { 'no-orphan-nodes': 'error' },
+    });
+    expect(diags).toHaveLength(1);
+    expect(diags[0].severity).toBe('error');
+  });
+
+  it('silences a rule via rules even under strict', async () => {
+    const strict = await computeMermaidDiagnostics('d.mmd', SELF_LOOP_MMD, {
+      strict: true,
+    });
+    expect(strict).toHaveLength(1);
+
+    const silenced = await computeMermaidDiagnostics('d.mmd', SELF_LOOP_MMD, {
+      strict: true,
+      rules: { 'no-self-loop': 'off' },
+    });
+    expect(silenced).toEqual([]);
+  });
+});
+
 describe('computeFix', () => {
   it('returns null when there is nothing to fix', async () => {
     expect(await computeFix('test.md', VALID_MD)).toBeNull();

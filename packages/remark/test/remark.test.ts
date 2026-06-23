@@ -66,6 +66,44 @@ describe('@mermaid-lint/remark', () => {
     expect(fileStrict.messages.length).toBeGreaterThan(0);
   });
 
+  it('rules: enables an off-by-default rule', async () => {
+    // no-orphan-nodes is `off` by default: C is declared but never connected.
+    const md = '```mermaid\nflowchart LR\n  A --> B\n  C[Orphan]\n```\n';
+
+    const fileDefault = await remark()
+      .use(remarkLint)
+      .use(remarkLintMermaid)
+      .process(md);
+    expect(fileDefault.messages).toHaveLength(0); // off by default
+
+    const fileEnabled = await remark()
+      .use(remarkLint)
+      .use(remarkLintMermaid, { rules: { 'no-orphan-nodes': 'error' } })
+      .process(md);
+    expect(fileEnabled.messages.length).toBeGreaterThan(0);
+  });
+
+  it('rules: silences a rule even under strict', async () => {
+    // no-self-loop is warn-severity; strict would surface it, but an explicit
+    // `off` override wins.
+    const md = '```mermaid\nflowchart LR\n  A --> A\n```\n';
+
+    const strict = await remark()
+      .use(remarkLint)
+      .use(remarkLintMermaid, { strict: true })
+      .process(md);
+    expect(strict.messages.length).toBeGreaterThan(0);
+
+    const silenced = await remark()
+      .use(remarkLint)
+      .use(remarkLintMermaid, {
+        strict: true,
+        rules: { 'no-self-loop': 'off' },
+      })
+      .process(md);
+    expect(silenced.messages).toHaveLength(0);
+  });
+
   it('handles multiple mermaid blocks in one document', async () => {
     const md = [
       '```mermaid',

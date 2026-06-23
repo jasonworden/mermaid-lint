@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.13.0
+
+- Honor the `rules` key from the project's mermaid-lint config file: the editor
+  now applies per-rule severity (and can enable off-by-default rules such as
+  `no-orphan-nodes`) exactly like the CLI, instead of silently ignoring it.
+
 ## 0.11.2
 
 - Marketplace icon: brighter (whitened) brush strokes so the crossed makeup

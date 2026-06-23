@@ -45,8 +45,21 @@ export default {
 };
 ```
 
+Tune individual rules with `rules` (the same severity map as the CLI's `rules`
+config) — enable an off-by-default rule or silence one:
+
+```js
+export default {
+  plugins: [
+    'remark-lint',
+    ['@mermaid-lint/remark', { rules: { 'no-orphan-nodes': 'error', 'no-self-loop': 'off' } }],
+  ],
+};
+```
+
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | `strict` | `boolean` | `false` | Also report semantic warnings, not just syntax errors. |
+| `rules` | `Record<string, 'off' \| 'warn' \| 'error'>` | `{}` | Per-rule severity overrides, layered over the built-in defaults. |
 
 > remark uses its own CommonMark parser to find ` ```mermaid ` blocks, then delegates validation to [`@mermaid-lint/core`](https://www.npmjs.com/package/@mermaid-lint/core). Requires `remark-lint >= 9` and `unified >= 11`.
