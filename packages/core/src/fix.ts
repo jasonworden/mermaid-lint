@@ -132,6 +132,36 @@ function fixMmd(src: string): string {
   return fixBody(src, type);
 }
 
+/**
+ * Apply the mechanical in-diagram fixes to a single Mermaid diagram body and
+ * return the corrected body. This is the per-block primitive behind {@link
+ * fixText}, exposed for host integrations (markdownlint, …) that already hold a
+ * diagram body extracted from their own AST and need to feed a corrected body
+ * back into the host's autofix machinery.
+ *
+ * It applies only the body-local rewrites — normalizing flowchart arrows (`->`
+ * to `-->`) and inserting missing sequence-message colons — re-running until the
+ * output stabilizes (max 10 passes). Unlike {@link fixText} it does no
+ * fence-level work (closing unclosed fences is a document-structure concern, not
+ * a diagram-body one), so it never changes the number of lines: the returned
+ * body has exactly as many lines as the input, which lets callers map each
+ * changed line back to a host edit one-to-one.
+ *
+ * @param body - Raw diagram source (no surrounding fences).
+ * @returns The fixed body, unchanged if nothing matched.
+ * @public
+ */
+export function fixBlockBody(body: string): string {
+  const MAX_PASSES = 10;
+  let current = body;
+  for (let pass = 0; pass < MAX_PASSES; pass++) {
+    const next = fixMmd(current);
+    if (next === current) break;
+    current = next;
+  }
+  return current;
+}
+
 function applyOnce(
   src: string,
   isMmd: boolean,

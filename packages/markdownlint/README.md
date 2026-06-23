@@ -103,6 +103,25 @@ export default {
 };
 ```
 
+## Autofix (`--fix`)
+
+The `mermaid-syntax` rule plugs into markdownlint's native autofix, so
+`markdownlint-cli2 --fix` corrects mechanical mistakes inside your Mermaid blocks
+alongside your other Markdown fixes:
+
+```bash
+npx markdownlint-cli2 --fix "**/*.md"
+```
+
+It applies the same meaning-preserving corrections as the CLI's `--fix`:
+
+- normalize flowchart/graph arrows (`->` → `-->`)
+- insert a missing sequence-message colon (`A->>B msg` → `A->>B: msg`)
+
+Only `mermaid-syntax` offers fixes. Semantic checks (self-loops, duplicate ids, …)
+are reported but never auto-changed, and closing an unclosed fence stays CLI-only
+(use [`mermaid-lint --fix`](https://www.npmjs.com/package/@mermaid-lint/cli)).
+
 ## VS Code (inline squiggles, no separate extension)
 
 Install the [markdownlint extension](https://marketplace.visualstudio.com/items?itemName=DavidAnson.vscode-markdownlint) (**v0.50+**; it bundles a recent `markdownlint-cli2`, so async rules run), add this package to your workspace, then in `.vscode/settings.json`:
@@ -121,5 +140,6 @@ You must **trust the workspace** — the extension blocks custom-rule JavaScript
 | --- | --- | --- |
 | ` ```mermaid ` blocks in Markdown (`.md`, `.markdown`, …) | ✅ | CLI, CI, and in-editor squiggles |
 | Standalone `.mmd` files | ❌ | markdownlint only processes Markdown. Use the [VS Code extension](https://marketplace.visualstudio.com/items?itemName=mermaid-lint.mermaid-lint-vscode) for `.mmd` coverage. |
+| Autofix via `markdownlint-cli2 --fix` | ✅ | `mermaid-syntax` corrects mechanical issues (arrows, missing colons); semantic rules never autofix. |
 
 Requires `markdownlint >= 0.37.0` for async custom rule support. Validation is delegated to [`@mermaid-lint/core`](https://www.npmjs.com/package/@mermaid-lint/core).
