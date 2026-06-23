@@ -1,20 +1,31 @@
-import { readFileSync } from 'node:fs';
 import {
-  type Block,
-  type DiscoverOptions,
-  discoverFiles,
-  extractMermaidBlocks,
-  validateBlock,
+  type LintFilesOptions,
+  blockToDiagnostics,
+  collectMermaidBlocks,
+  resolveRules,
+  selectFailures,
 } from '@mermaid-lint/core';
 import { describe, expect, it } from 'vitest';
 
-export function defineMermaidTests(opts: DiscoverOptions = {}): void {
-  const files = discoverFiles(opts);
-  const blocks: Block[] = [];
-  for (const file of files) {
-    const text = readFileSync(file, 'utf8');
-    blocks.push(...extractMermaidBlocks(file, text));
-  }
+export type { MermaidBlockResult } from '@mermaid-lint/core';
+export { lintMermaidFiles } from '@mermaid-lint/core';
+
+/** Options for {@link defineMermaidTests}: discovery, per-rule severities, strict. */
+export interface MermaidTestOptions extends LintFilesOptions {
+  /** Also fail on `warning`-severity semantic findings, not just errors. */
+  strict?: boolean;
+}
+
+/**
+ * Register one Vitest test per Mermaid block found under `opts`, failing any
+ * block whose diagnostics include a syntax error or (under `strict`) a semantic
+ * warning. Blocks are collected synchronously so tests register during Vitest's
+ * collection phase; validation runs asynchronously inside each test.
+ */
+export function defineMermaidTests(opts: MermaidTestOptions = {}): void {
+  const { strict = false, rules, ...discoverOpts } = opts;
+  const resolved = resolveRules({ rules });
+  const blocks = collectMermaidBlocks(discoverOpts);
 
   describe('Mermaid diagrams', () => {
     it('finds at least one diagram', () => {
@@ -22,11 +33,12 @@ export function defineMermaidTests(opts: DiscoverOptions = {}): void {
     });
 
     it.each(blocks)('$path:$line is valid', async (block) => {
-      const result = await validateBlock(block);
-      expect(
-        result.ok,
-        `${block.path}:${block.line}: ${result.ok ? '' : result.error.message}`,
-      ).toBe(true);
+      const diagnostics = await blockToDiagnostics(block, resolved);
+      const failures = selectFailures(diagnostics, strict);
+      const detail = failures.map((d) => d.message).join('; ');
+      expect(failures, `${block.path}:${block.line}: ${detail}`).toHaveLength(
+        0,
+      );
     });
   });
 }

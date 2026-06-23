@@ -29,6 +29,15 @@ export {
 export type { Diagnostic, Severity } from './src/markdown-adapter.js';
 export { discoverFiles } from './src/discover.js';
 export type { DiscoverOptions } from './src/discover.js';
+export {
+  collectMermaidBlocks,
+  lintMermaidFiles,
+  selectFailures,
+} from './src/lint-files.js';
+export type {
+  LintFilesOptions,
+  MermaidBlockResult,
+} from './src/lint-files.js';
 export { detectDiagramType } from './src/type-detect.js';
 export { loadConfig } from './src/config.js';
 export type { MermaidLintConfig } from './src/config.js';
