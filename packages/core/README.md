@@ -24,19 +24,33 @@ npm install @mermaid-lint/core
 
 | Symbol | Signature | Description |
 | --- | --- | --- |
-| `validateBlock` | `(block) => Promise<ValidationResult>` | Validate a `Block` end to end: structural checks, semantic warnings, fast Rust parser with a mermaid.js fallback. |
+| `validateBlock` | `(block, rules?) => Promise<ValidationResult>` | Validate a `Block` end to end: structural checks, semantic warnings (at the given per-rule severities), fast Rust parser with a mermaid.js fallback. |
 | `validateWithMermaidJS` | `(body) => Promise<{ ok: true } \| { ok: false; error: ValidationError }>` | Validate raw diagram source with the bundled mermaid.js parser (authoritative). |
 | `ValidationResult` | `type` | `{ ok: true; warnings } \| { ok: false; error; warnings }`. |
 | `ValidationError` | `interface` | `{ message, line?, col? }`. |
-| `checkSemantics` | `(block) => SemanticWarning[]` | Run semantic checks (currently duplicate flowchart node ids). |
-| `SemanticWarning` | `interface` | `{ rule, message, line? }`. |
+| `checkSemantics` | `(block, rules?) => SemanticWarning[]` | Run the semantic rule set (self-loops, duplicate ids, orphan nodes, sequence/class checks, …) at the given per-rule severities; skips rules resolved to `off`. |
+| `SemanticWarning` | `interface` | `{ rule, message, line?, severity }`. |
+
+### Rules
+
+| Symbol | Signature | Description |
+| --- | --- | --- |
+| `resolveRules` | `(opts?) => ResolvedRules` | Resolve `{ rules?, semantic? }` into a concrete severity for every rule, layered over `RULE_DEFAULTS` (`semantic: false` disables all). |
+| `RULE_DEFAULTS` | `ResolvedRules` | The default severity for every rule. |
+| `ALL_RULE_IDS` | `RuleId[]` | Every known rule id. |
+| `isRuleSeverity` | `(value) => value is RuleSeverity` | Type guard for `'off' \| 'warn' \| 'error'`. |
+| `RuleId` | `type` | Union of rule ids (`'duplicate-ids' \| 'no-self-loop' \| …`). |
+| `RuleSeverity` | `type` | `'off' \| 'warn' \| 'error'`. |
+| `RulesConfig` | `type` | `Partial<Record<RuleId, RuleSeverity>>` — user overrides. |
+| `ResolvedRules` | `type` | `Record<RuleId, RuleSeverity>` — a severity for every rule. |
+| `EmittedSeverity` | `type` | `'warn' \| 'error'` — the severities a finding can carry. |
 
 ### Diagnostics adapter
 
 | Symbol | Signature | Description |
 | --- | --- | --- |
-| `lintMarkdown` | `(path, text, options?) => Promise<Diagnostic[]>` | Main entry point for tool integrations: extract + validate a document, returning all diagnostics with absolute coordinates. |
-| `blockToDiagnostics` | `(block) => Promise<Diagnostic[]>` | Validate one block and return its diagnostics with document-absolute coordinates. |
+| `lintMarkdown` | `(path, text, options?, rules?) => Promise<Diagnostic[]>` | Main entry point for tool integrations: extract + validate a document, returning all diagnostics with absolute coordinates. |
+| `blockToDiagnostics` | `(block, rules?) => Promise<Diagnostic[]>` | Validate one block and return its diagnostics with document-absolute coordinates. |
 | `Diagnostic` | `interface` | `{ line, column, message, ruleId, severity }`. |
 | `Severity` | `type` | `'error' \| 'warning'`. |
 
@@ -46,6 +60,16 @@ npm install @mermaid-lint/core
 | --- | --- | --- |
 | `discoverFiles` | `(opts?) => string[]` | Discover lintable files (git-tracked markdown family by default). |
 | `DiscoverOptions` | `interface` | `{ root?, all?, paths?, ignore?, noGitignore?, extensions? }`. |
+
+### File linting
+
+| Symbol | Signature | Description |
+| --- | --- | --- |
+| `collectMermaidBlocks` | `(opts?) => Block[]` | Synchronously discover files and extract their Mermaid blocks (no validation) — useful when a caller must register work during a synchronous phase. |
+| `lintMermaidFiles` | `(opts?) => Promise<MermaidBlockResult[]>` | Discover, extract, and validate; returns the diagnostics per block. The composable, returns-data entry point used by the jest/vitest adapters. |
+| `selectFailures` | `(diagnostics, strict?) => Diagnostic[]` | The diagnostics that should fail a run: `error`-severity always; `warning`-severity only under `strict`. |
+| `LintFilesOptions` | `interface` | `DiscoverOptions & { rules? }`. |
+| `MermaidBlockResult` | `interface` | `{ block, diagnostics }`. |
 
 ### Type detection
 

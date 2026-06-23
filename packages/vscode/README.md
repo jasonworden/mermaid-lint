@@ -114,7 +114,7 @@ a clean directory and installs core from **npm** with plain `npm install`.
 npm first. The monorepo publishes on a version tag:
 
 ```bash
-git tag v0.11.0 && git push origin v0.11.0   # CI publishes @mermaid-lint/* to npm
+git tag v0.19.0 && git push origin v0.19.0   # CI publishes @mermaid-lint/* to npm
 ```
 
 Then build the `.vsix`:
