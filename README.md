@@ -484,6 +484,9 @@ In addition to syntax errors, mermaid-lint runs a set of semantic rules over dia
 | `state-duplicate-transition` | `warn` | The same `src --> tgt : label` transition defined more than once — renders stacked, usually a copy-paste mistake | stateDiagram |
 | `state-empty-composite` | `warn` | A composite `state X { }` with an empty body — renders as an empty box | stateDiagram |
 | `state-self-transition` | `off` | A state with a transition to itself (`A --> A`). Off by default (opt-in): self-transitions are valid and common in state machines | stateDiagram |
+| `er-duplicate-attribute` | `warn` | The same attribute name declared twice inside one entity block | erDiagram |
+| `er-duplicate-entity` | `warn` | An entity whose attribute block is defined more than once — Mermaid merges them, usually a copy-paste mistake | erDiagram |
+| `er-standalone-entity` | `off` | An entity with a defined block but no relationship — renders as an isolated box. Off by default (opt-in) | erDiagram |
 
 ```
 docs/api.md:7:1: error: duplicate-ids: node "A" declared with label "Start" (line 2) and "Begin" (line 7)
