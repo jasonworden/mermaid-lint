@@ -50,6 +50,25 @@ rules: {
 | `strict` | `boolean` | `false` | Also report semantic warnings, not just syntax errors. |
 | `rules` | `Record<string, 'off' \| 'warn' \| 'error'>` | `{}` | Per-rule severity overrides, layered over the built-in defaults. |
 
+## Autofix (`--fix`)
+
+The rule is a textlint **fixer**, so `textlint --fix` corrects mechanical mistakes
+inside your Mermaid blocks alongside your other textlint fixes:
+
+```bash
+npx textlint --fix "**/*.md"
+```
+
+It applies the same meaning-preserving corrections as the CLI's `--fix`:
+
+- normalize flowchart/graph arrows (`->` → `-->`)
+- insert a missing sequence-message colon (`A->>B msg` → `A->>B: msg`)
+
+Semantic findings (self-loops, duplicate ids, …) are reported but never
+auto-changed. List-indented fences are a no-op (textlint de-indents the block
+body, so it can't be matched back to source) — use
+[`mermaid-lint --fix`](https://www.npmjs.com/package/@mermaid-lint/cli) for those.
+
 > **Why textlint and not ESLint?** ESLint rules must be synchronous, so they cannot run Mermaid's async parser. See the [parsing-vs-linting explainer](https://github.com/jasonworden/mermaid-lint/blob/main/docs/parsing-vs-linting.md) and tracking issues [#39](https://github.com/jasonworden/mermaid-lint/issues/39) (ESLint) and [#38](https://github.com/jasonworden/mermaid-lint/issues/38) (Biome).
 
 Requires `textlint >= 13`. Validation is delegated to [`@mermaid-lint/core`](https://www.npmjs.com/package/@mermaid-lint/core).
