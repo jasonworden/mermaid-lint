@@ -1,3 +1,4 @@
+import type { RulesConfig } from '@mermaid-lint/core';
 import { loadCore } from './core.js';
 
 export type Severity = 'error' | 'warning';
@@ -22,6 +23,13 @@ export interface ComputeOptions {
    * (CommonMark); restrict to e.g. `['backtick']` to ignore `~~~mermaid`.
    */
   fences?: ('backtick' | 'tilde')[];
+  /**
+   * Per-rule severity overrides (`'off'` | `'warn'` | `'error'`), layered over
+   * the built-in defaults — the `rules` key from the project's mermaid-lint
+   * config. Lets the editor enable off-by-default rules (e.g. `no-orphan-nodes`)
+   * and tune severities, matching the CLI. Ignored when `semantic` is false.
+   */
+  rules?: RulesConfig;
 }
 
 function makeDiag(
@@ -56,16 +64,20 @@ export async function computeMermaidDiagnostics(
   text: string,
   options: ComputeOptions = {},
 ): Promise<MermaidDiagnostic[]> {
-  const { semantic = true, strict = false, fences } = options;
-  const { extractMermaidBlocks, validateBlock } = await loadCore();
+  const { semantic = true, strict = false, fences, rules } = options;
+  const { extractMermaidBlocks, validateBlock, resolveRules } =
+    await loadCore();
   const isMmd = path.endsWith('.mmd');
   const lines = text.replace(/\r\n/g, '\n').split('\n');
   const blocks = extractMermaidBlocks(path, text, fences ? { fences } : {});
+  // Layer the config's `rules` over the built-in defaults. `semantic: false`
+  // resolves every rule to `off`, so the validator emits no warnings.
+  const resolved = resolveRules({ rules, semantic });
   const out: MermaidDiagnostic[] = [];
 
   await Promise.all(
     blocks.map(async (block) => {
-      const result = await validateBlock(block);
+      const result = await validateBlock(block, resolved);
       const bodyStart = isMmd ? block.line : block.line + 1;
       const toDocLine = (bodyLine: number | undefined): number =>
         bodyLine === undefined ? block.line : bodyStart + bodyLine - 1;

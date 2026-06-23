@@ -38,7 +38,8 @@ Standalone `.mmd` file (coverage the markdownlint rule can't provide):
   (`--fix`) without leaving the editor.
 - **Config-aware** — respects your project's mermaid-lint config file
   (`.mermaidlintrc`, `mermaid-lint.config.js`, the `mermaidLint` key in
-  `package.json`, …). `strict` and `semantic` settings carry over from the CLI.
+  `package.json`, …). `strict`, `semantic`, per-rule `rules`, and `fences`
+  settings all carry over from the CLI.
 
 ## Settings
 
@@ -47,9 +48,11 @@ Standalone `.mmd` file (coverage the markdownlint rule can't provide):
 | `mermaidLint.enable` | `true` | Enable/disable validation. |
 | `mermaidLint.delay` | `300` | Debounce delay (ms) before validating after a change. |
 
-Whether semantic warnings are reported, and whether they are treated as errors
-(`strict`), is read from your project's mermaid-lint config file rather than a
-VS Code setting, so behavior matches `mermaid-lint` on the command line.
+Whether semantic warnings are reported (`semantic`), whether they are treated as
+errors (`strict`), per-rule severity (`rules`, including off-by-default rules you
+enable), and recognized fence markers (`fences`) are all read from your project's
+mermaid-lint config file rather than a VS Code setting, so behavior matches
+`mermaid-lint` on the command line.
 
 ## Commands
 

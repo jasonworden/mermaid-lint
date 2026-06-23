@@ -37,18 +37,20 @@ The exit code is non-zero on failure, so it drops straight into CI or a pre-comm
 
 ## Why mermaid-lint
 
-|  | mermaid-lint | markdownlint (alone) | Manual review |
-|---|:---:|:---:|:---:|
-| Catches Mermaid **syntax errors** | ✅ | ❌ lints Markdown, not diagram bodies | ⚠️ easy to miss |
-| Precise **line / column** of the error | ✅ | — | ❌ |
-| All **19 Mermaid diagram types** | ✅ | — | ⚠️ |
-| **Semantic** warnings (e.g. duplicate node IDs) | ✅ | ❌ | ❌ |
-| **Auto-fix** mechanical issues (`--fix`) | ✅ | ❌ | ❌ |
-| **Editor** squiggles as you type | ✅ VS Code | ❌ | ❌ |
-| Runs in **CI** / pre-commit | ✅ | ✅ | ❌ |
-| Setup | `npx mermaid-lint` | rule config | — |
+|  | mermaid-lint | Manual review |
+|---|:---:|:---:|
+| Catches Mermaid **syntax errors** | ✅ | ⚠️ easy to miss |
+| Precise **line / column** of the error | ✅ | ❌ |
+| All **19 Mermaid diagram types** | ✅ | ⚠️ |
+| **Semantic** warnings (e.g. duplicate node IDs) | ✅ | ❌ |
+| **Auto-fix** mechanical issues (`--fix`) | ✅ | ❌ |
+| **Editor** squiggles as you type | ✅ VS Code | ❌ |
+| Runs in **CI** / pre-commit | ✅ | ❌ |
+| Setup | `npx mermaid-lint` | — |
 
-> markdownlint *can* validate Mermaid — via the [`@mermaid-lint/markdownlint`](#markdownlint) custom rule. The "markdownlint (alone)" column is plain markdownlint without it.
+Plain Markdown linters don't validate diagram bodies — but mermaid-lint plugs
+into the ones you already run: [markdownlint](#markdownlint), [remark](#remark),
+and [textlint](#textlint) all gain Mermaid validation via a mermaid-lint rule.
 
 ## Packages
 
@@ -84,96 +86,16 @@ npx mermaid-lint --fix "docs/**/*.md"   # fix only specific files
 
 **Exit codes:** `0` = all valid · `1` = validation failures (or warnings with `--strict`) · `2` = usage/IO error
 
-### JSON output schema
+**JSON output** (`--format json`) is documented in
+[docs/json-output.md](docs/json-output.md) — the full schema, field reference,
+and a CI-scripting example.
 
-```json
-{
-  "version": "0.19.0",
-  "files": [
-    {
-      "path": "docs/api.md",
-      "diagrams": [
-        { "line": 42, "col": 1, "type": "flowchart", "ok": true,
-          "warnings": [{ "rule": "duplicate-ids", "message": "node \"A\" declared with label \"Start\" (line 2) and \"Begin\" (line 7)", "line": 7 }] },
-        { "line": 89, "col": 1, "type": "sequenceDiagram", "ok": false,
-          "error": { "message": "Expecting 'SPACE'", "line": 2, "col": 5 }, "warnings": [] }
-      ]
-    }
-  ],
-  "summary": {
-    "files": 5, "diagrams": 12, "ok": 10, "errors": 2, "warnings": 1,
-    "types": { "flowchart": 6, "sequenceDiagram": 3, "classDiagram": 3 }
-  }
-}
-```
+### Beyond JavaScript projects
 
-### Usage in non-JavaScript projects
-
-mermaid-lint only requires Node.js ≥20 — it works in any project regardless of language.
-
-**Python / Go / Rust / any project with Markdown docs:**
-
-```bash
-# Validate all Markdown in a docs/ folder
-npx mermaid-lint "docs/**/*.md"
-
-# Scan everything recursively (no git required)
-npx mermaid-lint --all
-
-# Machine-readable output for CI scripts
-npx mermaid-lint --format json --all | python -c "
-import sys, json
-out = json.load(sys.stdin)
-if out['summary']['errors']:
-    for f in out['files']:
-        for d in f['diagrams']:
-            if not d['ok']:
-                print(f\"{f['path']}:{d['line']}: {d['error']['message']}\")
-    sys.exit(1)
-"
-```
-
-**Pre-commit hook (any language):**
-
-```yaml
-# .pre-commit-config.yaml
-repos:
-  - repo: local
-    hooks:
-      - id: mermaid-lint
-        name: Validate Mermaid diagrams
-        language: node
-        entry: npx mermaid-lint
-        types: [markdown]
-        pass_filenames: true
-```
-
-**Pre-commit hook (Node.js / JavaScript projects):**
-
-Use [husky](https://typicode.github.io/husky/) + [lint-staged](https://github.com/lint-staged/lint-staged) to run mermaid-lint on only the staged Markdown files before every commit.
-
-```bash
-npm install --save-dev husky lint-staged
-npx husky init
-```
-
-Add to `package.json`:
-
-```json
-{
-  "lint-staged": {
-    "*.{md,mmd,mdx}": "mermaid-lint"
-  }
-}
-```
-
-Set `.husky/pre-commit` to:
-
-```sh
-npx lint-staged
-```
-
-lint-staged passes staged file paths as positional arguments — mermaid-lint validates each file directly.
+mermaid-lint only requires Node.js ≥20 and runs via `npx`, so it works in any
+project regardless of language. See [docs/ci-and-precommit.md](docs/ci-and-precommit.md)
+for Python/Go/Rust recipes, pre-commit hooks (`pre-commit`, husky + lint-staged),
+and CI usage.
 
 ## GitHub Actions
 
@@ -290,6 +212,13 @@ export default {
 };
 ```
 
+Tune individual rules with `rules` (same shape as the CLI's [`rules`](#configuration)
+config) — e.g. enable an off-by-default rule or silence one:
+
+```js
+['@mermaid-lint/remark', { rules: { 'no-orphan-nodes': 'error', 'no-self-loop': 'off' } }]
+```
+
 ## markdownlint
 
 A set of [markdownlint](https://github.com/DavidAnson/markdownlint) async custom
@@ -384,6 +313,15 @@ rules: {
 },
 ```
 
+Or pass `rules` (same shape as the CLI's [`rules`](#configuration) config) to
+enable an off-by-default rule or silence one:
+
+```js
+rules: {
+  '@mermaid-lint/textlint': { rules: { 'no-orphan-nodes': 'error' } },
+},
+```
+
 > **Why textlint and not ESLint?** ESLint rules must be synchronous, so they
 > cannot run Mermaid's async parser. See the
 > [parsing-vs-linting explainer](docs/parsing-vs-linting.md) and tracking issues
@@ -403,7 +341,7 @@ setup required, and unlike the markdownlint rule it **also covers standalone
 | Inline squiggles in standalone **`.mmd`** files | ✅ |
 | Hover messages + **Problems panel** entries | ✅ |
 | Debounced **on-type** validation | ✅ |
-| Respects the [mermaid-lint config file](#configuration) (`strict`, `semantic`) | ✅ |
+| Respects the [mermaid-lint config file](#configuration) (`strict`, `semantic`, `rules`, `fences`) | ✅ |
 | **Quick-fix** code actions (apply `--fix` autocorrections in-editor) | ✅ |
 
 Settings:
@@ -415,8 +353,9 @@ Settings:
 }
 ```
 
-`strict` and `semantic` behavior comes from your project's mermaid-lint config
-file (e.g. `.mermaidlintrc`), so the editor matches the CLI.
+`strict`, `semantic`, per-rule `rules`, and `fences` all come from your project's
+mermaid-lint config file (e.g. `.mermaidlintrc`), so the editor matches the CLI —
+including off-by-default rules you enable there.
 
 **Install:** published to the
 [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=mermaid-lint.mermaid-lint-vscode)
