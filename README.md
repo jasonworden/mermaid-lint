@@ -338,6 +338,18 @@ rules: {
 },
 ```
 
+The rule is also a textlint **fixer**, so `textlint --fix` applies the same
+mechanical corrections as the CLI's [`--fix`](#cli) (normalize `->` arrows,
+insert missing sequence-message colons) inside your Mermaid blocks:
+
+```bash
+npx textlint --fix "**/*.md"
+```
+
+These corrections are meaning-preserving; semantic findings are reported but
+never auto-changed. (List-indented fences are a no-op — textlint de-indents the
+block body; use the CLI for those.)
+
 > **Why textlint and not ESLint?** ESLint rules must be synchronous, so they
 > cannot run Mermaid's async parser. See the
 > [parsing-vs-linting explainer](docs/parsing-vs-linting.md) and tracking issues

@@ -3,9 +3,13 @@ import {
   type RulesConfig,
   blockToDiagnostics,
   detectDiagramType,
+  fixBlockBody,
   resolveRules,
 } from '@mermaid-lint/core';
-import type { TextlintRuleModule } from '@textlint/types';
+import type {
+  TextlintFixableRuleModule,
+  TextlintRuleReporter,
+} from '@textlint/types';
 
 export interface Options {
   /** Report semantic warnings (duplicate ids, etc.) in addition to errors. */
@@ -25,9 +29,14 @@ export interface Options {
  * fully async validator (merman + mermaid.js) — see issue #39 for the ESLint
  * limitation. Validation, semantic checks, and line mapping all come from the
  * shared `@mermaid-lint/core` Markdown adapter.
+ *
+ * The rule is also a textlint **fixer**: `textlint --fix` applies the same
+ * mechanical, meaning-preserving corrections as the CLI's `--fix` (normalizing
+ * `->` arrows, inserting missing sequence-message colons) via core's shared
+ * `fixBlockBody`. Semantic findings are never auto-changed.
  */
-const rule: TextlintRuleModule<Options> = (context, options = {}) => {
-  const { Syntax, RuleError, report, getSource, locator, getFilePath } =
+const reporter: TextlintRuleReporter<Options> = (context, options = {}) => {
+  const { Syntax, RuleError, report, fixer, getSource, locator, getFilePath } =
     context;
   const strict = options?.strict ?? false;
   const resolved = resolveRules({ rules: options?.rules });
@@ -53,6 +62,25 @@ const rule: TextlintRuleModule<Options> = (context, options = {}) => {
         const nodeSource = getSource(node);
         const sourceLines = nodeSource.split('\n');
 
+        // Build the mechanical autofix once per block. fixBlockBody is
+        // line-count preserving, so swapping the corrected body back into the
+        // node's source (the body is a unique literal substring of it) yields a
+        // whole-node replacement that touches only diagram content — never the
+        // fences or surrounding Markdown. The function replacer avoids `$`
+        // being interpreted as a replacement pattern. If the body isn't a
+        // literal substring (e.g. an oddly-indented fence), the swap is a no-op
+        // and no fix is offered.
+        const fixedBody = fixBlockBody(body);
+        const newSource =
+          fixedBody === body
+            ? nodeSource
+            : nodeSource.replace(body, () => fixedBody);
+        const fixCommand =
+          newSource === nodeSource
+            ? undefined
+            : fixer.replaceText(node, newSource);
+        let fixAttached = false;
+
         for (const d of diagnostics) {
           if (d.severity !== 'error' && !strict) continue;
 
@@ -66,9 +94,29 @@ const rule: TextlintRuleModule<Options> = (context, options = {}) => {
           }
           index += Math.max(d.column - 1, 0);
 
+          // Attach the autofix to the first syntax error (the only severity
+          // that mechanical fixes target); semantic findings carry no fix.
+          const attachFix =
+            fixCommand && !fixAttached && d.severity === 'error';
+          if (attachFix) fixAttached = true;
           report(
             node,
-            new RuleError(d.message, { padding: locator.at(index) }),
+            new RuleError(d.message, {
+              padding: locator.at(index),
+              ...(attachFix ? { fix: fixCommand } : {}),
+            }),
+          );
+        }
+
+        // A fixable block whose validator surfaced no carryable error (rare):
+        // report a dedicated fixable finding so `--fix` still corrects it.
+        if (fixCommand && !fixAttached) {
+          report(
+            node,
+            new RuleError(
+              'Mermaid: auto-fixable syntax issue (run with --fix)',
+              { padding: locator.at(0), fix: fixCommand },
+            ),
           );
         }
       });
@@ -76,4 +124,9 @@ const rule: TextlintRuleModule<Options> = (context, options = {}) => {
   };
 };
 
-export default rule;
+// A fixable textlint rule exports `{ linter, fixer }` (same reporter for both);
+// `textlint --fix` runs the `fixer` entry and applies the `fix` descriptors.
+export default {
+  linter: reporter,
+  fixer: reporter,
+} satisfies TextlintFixableRuleModule<Options>;

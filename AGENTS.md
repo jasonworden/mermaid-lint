@@ -24,7 +24,7 @@ these are *warnings*, opt-in via `strict`. See
 | `@mermaid-lint/cli` | `mermaid-lint` command — scans files / stdin, `--fix`, text or JSON output. |
 | `@mermaid-lint/markdownlint` | markdownlint async custom rules — one per check (`mermaid-syntax` + `mermaid-<rule-id>`); `recommended`/`all` bundles. `mermaid-syntax` also emits `fixInfo`, so `markdownlint-cli2 --fix` mechanically corrects blocks (arrows, missing colons) via core's `fixBlockBody`. |
 | `@mermaid-lint/remark` | remark-lint plugin (`strict` + per-rule `rules` options). |
-| `@mermaid-lint/textlint` | textlint rule (`strict` + per-rule `rules` options). |
+| `@mermaid-lint/textlint` | textlint rule (`strict` + per-rule `rules` options); also a **fixer** (`{ linter, fixer }`), so `textlint --fix` mechanically corrects blocks via core's `fixBlockBody` (whole-node `replaceText`). |
 | `@mermaid-lint/jest` / `@mermaid-lint/vitest` | Test-runner adapters: `defineMermaidTests` (with `strict`/`rules`) + `lintMermaidFiles`. |
 | `mermaid-lint-vscode` | VS Code extension — inline squiggles, hover, quick-fix; honors config `strict`/`semantic`/`rules`/`fences`. |
 
