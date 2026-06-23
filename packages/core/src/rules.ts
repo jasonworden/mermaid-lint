@@ -47,7 +47,10 @@ export type RuleId =
   | 'no-duplicate-methods'
   | 'pie-duplicate-label'
   | 'pie-zero-value'
-  | 'pie-no-data';
+  | 'pie-no-data'
+  | 'state-duplicate-transition'
+  | 'state-empty-composite'
+  | 'state-self-transition';
 
 /**
  * User-facing `rules` configuration: a partial map of rule id to desired
@@ -82,6 +85,14 @@ export type ResolvedRules = Record<RuleId, RuleSeverity>;
  * the same label — a copy-paste mistake), `pie-zero-value` (a `0`-valued slice
  * that renders invisibly), and `pie-no-data` (a pie chart with no slices).
  *
+ * The state-diagram rules: `state-duplicate-transition` (`warn`) flags an
+ * identical `src --> tgt : label` transition declared twice (renders stacked, a
+ * copy-paste mistake); `state-empty-composite` (`warn`) flags a `state X { }`
+ * composite state with no body (renders as an empty box); `state-self-transition`
+ * defaults to `off` because a state transitioning to itself is valid and common
+ * in real state machines (an event handled without changing state) — opt in to
+ * flag it, unlike the flowchart `no-self-loop` which is on by default.
+ *
  * @public
  */
 export const RULE_DEFAULTS: ResolvedRules = {
@@ -99,6 +110,9 @@ export const RULE_DEFAULTS: ResolvedRules = {
   'pie-duplicate-label': 'warn',
   'pie-zero-value': 'warn',
   'pie-no-data': 'warn',
+  'state-duplicate-transition': 'warn',
+  'state-empty-composite': 'warn',
+  'state-self-transition': 'off',
 };
 
 /** Every known rule id, derived from the defaults table. */

@@ -481,6 +481,9 @@ In addition to syntax errors, mermaid-lint runs a set of semantic rules over dia
 | `pie-duplicate-label` | `warn` | The same pie slice label defined more than once — usually a copy-paste mistake | pie |
 | `pie-zero-value` | `warn` | A pie slice with a value of `0` — renders as an invisible (zero-area) slice | pie |
 | `pie-no-data` | `warn` | A pie chart with no data slices — renders empty | pie |
+| `state-duplicate-transition` | `warn` | The same `src --> tgt : label` transition defined more than once — renders stacked, usually a copy-paste mistake | stateDiagram |
+| `state-empty-composite` | `warn` | A composite `state X { }` with an empty body — renders as an empty box | stateDiagram |
+| `state-self-transition` | `off` | A state with a transition to itself (`A --> A`). Off by default (opt-in): self-transitions are valid and common in state machines | stateDiagram |
 
 ```
 docs/api.md:7:1: error: duplicate-ids: node "A" declared with label "Start" (line 2) and "Begin" (line 7)

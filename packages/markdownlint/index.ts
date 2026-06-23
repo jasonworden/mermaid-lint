@@ -216,6 +216,10 @@ const RULE_DESCRIPTIONS: Record<RuleId, string> = {
   'pie-duplicate-label': 'Mermaid: a pie slice label is defined more than once',
   'pie-zero-value': 'Mermaid: a pie slice has a value of 0',
   'pie-no-data': 'Mermaid: a pie chart has no data slices',
+  'state-duplicate-transition':
+    'Mermaid: the same state transition is defined more than once',
+  'state-empty-composite': 'Mermaid: a composite state has an empty body',
+  'state-self-transition': 'Mermaid: a state has a transition to itself',
 };
 
 /**
