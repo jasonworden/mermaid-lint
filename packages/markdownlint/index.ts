@@ -220,6 +220,11 @@ const RULE_DESCRIPTIONS: Record<RuleId, string> = {
     'Mermaid: the same state transition is defined more than once',
   'state-empty-composite': 'Mermaid: a composite state has an empty body',
   'state-self-transition': 'Mermaid: a state has a transition to itself',
+  'er-duplicate-attribute':
+    'Mermaid: an entity declares a duplicate attribute name',
+  'er-duplicate-entity':
+    'Mermaid: an entity attribute block is defined more than once',
+  'er-standalone-entity': 'Mermaid: an entity has a block but no relationship',
 };
 
 /**

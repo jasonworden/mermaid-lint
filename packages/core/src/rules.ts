@@ -50,7 +50,10 @@ export type RuleId =
   | 'pie-no-data'
   | 'state-duplicate-transition'
   | 'state-empty-composite'
-  | 'state-self-transition';
+  | 'state-self-transition'
+  | 'er-duplicate-attribute'
+  | 'er-duplicate-entity'
+  | 'er-standalone-entity';
 
 /**
  * User-facing `rules` configuration: a partial map of rule id to desired
@@ -93,6 +96,13 @@ export type ResolvedRules = Record<RuleId, RuleSeverity>;
  * in real state machines (an event handled without changing state) — opt in to
  * flag it, unlike the flowchart `no-self-loop` which is on by default.
  *
+ * The ER-diagram rules: `er-duplicate-attribute` (`warn`) flags the same
+ * attribute name declared twice inside one entity block; `er-duplicate-entity`
+ * (`warn`) flags an entity whose attribute block is defined more than once
+ * (Mermaid silently merges them — a copy-paste smell); `er-standalone-entity`
+ * defaults to `off` (opt-in, like `no-orphan-nodes`) because an entity with a
+ * defined block but no relationship is sometimes intentional.
+ *
  * @public
  */
 export const RULE_DEFAULTS: ResolvedRules = {
@@ -113,6 +123,9 @@ export const RULE_DEFAULTS: ResolvedRules = {
   'state-duplicate-transition': 'warn',
   'state-empty-composite': 'warn',
   'state-self-transition': 'off',
+  'er-duplicate-attribute': 'warn',
+  'er-duplicate-entity': 'warn',
+  'er-standalone-entity': 'off',
 };
 
 /** Every known rule id, derived from the defaults table. */

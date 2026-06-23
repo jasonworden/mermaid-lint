@@ -43,6 +43,9 @@ describe('resolveRules', () => {
     expect(RULE_DEFAULTS['state-duplicate-transition']).toBe('warn');
     expect(RULE_DEFAULTS['state-empty-composite']).toBe('warn');
     expect(RULE_DEFAULTS['state-self-transition']).toBe('off');
+    expect(RULE_DEFAULTS['er-duplicate-attribute']).toBe('warn');
+    expect(RULE_DEFAULTS['er-duplicate-entity']).toBe('warn');
+    expect(RULE_DEFAULTS['er-standalone-entity']).toBe('off');
   });
 
   it('layers user overrides over the defaults', () => {
