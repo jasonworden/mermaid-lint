@@ -29,8 +29,8 @@ tag. Bump, tag, push:
 
 ```bash
 # from the repo root, on an up-to-date main
-git tag v0.11.0
-git push origin v0.11.0     # CI runs `pnpm -r publish` → npm
+git tag v0.19.0
+git push origin v0.19.0     # CI runs `pnpm -r publish` → npm
 ```
 
 Verify (bypassing any local registry mirror such as a corporate Nexus in

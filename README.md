@@ -88,7 +88,7 @@ npx mermaid-lint --fix "docs/**/*.md"   # fix only specific files
 
 ```json
 {
-  "version": "0.10.0",
+  "version": "0.19.0",
   "files": [
     {
       "path": "docs/api.md",
@@ -433,7 +433,8 @@ double-publish steps are in [`packages/vscode/PUBLISHING.md`](packages/vscode/PU
 import { defineMermaidTests } from '@mermaid-lint/vitest'
 
 defineMermaidTests()                      // auto-discovers git-tracked *.md
-defineMermaidTests({ root: '/my/docs' }) // explicit root
+defineMermaidTests({ root: '/my/docs' })  // explicit root
+defineMermaidTests({ strict: true })      // also fail on semantic warnings
 ```
 
 ## Jest
@@ -446,6 +447,8 @@ defineMermaidTests()
 ```
 
 Requires `NODE_OPTIONS=--experimental-vm-modules` (Jest + native ESM).
+
+Both fail a test on any **syntax error** or `error`-severity semantic finding (e.g. a duplicate id); pass `strict: true` to also fail on warnings, or `rules` to tune individual checks. Need the results without registering tests? Call `lintMermaidFiles(opts)`. Full options in the [vitest](packages/vitest) / [jest](packages/jest) READMEs.
 
 ## How it works
 

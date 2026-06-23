@@ -19,7 +19,7 @@ it (no version is hardcoded in the workflow), so local and CI stay in lockstep.
 
 Consumer-side peer requirement worth knowing: `@mermaid-lint/markdownlint`
 requires `markdownlint >= 0.37`, and when run via markdownlint-cli2,
-**`markdownlint-cli2 >= 0.18`** — older cli2 versions bundle a markdownlint that
+**`markdownlint-cli2 >= 0.17`** — older cli2 versions bundle a markdownlint that
 predates async custom rules and silently skip the rule.
 
 ## Run the repo's pinned binary, not an ambient one

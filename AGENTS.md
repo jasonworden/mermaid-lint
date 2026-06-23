@@ -22,10 +22,10 @@ these are *warnings*, opt-in via `strict`. See
 |---|---|
 | `@mermaid-lint/core` | The engine: extraction, validation, semantic checks, discovery, config, autofix. Everything else depends on it. |
 | `@mermaid-lint/cli` | `mermaid-lint` command — scans files / stdin, `--fix`, text or JSON output. |
-| `@mermaid-lint/markdownlint` | markdownlint async custom rule (`ML001`). |
-| `@mermaid-lint/remark` | remark-lint plugin. |
-| `@mermaid-lint/textlint` | textlint rule. |
-| `@mermaid-lint/jest` / `@mermaid-lint/vitest` | Test-runner matchers/adapters. |
+| `@mermaid-lint/markdownlint` | markdownlint async custom rules — one per check (`mermaid-syntax` + `mermaid-<rule-id>`); `recommended`/`all` bundles. |
+| `@mermaid-lint/remark` | remark-lint plugin (`strict` opt-in for semantic warnings). |
+| `@mermaid-lint/textlint` | textlint rule (`strict` opt-in for semantic warnings). |
+| `@mermaid-lint/jest` / `@mermaid-lint/vitest` | Test-runner adapters: `defineMermaidTests` (with `strict`/`rules`) + `lintMermaidFiles`. |
 | `mermaid-lint-vscode` | VS Code extension — inline squiggles, hover, quick-fix. |
 
 **Integrations are thin.** They extract Mermaid blocks from the host's AST (or
