@@ -1,14 +1,41 @@
 import {
+  ALL_RULE_IDS,
+  type Diagnostic,
   type FenceMarker,
+  RULE_DEFAULTS,
+  type ResolvedRules,
+  type RuleId,
   isFenceMarker,
   lintMarkdown,
 } from '@mermaid-lint/core';
-import type { RuleOnError, RuleParams } from 'markdownlint';
+import type { Rule, RuleOnError, RuleParams } from 'markdownlint';
+
+// One markdownlint rule per core check (mirroring ESLint / textlint / markdownlint
+// itself, which all use one rule per check rather than severity buckets). Each
+// rule's NAME mirrors its core rule id (`mermaid-<id>`, plus `mermaid-syntax` for
+// the parse check), so there's no separate numbering scheme to maintain — the
+// only stability contract is core's rule ids, which the CLI already depends on.
+//
+// markdownlint has no severity levels (a rule reports or it doesn't) and a rule
+// runs only when registered in `customRules` and enabled in config. So core's
+// `off`/`warn`/`error` axis collapses to "registered + enabled" here: the shared
+// validation runs every core rule, and each markdownlint rule surfaces only the
+// diagnostics tagged with its own `ruleId`. Which checks you get is decided by
+// which rules you register — not by a config map.
 
 /**
- * Read an optional `fences` array from this rule's markdownlint config, e.g.
- * `{ "ML001": { "fences": ["backtick"] } }`. Invalid values fall back to the
- * CommonMark default (both backtick and tilde) so a typo never silently
+ * Force every core semantic rule to a surfacing severity for the shared pass.
+ * Severity is irrelevant downstream — each rule filters by `ruleId` and reports
+ * whatever it owns — so registration, not severity, is the real gate.
+ */
+const ALL_ON: ResolvedRules = Object.fromEntries(
+  ALL_RULE_IDS.map((id) => [id, 'error']),
+) as ResolvedRules;
+
+/**
+ * Read an optional `fences` array from a rule's markdownlint config, e.g.
+ * `{ "mermaid-syntax": { "fences": ["backtick"] } }`. Invalid values fall back
+ * to the CommonMark default (both backtick and tilde) so a typo never silently
  * disables linting.
  */
 function readFences(config: unknown): FenceMarker[] | undefined {
@@ -18,40 +45,149 @@ function readFences(config: unknown): FenceMarker[] | undefined {
   return fences;
 }
 
-const mermaidRule = {
-  names: ['ML001', 'mermaid'],
-  description: 'Mermaid diagram syntax validation',
-  // 'mermaid-diagram' (not 'mermaid'): markdownlint forbids a tag that
-  // duplicates one of the rule's own names ('mermaid' is an alias above).
-  tags: ['mermaid-diagram', 'code'],
-  // The rule line-scans params.lines and needs no markdown parser; declaring
-  // 'none' avoids markdownlint's markdownItFactory requirement and skips
-  // parsing entirely for this rule.
-  parser: 'none',
-  asynchronous: true,
-  function: async (params: RuleParams, onError: RuleOnError): Promise<void> => {
-    const { lines } = params;
-    const fences = readFences(params.config);
-    // Delegate extraction, validation, and absolute line mapping to core's
-    // shared Markdown adapter so this rule stays in lockstep with every other
-    // integration. markdownlint surfaces syntax errors only (no warnings).
-    const diagnostics = await lintMarkdown(
-      params.name,
+// Shared, memoized validation. markdownlint invokes each registered rule's
+// function independently for a file, but validation (merman WASM + the mermaid.js
+// fallback) is expensive — re-running it per rule would be an N× cliff. markdownlint
+// passes the SAME `lines` array reference to every rule for a given file, so we
+// key an in-flight-Promise cache on that reference (via WeakMap, so the entry is
+// GC'd with the file) with a small per-`fences` sub-map. Net: one validation —
+// and one document join — per file, no matter how many rules are registered.
+const validationCache = new WeakMap<
+  readonly string[],
+  Map<string, Promise<Diagnostic[]>>
+>();
+
+function validateDocument(
+  name: string,
+  lines: readonly string[],
+  fences: FenceMarker[] | undefined,
+): Promise<Diagnostic[]> {
+  let byFences = validationCache.get(lines);
+  if (!byFences) {
+    byFences = new Map();
+    validationCache.set(lines, byFences);
+  }
+  const key = fences ? [...fences].sort().join(',') : '*';
+  let pending = byFences.get(key);
+  if (!pending) {
+    pending = lintMarkdown(
+      name,
       lines.join('\n'),
       fences ? { fences } : {},
+      ALL_ON,
     );
+    byFences.set(key, pending);
+  }
+  return pending;
+}
 
-    for (const d of diagnostics) {
-      if (d.severity !== 'error') continue;
-      const errorLine = lines[d.line - 1] ?? '';
-      const rangeLength = errorLine.length - d.column + 1;
-      onError({
-        lineNumber: d.line,
-        detail: d.message,
-        ...(rangeLength > 0 ? { range: [d.column, rangeLength] } : {}),
-      });
-    }
-  },
+/** Report every diagnostic tagged with `ruleId` through markdownlint's onError. */
+function reportMatching(
+  diagnostics: Diagnostic[],
+  ruleId: string,
+  lines: readonly string[],
+  onError: RuleOnError,
+): void {
+  for (const d of diagnostics) {
+    if (d.ruleId !== ruleId) continue;
+    const errorLine = lines[d.line - 1] ?? '';
+    const rangeLength = errorLine.length - d.column + 1;
+    onError({
+      lineNumber: d.line,
+      detail: d.message,
+      ...(rangeLength > 0 ? { range: [d.column, rangeLength] } : {}),
+    });
+  }
+}
+
+/**
+ * Build a markdownlint rule that surfaces the diagnostics core tags with a given
+ * `ruleId`. `parser: 'none'` skips markdownlint's markdown-it requirement (core
+ * does its own extraction); `asynchronous: true` lets it await core's validator.
+ */
+function makeRule(name: string, ruleId: string, description: string): Rule {
+  return {
+    names: [name],
+    description,
+    tags: ['mermaid-diagram', 'code'],
+    parser: 'none',
+    asynchronous: true,
+    function: async (
+      params: RuleParams,
+      onError: RuleOnError,
+    ): Promise<void> => {
+      const fences = readFences(params.config);
+      const diagnostics = await validateDocument(
+        params.name,
+        params.lines,
+        fences,
+      );
+      reportMatching(diagnostics, ruleId, params.lines, onError);
+    },
+  };
+}
+
+/** One-line description per semantic rule, for markdownlint's rule listing. */
+const RULE_DESCRIPTIONS: Record<RuleId, string> = {
+  'duplicate-ids': 'Mermaid: node id reused with a conflicting label',
+  'prefer-flowchart':
+    "Mermaid: prefer 'flowchart' over the legacy 'graph' keyword",
+  'require-direction': 'Mermaid: diagram has no explicit direction',
+  'no-experimental': 'Mermaid: experimental diagram type with unstable syntax',
+  'no-duplicate-edges': 'Mermaid: the same edge is defined more than once',
+  'no-self-loop': 'Mermaid: a node has an edge to itself',
+  'no-empty-labels': 'Mermaid: a node has an empty label',
+  'no-orphan-nodes': 'Mermaid: a node is declared but never connected',
+  'no-activate-without-deactivate':
+    'Mermaid: activation without a matching deactivation',
+  'prefer-explicit-participants':
+    'Mermaid: participant used before being declared',
+  'no-duplicate-methods': 'Mermaid: a class declares a duplicate method',
 };
 
-export default mermaidRule;
+/** The parse / "won't render" check. Surfaces core's `ruleId: 'mermaid'` errors. */
+const syntaxRule = makeRule(
+  'mermaid-syntax',
+  'mermaid',
+  'Mermaid diagram syntax validation',
+);
+
+const semanticRules = Object.fromEntries(
+  ALL_RULE_IDS.map((id) => [
+    id,
+    makeRule(`mermaid-${id}`, id, RULE_DESCRIPTIONS[id]),
+  ]),
+) as Record<RuleId, Rule>;
+
+/**
+ * Every rule, addressable by id for cherry-picking:
+ * `rules.syntax`, `rules['no-self-loop']`, …
+ */
+export const rules: { syntax: Rule } & Record<RuleId, Rule> = {
+  syntax: syntaxRule,
+  ...semanticRules,
+};
+
+/** Syntax + every core rule, including the `off`-by-default ones. */
+export const all: Rule[] = [
+  syntaxRule,
+  ...ALL_RULE_IDS.map((id) => semanticRules[id]),
+];
+
+/**
+ * Syntax + every core rule whose default severity isn't `off` (i.e. core's
+ * default-on set). Excludes the higher-false-positive `off`-by-default rules
+ * (`no-orphan-nodes`, `prefer-explicit-participants`) — opt into those via `all`
+ * or by registering them individually.
+ */
+export const recommended: Rule[] = [
+  syntaxRule,
+  ...ALL_RULE_IDS.filter((id) => RULE_DEFAULTS[id] !== 'off').map(
+    (id) => semanticRules[id],
+  ),
+];
+
+// Default export is the `recommended` array. A markdownlint custom-rule module
+// may export an array of rules, so `customRules: ["@mermaid-lint/markdownlint"]`
+// registers this set directly with zero config.
+export default recommended;
