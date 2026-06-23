@@ -219,6 +219,28 @@ config) — e.g. enable an off-by-default rule or silence one:
 ['@mermaid-lint/remark', { rules: { 'no-orphan-nodes': 'error', 'no-self-loop': 'off' } }]
 ```
 
+### Autofix
+
+remark has no lint-fixer API, so fixing ships as a **separate transformer**,
+`remarkMermaidFix`, alongside the report-only lint rule. It applies the same
+mechanical corrections as the CLI's [`--fix`](#cli) (normalize `->` arrows, add
+missing sequence-message colons; never semantic changes):
+
+```ts
+import { remark } from 'remark';
+import remarkLintMermaid, { remarkMermaidFix } from '@mermaid-lint/remark';
+
+const result = await remark()
+  .use(remarkLintMermaid)   // report
+  .use(remarkMermaidFix)    // fix
+  .process(markdown);
+```
+
+A transformer only takes effect when remark serializes, so fixes apply under
+`npx remark file.md --output` (and are inert in pure-lint runs). `remark --output`
+already reserializes the whole document via `remark-stringify` on every run; the
+fixer changes only the Mermaid fence bodies within that.
+
 ## markdownlint
 
 A set of [markdownlint](https://github.com/DavidAnson/markdownlint) async custom

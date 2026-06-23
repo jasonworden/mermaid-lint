@@ -3,6 +3,7 @@ import {
   type RulesConfig,
   blockToDiagnostics,
   detectDiagramType,
+  fixBlockBody,
   resolveRules,
 } from '@mermaid-lint/core';
 import type { Code, Root } from 'mdast';
@@ -64,3 +65,35 @@ const remarkLintMermaid = lintRule<Root, Options>(
 );
 
 export default remarkLintMermaid;
+
+/**
+ * remark **fix** transformer for Mermaid blocks.
+ *
+ * Unlike {@link remarkLintMermaid} (which only reports), this is a plain
+ * unified transformer that mutates the tree: it rewrites the body of every
+ * `mermaid` code block in place via core's {@link fixBlockBody} — normalizing
+ * flowchart/graph arrows (`->` → `-->`) and inserting missing sequence-message
+ * colons, the same mechanical set `mermaid-lint --fix` applies.
+ *
+ * remark has no lint-fixer API, so a "fix" can only take effect when remark
+ * serializes the tree — i.e. when run with `remark --output` (or any pipeline
+ * ending in `.stringify`). In pure-lint mode it is inert. Because `--output`
+ * already round-trips the whole document through `remark-stringify`, this
+ * introduces no new reformatting: it only changes the Mermaid fence bodies
+ * within a serialization that was already going to happen.
+ *
+ * Compose it alongside the lint rule to both report and fix:
+ * `remark().use(remarkLintMermaid).use(remarkMermaidFix)`.
+ *
+ * The fix is mechanical-only and takes no options; it never alters diagram
+ * meaning (semantic findings are left untouched) and is a no-op on valid or
+ * non-mermaid blocks.
+ */
+export function remarkMermaidFix() {
+  return (tree: Root): void => {
+    visit(tree, 'code', (node: Code) => {
+      if (node.lang !== 'mermaid') return;
+      node.value = fixBlockBody(node.value);
+    });
+  };
+}

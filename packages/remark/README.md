@@ -62,4 +62,31 @@ export default {
 | `strict` | `boolean` | `false` | Also report semantic warnings, not just syntax errors. |
 | `rules` | `Record<string, 'off' \| 'warn' \| 'error'>` | `{}` | Per-rule severity overrides, layered over the built-in defaults. |
 
+## Autofix
+
+remark has no lint-fixer API, so fixing is a **separate transformer**,
+`remarkMermaidFix`, rather than part of the lint rule. It mechanically corrects
+Mermaid blocks — normalizing flowchart/graph arrows (`->` → `-->`) and inserting
+missing sequence-message colons (the same set `mermaid-lint --fix` applies) — and
+never changes diagram meaning.
+
+```js
+import { remark } from 'remark';
+import remarkLintMermaid, { remarkMermaidFix } from '@mermaid-lint/remark';
+
+// Report and fix in one pipeline:
+const result = await remark()
+  .use(remarkLintMermaid)
+  .use(remarkMermaidFix)
+  .process(markdown);
+// String(result) now has the corrected Mermaid blocks.
+```
+
+Because a transformer only takes effect when remark serializes the tree, fixes
+apply when you run remark with **`--output`** (`npx remark file.md --output`), and
+the transformer is inert in pure-lint runs. Note that `remark --output` already
+reserializes the **whole** document through `remark-stringify` (normalizing
+bullets, emphasis, fence style, etc.) on every run — this is inherent to remark
+and not introduced by the fixer, which only changes the Mermaid fence bodies.
+
 > remark uses its own CommonMark parser to find ` ```mermaid ` blocks, then delegates validation to [`@mermaid-lint/core`](https://www.npmjs.com/package/@mermaid-lint/core). Requires `remark-lint >= 9` and `unified >= 11`.
