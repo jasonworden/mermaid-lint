@@ -37,6 +37,9 @@ describe('resolveRules', () => {
     expect(RULE_DEFAULTS['no-activate-without-deactivate']).toBe('warn');
     expect(RULE_DEFAULTS['prefer-explicit-participants']).toBe('off');
     expect(RULE_DEFAULTS['no-duplicate-methods']).toBe('warn');
+    expect(RULE_DEFAULTS['pie-duplicate-label']).toBe('warn');
+    expect(RULE_DEFAULTS['pie-zero-value']).toBe('warn');
+    expect(RULE_DEFAULTS['pie-no-data']).toBe('warn');
   });
 
   it('layers user overrides over the defaults', () => {

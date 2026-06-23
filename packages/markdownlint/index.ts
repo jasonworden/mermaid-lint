@@ -213,6 +213,9 @@ const RULE_DESCRIPTIONS: Record<RuleId, string> = {
   'prefer-explicit-participants':
     'Mermaid: participant used before being declared',
   'no-duplicate-methods': 'Mermaid: a class declares a duplicate method',
+  'pie-duplicate-label': 'Mermaid: a pie slice label is defined more than once',
+  'pie-zero-value': 'Mermaid: a pie slice has a value of 0',
+  'pie-no-data': 'Mermaid: a pie chart has no data slices',
 };
 
 /**
