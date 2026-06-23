@@ -478,6 +478,9 @@ In addition to syntax errors, mermaid-lint runs a set of semantic rules over dia
 | `no-activate-without-deactivate` | `warn` | An `activate`/`+` with no matching `deactivate`/`-` (or vice versa) — leaves a dangling activation bar | sequenceDiagram |
 | `prefer-explicit-participants` | `off` | A participant used in a message before being declared — Mermaid auto-creates it. Off by default (opt-in) | sequenceDiagram |
 | `no-duplicate-methods` | `warn` | The same method signature declared twice on one class — renders both | classDiagram |
+| `pie-duplicate-label` | `warn` | The same pie slice label defined more than once — usually a copy-paste mistake | pie |
+| `pie-zero-value` | `warn` | A pie slice with a value of `0` — renders as an invisible (zero-area) slice | pie |
+| `pie-no-data` | `warn` | A pie chart with no data slices — renders empty | pie |
 
 ```
 docs/api.md:7:1: error: duplicate-ids: node "A" declared with label "Start" (line 2) and "Begin" (line 7)

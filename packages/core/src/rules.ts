@@ -44,7 +44,10 @@ export type RuleId =
   | 'no-orphan-nodes'
   | 'no-activate-without-deactivate'
   | 'prefer-explicit-participants'
-  | 'no-duplicate-methods';
+  | 'no-duplicate-methods'
+  | 'pie-duplicate-label'
+  | 'pie-zero-value'
+  | 'pie-no-data';
 
 /**
  * User-facing `rules` configuration: a partial map of rule id to desired
@@ -75,6 +78,10 @@ export type ResolvedRules = Record<RuleId, RuleSeverity>;
  * `no-duplicate-methods` (`warn`) catches duplicate method signatures in class
  * diagrams.
  *
+ * The pie rules are all advisory `warn`: `pie-duplicate-label` (two slices with
+ * the same label — a copy-paste mistake), `pie-zero-value` (a `0`-valued slice
+ * that renders invisibly), and `pie-no-data` (a pie chart with no slices).
+ *
  * @public
  */
 export const RULE_DEFAULTS: ResolvedRules = {
@@ -89,6 +96,9 @@ export const RULE_DEFAULTS: ResolvedRules = {
   'no-activate-without-deactivate': 'warn',
   'prefer-explicit-participants': 'off',
   'no-duplicate-methods': 'warn',
+  'pie-duplicate-label': 'warn',
+  'pie-zero-value': 'warn',
+  'pie-no-data': 'warn',
 };
 
 /** Every known rule id, derived from the defaults table. */
