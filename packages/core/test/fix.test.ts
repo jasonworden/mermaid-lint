@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fixText } from '../src/fix.js';
+import { fixBlockBody, fixText } from '../src/fix.js';
 
 describe('fixText', () => {
   describe('unclosed fence', () => {
@@ -142,5 +142,54 @@ describe('fixText', () => {
       const input = '```mermaid\nflowchart LR\n  A --> B\n```\n';
       expect(fixText(fixText(input))).toBe(fixText(input));
     });
+  });
+});
+
+describe('fixBlockBody', () => {
+  it('normalizes flowchart arrows in a raw body', () => {
+    expect(fixBlockBody('flowchart LR\n  A -> B')).toBe(
+      'flowchart LR\n  A --> B',
+    );
+  });
+
+  it('normalizes graph arrows in a raw body', () => {
+    expect(fixBlockBody('graph TD\n  A -> B -> C')).toBe(
+      'graph TD\n  A --> B --> C',
+    );
+  });
+
+  it('inserts a missing sequence-message colon', () => {
+    expect(fixBlockBody('sequenceDiagram\n  Alice->>Bob hello')).toBe(
+      'sequenceDiagram\n  Alice->>Bob: hello',
+    );
+  });
+
+  it('returns the body unchanged when nothing matches', () => {
+    const body = 'flowchart LR\n  A --> B';
+    expect(fixBlockBody(body)).toBe(body);
+  });
+
+  it('does not touch -> in a sequenceDiagram (valid there)', () => {
+    const body = 'sequenceDiagram\n  Alice->Bob: hi';
+    expect(fixBlockBody(body)).toBe(body);
+  });
+
+  it('preserves the line count so callers can map fixes line-by-line', () => {
+    const body = 'flowchart LR\n  A -> B\n  C -> D';
+    const fixed = fixBlockBody(body);
+    expect(fixed.split('\n')).toHaveLength(body.split('\n').length);
+    expect(fixed).toBe('flowchart LR\n  A --> B\n  C --> D');
+  });
+
+  it('preserves leading indentation on fixed lines', () => {
+    expect(fixBlockBody('flowchart LR\n      A -> B')).toBe(
+      'flowchart LR\n      A --> B',
+    );
+  });
+
+  it('does not add a closing fence (no fence-level work)', () => {
+    // A bare body never grows the way fixText would when closing a fence.
+    const body = 'flowchart LR\n  A -> B';
+    expect(fixBlockBody(body).split('\n')).toHaveLength(2);
   });
 });

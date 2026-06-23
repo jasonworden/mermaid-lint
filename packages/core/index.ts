@@ -41,5 +41,5 @@ export type {
 export { detectDiagramType } from './src/type-detect.js';
 export { loadConfig } from './src/config.js';
 export type { MermaidLintConfig } from './src/config.js';
-export { fixText } from './src/fix.js';
+export { fixBlockBody, fixText } from './src/fix.js';
 export type { FixOptions } from './src/fix.js';

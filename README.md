@@ -236,6 +236,22 @@ you opt into more or cherry-pick. See the
 | ```` ```mermaid ```` blocks in **Markdown** (`.md`, `.markdown`, …) | ✅ | CLI, CI, and in-editor squiggles |
 | Standalone **`.mmd`** diagram files | ❌ | markdownlint only processes Markdown; it never invokes the rule on `.mmd`. Use the [VS Code extension](#vs-code-extension) for `.mmd` coverage in the editor. |
 | Zero-config editor setup | ❌ | requires the steps below (npm install + setting + workspace trust) |
+| **Autofix** via `markdownlint-cli2 --fix` | ✅ | `mermaid-syntax` applies the same mechanical corrections as the CLI's `--fix` (normalize `->` arrows, add missing sequence-message colons). Semantic rules never autofix. |
+
+### Autofix (`--fix`)
+
+The `mermaid-syntax` rule wires Mermaid into markdownlint's native autofix, so
+`markdownlint-cli2 --fix` corrects the mechanical mistakes inside your diagram
+blocks alongside your other Markdown fixes:
+
+```bash
+npx markdownlint-cli2 --fix "**/*.md"
+```
+
+It applies exactly the corrections the [CLI's `--fix`](#cli) does — normalizing
+flowchart arrows (`->` → `-->`) and inserting missing sequence-message colons.
+These are meaning-preserving; semantic findings (self-loops, duplicate ids, …)
+are reported but never auto-changed. Closing an unclosed fence remains CLI-only.
 
 ### CLI / CI usage
 

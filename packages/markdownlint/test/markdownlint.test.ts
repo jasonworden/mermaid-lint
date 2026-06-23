@@ -1,3 +1,4 @@
+import { applyFixes } from 'markdownlint';
 import type { LintResults, Rule } from 'markdownlint';
 import { lint } from 'markdownlint/promise';
 import { describe, expect, it, vi } from 'vitest';
@@ -180,6 +181,76 @@ describe('@mermaid-lint/markdownlint — line mapping', () => {
     const errors = (await lintWith(md, [rules.syntax]))['test.md'];
     expect(errors).toHaveLength(1);
     expect(errors[0].lineNumber).toBe(1);
+  });
+});
+
+describe('@mermaid-lint/markdownlint — autofix (--fix)', () => {
+  /** Lint with the syntax rule, then apply markdownlint's fixes like `--fix`. */
+  async function fix(content: string): Promise<string> {
+    const result = await lintWith(content, [rules.syntax]);
+    return applyFixes(content, result['test.md']);
+  }
+
+  it('normalizes a flowchart arrow (-> to -->)', async () => {
+    const input = '```mermaid\nflowchart LR\n  A -> B\n```\n';
+    expect(await fix(input)).toBe('```mermaid\nflowchart LR\n  A --> B\n```\n');
+  });
+
+  it('inserts a missing sequence-message colon', async () => {
+    const input = '```mermaid\nsequenceDiagram\n  Alice->>Bob hello\n```\n';
+    expect(await fix(input)).toBe(
+      '```mermaid\nsequenceDiagram\n  Alice->>Bob: hello\n```\n',
+    );
+  });
+
+  it('fixes every bad line in one pass (multiple arrows)', async () => {
+    const input = '```mermaid\nflowchart LR\n  A -> B\n  C -> D\n```\n';
+    expect(await fix(input)).toBe(
+      '```mermaid\nflowchart LR\n  A --> B\n  C --> D\n```\n',
+    );
+  });
+
+  it('preserves indentation when fixing an indented fence', async () => {
+    // List-indented fenced block: the fix must keep the 4-space body indent.
+    const input =
+      '- item\n\n    ```mermaid\n    flowchart LR\n      A -> B\n    ```\n';
+    expect(await fix(input)).toBe(
+      '- item\n\n    ```mermaid\n    flowchart LR\n      A --> B\n    ```\n',
+    );
+  });
+
+  it('leaves a valid block untouched (no fixInfo)', async () => {
+    const input = '```mermaid\nflowchart LR\n  A --> B\n```\n';
+    const result = await lintWith(input, [rules.syntax]);
+    expect(result['test.md']).toHaveLength(0);
+    expect(applyFixes(input, result['test.md'])).toBe(input);
+  });
+
+  it('does not offer a fix for an unfixable parse error', async () => {
+    const result = await lintWith(PARSE_ERROR, [rules.syntax]);
+    expect(firedNames(result).has('mermaid-syntax')).toBe(true);
+    // No mechanical correction applies, so --fix is a no-op.
+    expect(applyFixes(PARSE_ERROR, result['test.md'])).toBe(PARSE_ERROR);
+  });
+
+  it('names the concrete before → after edit in the finding detail', async () => {
+    const input = '```mermaid\nflowchart LR\n  A -> B\n```\n';
+    const result = await lintWith(input, [rules.syntax]);
+    const fixable = result['test.md'].find((e) => e.fixInfo);
+    expect(fixable?.errorDetail).toContain('`A -> B` → `A --> B`');
+  });
+
+  it('is idempotent — re-fixing already-fixed content is a no-op', async () => {
+    const input = '```mermaid\nflowchart LR\n  A -> B\n```\n';
+    const once = await fix(input);
+    expect(await fix(once)).toBe(once);
+  });
+
+  it('only the syntax rule fixes — semantic rules carry no fixInfo', async () => {
+    // A self-loop renders fine (semantic warning); there is nothing to mechanically fix.
+    const result = await lintWith(SELF_LOOP, [rules['no-self-loop']]);
+    expect(firedNames(result).has('mermaid-no-self-loop')).toBe(true);
+    expect(applyFixes(SELF_LOOP, result['test.md'])).toBe(SELF_LOOP);
   });
 });
 
