@@ -292,9 +292,13 @@ export default {
 
 ## markdownlint
 
-A [markdownlint](https://github.com/DavidAnson/markdownlint) async custom rule
-that validates Mermaid blocks as part of your existing markdownlint run — in CI,
-on the command line, and inline in VS Code.
+A set of [markdownlint](https://github.com/DavidAnson/markdownlint) async custom
+rules that validate Mermaid blocks as part of your existing markdownlint run — in
+CI, on the command line, and inline in VS Code. There's **one rule per check**
+(`mermaid-syntax` for parse errors, `mermaid-no-self-loop`, `mermaid-duplicate-ids`,
+…); the default export is the `recommended` bundle, and `all`/individual rules let
+you opt into more or cherry-pick. See the
+[package README](packages/markdownlint/README.md#rules) for the full rule list.
 
 ### What this provides today
 
@@ -320,7 +324,15 @@ export default {
 
 Run it: `npx markdownlint-cli2 "**/*.md"`. Use **`markdownlint-cli2 >= 0.17.0`** —
 earlier versions bundle a `markdownlint` older than `0.37`, which predates async
-custom rules, so the rule is **silently skipped** (zero errors reported).
+custom rules, so the rules are **silently skipped** (zero errors reported).
+
+To enable every check (including the higher-false-positive `no-orphan-nodes` and
+`prefer-explicit-participants`), spread the `all` bundle:
+
+```js
+import mermaid from '@mermaid-lint/markdownlint';
+export default { config: { default: true }, customRules: [...mermaid.all] };
+```
 
 ### VS Code (inline squiggles, no separate extension)
 
