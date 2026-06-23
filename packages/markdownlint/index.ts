@@ -225,6 +225,11 @@ const RULE_DESCRIPTIONS: Record<RuleId, string> = {
   'er-duplicate-entity':
     'Mermaid: an entity attribute block is defined more than once',
   'er-standalone-entity': 'Mermaid: an entity has a block but no relationship',
+  'gantt-duplicate-task-id':
+    'Mermaid: a gantt task id is defined more than once',
+  'gantt-undefined-dependency':
+    'Mermaid: a gantt task depends on an undefined task id',
+  'gantt-empty-section': 'Mermaid: a gantt section has no tasks',
 };
 
 /**

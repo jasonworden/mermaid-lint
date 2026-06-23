@@ -487,6 +487,9 @@ In addition to syntax errors, mermaid-lint runs a set of semantic rules over dia
 | `er-duplicate-attribute` | `warn` | The same attribute name declared twice inside one entity block | erDiagram |
 | `er-duplicate-entity` | `warn` | An entity whose attribute block is defined more than once — Mermaid merges them, usually a copy-paste mistake | erDiagram |
 | `er-standalone-entity` | `off` | An entity with a defined block but no relationship — renders as an isolated box. Off by default (opt-in) | erDiagram |
+| `gantt-duplicate-task-id` | `warn` | Two tasks declared with the same explicit id — makes `after`/`until` references ambiguous | gantt |
+| `gantt-undefined-dependency` | `warn` | A task whose `after`/`until` references an id no task defines — Mermaid places it at the chart start | gantt |
+| `gantt-empty-section` | `warn` | A `section` with no tasks — renders as an empty section header | gantt |
 
 ```
 docs/api.md:7:1: error: duplicate-ids: node "A" declared with label "Start" (line 2) and "Begin" (line 7)

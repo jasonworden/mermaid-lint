@@ -1,6 +1,6 @@
 {
   "name": "@mermaid-lint/markdownlint",
-  "version": "0.26.0",
+  "version": "0.27.0",
   "type": "module",
   "description": "markdownlint async custom rule for Mermaid diagram validation",
   "exports": {

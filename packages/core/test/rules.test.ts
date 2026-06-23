@@ -46,6 +46,9 @@ describe('resolveRules', () => {
     expect(RULE_DEFAULTS['er-duplicate-attribute']).toBe('warn');
     expect(RULE_DEFAULTS['er-duplicate-entity']).toBe('warn');
     expect(RULE_DEFAULTS['er-standalone-entity']).toBe('off');
+    expect(RULE_DEFAULTS['gantt-duplicate-task-id']).toBe('warn');
+    expect(RULE_DEFAULTS['gantt-undefined-dependency']).toBe('warn');
+    expect(RULE_DEFAULTS['gantt-empty-section']).toBe('warn');
   });
 
   it('layers user overrides over the defaults', () => {
