@@ -40,6 +40,9 @@ describe('resolveRules', () => {
     expect(RULE_DEFAULTS['pie-duplicate-label']).toBe('warn');
     expect(RULE_DEFAULTS['pie-zero-value']).toBe('warn');
     expect(RULE_DEFAULTS['pie-no-data']).toBe('warn');
+    expect(RULE_DEFAULTS['state-duplicate-transition']).toBe('warn');
+    expect(RULE_DEFAULTS['state-empty-composite']).toBe('warn');
+    expect(RULE_DEFAULTS['state-self-transition']).toBe('off');
   });
 
   it('layers user overrides over the defaults', () => {
