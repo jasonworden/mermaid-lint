@@ -13,6 +13,7 @@ docs/specs/
 .envrc
 .claude/worktrees/
 .superpowers/
+.playwright-mcp/
 
 # typedoc-generated API docs for @mermaid-lint/core
 packages/core/docs/
