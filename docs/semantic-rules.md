@@ -21,6 +21,15 @@ Tune rules through the `rules` config key. Most rules default to `warn`;
 | `prefer-flowchart` | `warn` | The legacy `graph` keyword; `flowchart` is current and enables per-subgraph `direction` | graph |
 | `require-direction` | `warn` | `flowchart`/`graph` with no direction; silently defaults to `TD` | flowchart / graph |
 | `no-experimental` | `warn` | `*-beta` diagram types; unstable syntax that may break on a Mermaid upgrade | all |
+| `xychart-missing-x-axis` | `warn` | An `xychart-beta` with one or more series but no `x-axis`; the horizontal scale or labels are implicit | xychart-beta |
+| `xychart-missing-y-axis` | `warn` | An `xychart-beta` with one or more series but no `y-axis`; the vertical scale or units are implicit | xychart-beta |
+| `xychart-no-series` | `warn` | An `xychart-beta` with no `line [...]` or `bar [...]` series; parses but renders empty | xychart-beta |
+| `xychart-series-length-mismatch` | `warn` | An `xychart-beta` whose series lengths do not match each other or a categorical `x-axis` label count | xychart-beta |
+| `sankey-non-positive-value` | `warn` | A `sankey-beta` link with a value of `0` or below; the flow has no positive weight | sankey-beta |
+| `sankey-self-loop` | `warn` | A `sankey-beta` link whose source and target are the same; usually a copy-paste mistake | sankey-beta |
+| `block-no-blocks` | `warn` | A `block-beta` diagram with no block declarations; parses but renders empty | block-beta |
+| `packet-no-fields` | `warn` | A `packet-beta` diagram with no bit-range field rows; parses but renders empty | packet-beta |
+| `architecture-no-elements` | `warn` | An `architecture-beta` diagram with no `service`, `group`, or `junction` declarations; parses but renders empty | architecture-beta |
 | `no-duplicate-edges` | `warn` | The same edge defined more than once; renders stacked, usually a copy-paste mistake | flowchart / graph |
 | `no-self-loop` | `warn` | A node with an edge to itself (`A --> A`); almost always unintentional | flowchart / graph |
 | `no-empty-labels` | `warn` | A node with an empty label (`A[ ]`); renders a blank shape | flowchart / graph |

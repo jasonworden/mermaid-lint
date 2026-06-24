@@ -74,6 +74,15 @@ describe('resolveRules', () => {
     expect(RULE_DEFAULTS['quadrant-missing-x-axis']).toBe('warn');
     expect(RULE_DEFAULTS['quadrant-missing-y-axis']).toBe('warn');
     expect(RULE_DEFAULTS['quadrant-duplicate-quadrant']).toBe('warn');
+    expect(RULE_DEFAULTS['xychart-missing-x-axis']).toBe('warn');
+    expect(RULE_DEFAULTS['xychart-missing-y-axis']).toBe('warn');
+    expect(RULE_DEFAULTS['xychart-no-series']).toBe('warn');
+    expect(RULE_DEFAULTS['xychart-series-length-mismatch']).toBe('warn');
+    expect(RULE_DEFAULTS['sankey-non-positive-value']).toBe('warn');
+    expect(RULE_DEFAULTS['sankey-self-loop']).toBe('warn');
+    expect(RULE_DEFAULTS['block-no-blocks']).toBe('warn');
+    expect(RULE_DEFAULTS['packet-no-fields']).toBe('warn');
+    expect(RULE_DEFAULTS['architecture-no-elements']).toBe('warn');
     expect(RULE_DEFAULTS['c4-duplicate-id']).toBe('warn');
     expect(RULE_DEFAULTS['c4-undefined-relationship-endpoint']).toBe('warn');
     expect(RULE_DEFAULTS['c4-undefined-element-style']).toBe('warn');
