@@ -22,6 +22,10 @@ timeline TD
   v0.35 : expanded semantic coverage (journey, timeline, C4Context, experimental diagrams) + docs consistency guards
 ```
 
+The `v0.9` milestone refers to the `remark` plugin surface in the
+[unified](https://unifiedjs.com/) ecosystem
+([repo](https://github.com/unifiedjs/unified)).
+
 ## What belongs here
 
 Add an entry when a release materially changes mermaid-lint's user-facing
