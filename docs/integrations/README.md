@@ -12,6 +12,7 @@ These docs are meant to answer two questions:
 
 | Guide | What it covers |
 |---|---|
+| [Astro](astro.md) | Using `mermaid-lint` in Astro content repos, especially through `markdownlint-cli2` and a single `verify` gate |
 | [Slidev](slidev.md) | Using `mermaid-lint` in Slidev decks, with current recommendations for editor, CI, and lint workflow |
 
 ## Adding a new guide
