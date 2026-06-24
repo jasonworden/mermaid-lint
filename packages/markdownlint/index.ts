@@ -230,6 +230,10 @@ const RULE_DESCRIPTIONS: Record<RuleId, string> = {
   'gantt-undefined-dependency':
     'Mermaid: a gantt task depends on an undefined task id',
   'gantt-empty-section': 'Mermaid: a gantt section has no tasks',
+  'mindmap-duplicate-sibling':
+    'Mermaid: a mindmap node duplicates a sibling under the same parent',
+  'mindmap-no-nodes': 'Mermaid: a mindmap has no nodes',
+  'mindmap-deep-nesting': 'Mermaid: a mindmap node is nested too deeply',
 };
 
 /**

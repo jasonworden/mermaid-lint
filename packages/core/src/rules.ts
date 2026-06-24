@@ -56,7 +56,10 @@ export type RuleId =
   | 'er-standalone-entity'
   | 'gantt-duplicate-task-id'
   | 'gantt-undefined-dependency'
-  | 'gantt-empty-section';
+  | 'gantt-empty-section'
+  | 'mindmap-duplicate-sibling'
+  | 'mindmap-no-nodes'
+  | 'mindmap-deep-nesting';
 
 /**
  * User-facing `rules` configuration: a partial map of rule id to desired
@@ -113,6 +116,13 @@ export type ResolvedRules = Record<RuleId, RuleSeverity>;
  * and `gantt-empty-section` (a `section` with no tasks — renders as an empty
  * header).
  *
+ * The mindmap rules: `mindmap-duplicate-sibling` (`warn`) flags two child nodes
+ * under the same parent with identical text (renders two identical branches — a
+ * copy-paste mistake); `mindmap-no-nodes` (`warn`) flags a `mindmap` with only
+ * the keyword and no nodes (parses but renders an empty diagram); and
+ * `mindmap-deep-nesting` defaults to `off` because nesting depth is a matter of
+ * taste — opt in to flag nodes nested beyond a fixed depth threshold.
+ *
  * @public
  */
 export const RULE_DEFAULTS: ResolvedRules = {
@@ -139,6 +149,9 @@ export const RULE_DEFAULTS: ResolvedRules = {
   'gantt-duplicate-task-id': 'warn',
   'gantt-undefined-dependency': 'warn',
   'gantt-empty-section': 'warn',
+  'mindmap-duplicate-sibling': 'warn',
+  'mindmap-no-nodes': 'warn',
+  'mindmap-deep-nesting': 'off',
 };
 
 /** Every known rule id, derived from the defaults table. */
