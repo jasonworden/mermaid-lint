@@ -55,6 +55,9 @@ describe('resolveRules', () => {
     expect(RULE_DEFAULTS['timeline-empty-section']).toBe('warn');
     expect(RULE_DEFAULTS['timeline-empty-event']).toBe('warn');
     expect(RULE_DEFAULTS['timeline-no-entries']).toBe('warn');
+    expect(RULE_DEFAULTS['gitgraph-duplicate-commit-id']).toBe('warn');
+    expect(RULE_DEFAULTS['gitgraph-duplicate-tag']).toBe('warn');
+    expect(RULE_DEFAULTS['gitgraph-no-commits']).toBe('warn');
   });
 
   it('layers user overrides over the defaults', () => {

@@ -237,6 +237,10 @@ const RULE_DESCRIPTIONS: Record<RuleId, string> = {
   'timeline-empty-section': 'Mermaid: a timeline section has no entries',
   'timeline-empty-event': 'Mermaid: a timeline period has an empty event',
   'timeline-no-entries': 'Mermaid: a timeline has no sections or time periods',
+  'gitgraph-duplicate-commit-id':
+    'Mermaid: a gitGraph commit id is used more than once',
+  'gitgraph-duplicate-tag': 'Mermaid: a gitGraph tag is used more than once',
+  'gitgraph-no-commits': 'Mermaid: a gitGraph has no commits',
 };
 
 /**
