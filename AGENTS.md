@@ -80,6 +80,12 @@ the repo's pinned binaries rather than `npx`; see
   add or update its `README.md` in the same change; keep it in sync with the
   matching section of the root [README.md](README.md). `mermaid-lint-vscode` is
   `private` (Marketplace, not npm) but still ships a README.
+- **Semantic rule docs stay in sync.** When adding, removing, renaming, or
+  changing a semantic rule, update the rule metadata in
+  `packages/core/src/rules.ts`, the rule reference in
+  [docs/semantic-rules.md](docs/semantic-rules.md), and the README "Diagram
+  types" related-rules column. `pnpm test` includes a coverage check that fails
+  when these drift.
 - **Don't skip hooks** (`--no-verify`); if husky/lint-staged blocks, fix the cause.
 - **API docs (Cloudflare Pages):** keep `"router": "structure"` in
   `packages/core/typedoc.json`. The default `kind` router emits a top-level
