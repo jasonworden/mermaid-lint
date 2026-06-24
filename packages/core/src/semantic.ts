@@ -79,6 +79,39 @@ function isFlowchartOrGraph(block: Block): boolean {
   return block.type === 'flowchart' || block.type === 'graph';
 }
 
+function parseCsvCells(raw: string): string[] | null {
+  if (raw === '') return [];
+
+  const cells: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i];
+    if (ch === '"') {
+      if (inQuotes && raw[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (ch === ',' && !inQuotes) {
+      cells.push(current);
+      current = '';
+      continue;
+    }
+
+    current += ch;
+  }
+
+  if (inQuotes) return null;
+  cells.push(current);
+  return cells;
+}
+
 // ---------------------------------------------------------------------------
 // Suppression (computed once per checkSemantics call)
 // ---------------------------------------------------------------------------
@@ -2197,7 +2230,7 @@ const gitgraphNoCommits: Rule = {
 const ARCHITECTURE_DECL_RE =
   /^\s*(service|group|junction)\s+([A-Za-z0-9_][\w-]*)\b/;
 const ARCHITECTURE_EDGE_RE =
-  /^\s*([A-Za-z0-9_][\w-]*)(?::([A-Za-z0-9_][\w-]*))?\s*--\s*(?:([A-Za-z0-9_][\w-]*):)?([A-Za-z0-9_][\w-]*)\s*$/;
+  /^\s*([A-Za-z0-9_][\w-]*)(\{group\})?:([TBLR])\s*(<)?--(>)?\s*([TBLR]):([A-Za-z0-9_][\w-]*)(\{group\})?\s*$/;
 
 interface ArchitectureDeclaration {
   line: number;
@@ -2205,9 +2238,12 @@ interface ArchitectureDeclaration {
 
 interface ArchitectureEdge {
   leftId: string;
-  leftPort?: string;
-  rightPort?: string;
+  leftGroup: boolean;
+  leftPort: string;
+  operator: string;
+  rightPort: string;
   rightId: string;
+  rightGroup: boolean;
   line: number;
 }
 
@@ -2238,9 +2274,12 @@ function collectArchitectureEdges(lines: string[]): ArchitectureEdge[] {
     if (edge === null) continue;
     edges.push({
       leftId: edge[1],
-      leftPort: edge[2] || undefined,
-      rightPort: edge[3] || undefined,
-      rightId: edge[4],
+      leftGroup: edge[2] === '{group}',
+      leftPort: edge[3],
+      operator: `${edge[4] ?? ''}--${edge[5] ?? ''}`,
+      rightPort: edge[6],
+      rightId: edge[7],
+      rightGroup: edge[8] === '{group}',
       line: i + 1,
     });
   }
@@ -2248,11 +2287,9 @@ function collectArchitectureEdges(lines: string[]): ArchitectureEdge[] {
 }
 
 function formatArchitectureEdge(edge: ArchitectureEdge): string {
-  const left = edge.leftPort ? `${edge.leftId}:${edge.leftPort}` : edge.leftId;
-  const right = edge.rightPort
-    ? `${edge.rightPort}:${edge.rightId}`
-    : edge.rightId;
-  return `${left} -- ${right}`;
+  const left = `${edge.leftId}${edge.leftGroup ? '{group}' : ''}:${edge.leftPort}`;
+  const right = `${edge.rightPort}:${edge.rightId}${edge.rightGroup ? '{group}' : ''}`;
+  return `${left} ${edge.operator} ${right}`;
 }
 
 const architectureNoElements: Rule = {
@@ -2296,9 +2333,12 @@ const architectureDuplicateEdge: Rule = {
     for (const edge of collectArchitectureEdges(lines)) {
       const key = [
         edge.leftId,
-        edge.leftPort ?? '',
-        edge.rightPort ?? '',
+        edge.leftGroup ? 'group' : '',
+        edge.leftPort,
+        edge.operator,
+        edge.rightPort,
         edge.rightId,
+        edge.rightGroup ? 'group' : '',
       ].join('\u0000');
       const first = seen.get(key);
       if (first === undefined) {
@@ -2320,7 +2360,7 @@ const architectureDuplicateEdge: Rule = {
 // ---------------------------------------------------------------------------
 
 const PACKET_FIELD_RE =
-  /^\s*(\d+(?:\s*-\s*\d+)?)\s*:\s*(?:"([^"]*)"|'([^']*)')\s*$/;
+  /^\s*(\+?\d+(?:\s*-\s*\d+)?)\s*:\s*(?:"([^"]*)"|'([^']*)')\s*(?:%%.*)?$/;
 
 interface PacketField {
   range: string;
@@ -2373,6 +2413,152 @@ const packetEmptyLabels: Rule = {
         message: `packet field \`${field.range}\` has an empty label and will render as a blank field.`,
         line: field.line,
       })),
+};
+
+// ---------------------------------------------------------------------------
+// Sankey-beta helpers and rules
+// ---------------------------------------------------------------------------
+
+interface SankeyLink {
+  line: number;
+  source: string;
+  target: string;
+}
+
+function isSankey(block: Block): boolean {
+  return block.type === 'sankey-beta';
+}
+
+function collectSankeyLinks(lines: string[]): SankeyLink[] {
+  const links: SankeyLink[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    const trimmed = raw.trim();
+    if (trimmed === '' || trimmed.startsWith('%%')) continue;
+    const row = parseCsvCells(raw);
+    if (row === null || row.length !== 3) continue;
+    links.push({
+      source: row[0].trim(),
+      target: row[1].trim(),
+      line: i + 1,
+    });
+  }
+  return links;
+}
+
+const sankeyDuplicateLink: Rule = {
+  id: 'sankey-duplicate-link',
+  appliesTo: isSankey,
+  evaluate: ({ lines }) => {
+    const seen = new Map<string, number>();
+    const findings: RuleFinding[] = [];
+
+    for (const link of collectSankeyLinks(lines)) {
+      const key = `${link.source}\u0000${link.target}`;
+      const first = seen.get(key);
+      if (first === undefined) {
+        seen.set(key, link.line);
+        continue;
+      }
+      findings.push({
+        message: `sankey link \`${link.source} -> ${link.target}\` is declared more than once (first on line ${first}); repeated source/target rows are usually copy-paste duplicates.`,
+        line: link.line,
+      });
+    }
+
+    return findings;
+  },
+};
+
+const sankeySelfLoop: Rule = {
+  id: 'sankey-self-loop',
+  appliesTo: isSankey,
+  evaluate: ({ lines }) =>
+    collectSankeyLinks(lines)
+      .filter((link) => link.source !== '' && link.source === link.target)
+      .map((link) => ({
+        message: `sankey link \`${link.source} -> ${link.target}\` is a self-loop; source and target are the same after trimming.`,
+        line: link.line,
+      })),
+};
+
+// ---------------------------------------------------------------------------
+// XY chart helpers and rules
+// ---------------------------------------------------------------------------
+
+const XYCHART_CATEGORICAL_X_AXIS_RE =
+  /^\s*x-axis(?:\s+(?:"[^"]+"|[^\[\n]+?))?\s*\[(.*)\]\s*$/;
+const XYCHART_SERIES_RE = /^\s*(bar|line)\s*\[(.*)\]\s*$/;
+
+interface XychartSeries {
+  kind: 'bar' | 'line';
+  count: number;
+  line: number;
+}
+
+function isXychart(block: Block): boolean {
+  return block.type === 'xychart-beta';
+}
+
+function collectXychartSeries(lines: string[]): XychartSeries[] {
+  const series: XychartSeries[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    if (raw.trimStart().startsWith('%%')) continue;
+    const match = XYCHART_SERIES_RE.exec(raw);
+    if (match === null) continue;
+    const values = parseCsvCells(match[2]);
+    if (values === null) continue;
+    series.push({
+      kind: match[1] as XychartSeries['kind'],
+      count: values.length,
+      line: i + 1,
+    });
+  }
+  return series;
+}
+
+function collectXychartCategoricalXAxisLabels(
+  lines: string[],
+): string[] | null {
+  for (const raw of lines) {
+    if (raw.trimStart().startsWith('%%')) continue;
+    const match = XYCHART_CATEGORICAL_X_AXIS_RE.exec(raw);
+    if (match === null) continue;
+    return parseCsvCells(match[1])?.map((label) => label.trim()) ?? null;
+  }
+  return null;
+}
+
+const xychartNoSeries: Rule = {
+  id: 'xychart-no-series',
+  appliesTo: isXychart,
+  evaluate: ({ lines }) =>
+    collectXychartSeries(lines).length > 0
+      ? []
+      : [
+          {
+            message:
+              'xychart-beta has no `bar` or `line` series rows; it parses but renders no data.',
+            line: 1,
+          },
+        ],
+};
+
+const xychartSeriesLengthMismatch: Rule = {
+  id: 'xychart-series-length-mismatch',
+  appliesTo: isXychart,
+  evaluate: ({ lines }) => {
+    const labels = collectXychartCategoricalXAxisLabels(lines);
+    if (labels === null) return [];
+
+    return collectXychartSeries(lines)
+      .filter((series) => series.count !== labels.length)
+      .map((series) => ({
+        message: `xychart x-axis has ${labels.length} label(s), but ${series.kind} series has ${series.count} item(s).`,
+        line: series.line,
+      }));
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -2740,6 +2926,10 @@ const RULES: Rule[] = [
   architectureDuplicateEdge,
   packetNoFields,
   packetEmptyLabels,
+  sankeyDuplicateLink,
+  sankeySelfLoop,
+  xychartNoSeries,
+  xychartSeriesLengthMismatch,
   quadrantDuplicatePoint,
   quadrantNoPoints,
   quadrantMissingXAxis,

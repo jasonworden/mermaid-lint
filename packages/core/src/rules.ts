@@ -92,6 +92,10 @@ export type RuleId =
   | 'gitgraph-no-commits'
   | 'packet-no-fields'
   | 'packet-empty-labels'
+  | 'sankey-duplicate-link'
+  | 'sankey-self-loop'
+  | 'xychart-no-series'
+  | 'xychart-series-length-mismatch'
   | 'quadrant-duplicate-point'
   | 'quadrant-no-points'
   | 'quadrant-missing-x-axis'
@@ -271,6 +275,16 @@ export interface RuleMetadata {
  * The packet-beta rules are all advisory `warn`: `packet-no-fields` (a packet
  * with no field rows — parses but renders empty) and `packet-empty-labels`
  * (a field label that is empty or whitespace-only, which renders blank).
+ *
+ * The sankey-beta rules are all advisory `warn`: `sankey-duplicate-link`
+ * (the same source/target link row repeated — usually a copy-paste mistake)
+ * and `sankey-self-loop` (a row whose source and target are the same after
+ * trimming, which is usually accidental).
+ *
+ * The xychart-beta rules are all advisory `warn`: `xychart-no-series`
+ * (an xychart-beta with no `bar` or `line` rows — parses but renders no data)
+ * and `xychart-series-length-mismatch` (a categorical x-axis list whose label
+ * count does not match a bar/line series item count).
  *
  * The quadrantChart rules are all advisory `warn`: `quadrant-duplicate-point`
  * (two data points with the same label — renders overlapping markers, usually
@@ -581,6 +595,26 @@ export const RULE_METADATA = {
     defaultSeverity: 'warn',
     docsScope: 'packet-beta',
     readmeDiagramKeywords: ['packet-beta'],
+  },
+  'sankey-duplicate-link': {
+    defaultSeverity: 'warn',
+    docsScope: 'sankey-beta',
+    readmeDiagramKeywords: ['sankey-beta'],
+  },
+  'sankey-self-loop': {
+    defaultSeverity: 'warn',
+    docsScope: 'sankey-beta',
+    readmeDiagramKeywords: ['sankey-beta'],
+  },
+  'xychart-no-series': {
+    defaultSeverity: 'warn',
+    docsScope: 'xychart-beta',
+    readmeDiagramKeywords: ['xychart-beta'],
+  },
+  'xychart-series-length-mismatch': {
+    defaultSeverity: 'warn',
+    docsScope: 'xychart-beta',
+    readmeDiagramKeywords: ['xychart-beta'],
   },
   'quadrant-duplicate-point': {
     defaultSeverity: 'warn',
