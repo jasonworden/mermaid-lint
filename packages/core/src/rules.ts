@@ -42,12 +42,16 @@ export type RuleId =
   | 'no-self-loop'
   | 'no-empty-labels'
   | 'no-orphan-nodes'
+  | 'no-duplicate-node-declarations'
   | 'no-activate-without-deactivate'
   | 'prefer-explicit-participants'
+  | 'sequence-duplicate-participant'
+  | 'class-duplicate-class'
   | 'no-duplicate-methods'
   | 'pie-duplicate-label'
   | 'pie-zero-value'
   | 'pie-no-data'
+  | 'state-duplicate-state'
   | 'state-duplicate-transition'
   | 'state-empty-composite'
   | 'state-self-transition'
@@ -59,6 +63,7 @@ export type RuleId =
   | 'gantt-empty-section'
   | 'journey-empty-section'
   | 'journey-score-out-of-range'
+  | 'journey-task-without-actor'
   | 'journey-no-tasks'
   | 'mindmap-duplicate-sibling'
   | 'mindmap-no-nodes'
@@ -71,6 +76,8 @@ export type RuleId =
   | 'gitgraph-no-commits'
   | 'quadrant-duplicate-point'
   | 'quadrant-no-points'
+  | 'quadrant-missing-x-axis'
+  | 'quadrant-missing-y-axis'
   | 'quadrant-duplicate-quadrant';
 
 /**
@@ -275,6 +282,11 @@ export const RULE_METADATA = {
     docsScope: 'flowchart / graph',
     readmeDiagramKeywords: ['flowchart', 'graph'],
   },
+  'no-duplicate-node-declarations': {
+    defaultSeverity: 'warn',
+    docsScope: 'flowchart / graph',
+    readmeDiagramKeywords: ['flowchart', 'graph'],
+  },
   'no-activate-without-deactivate': {
     defaultSeverity: 'warn',
     docsScope: 'sequenceDiagram',
@@ -284,6 +296,16 @@ export const RULE_METADATA = {
     defaultSeverity: 'off',
     docsScope: 'sequenceDiagram',
     readmeDiagramKeywords: ['sequenceDiagram'],
+  },
+  'sequence-duplicate-participant': {
+    defaultSeverity: 'warn',
+    docsScope: 'sequenceDiagram',
+    readmeDiagramKeywords: ['sequenceDiagram'],
+  },
+  'class-duplicate-class': {
+    defaultSeverity: 'warn',
+    docsScope: 'classDiagram',
+    readmeDiagramKeywords: ['classDiagram'],
   },
   'no-duplicate-methods': {
     defaultSeverity: 'warn',
@@ -304,6 +326,11 @@ export const RULE_METADATA = {
     defaultSeverity: 'warn',
     docsScope: 'pie',
     readmeDiagramKeywords: ['pie'],
+  },
+  'state-duplicate-state': {
+    defaultSeverity: 'warn',
+    docsScope: 'stateDiagram',
+    readmeDiagramKeywords: ['stateDiagram-v2'],
   },
   'state-duplicate-transition': {
     defaultSeverity: 'warn',
@@ -356,6 +383,11 @@ export const RULE_METADATA = {
     readmeDiagramKeywords: ['journey'],
   },
   'journey-score-out-of-range': {
+    defaultSeverity: 'warn',
+    docsScope: 'journey',
+    readmeDiagramKeywords: ['journey'],
+  },
+  'journey-task-without-actor': {
     defaultSeverity: 'warn',
     docsScope: 'journey',
     readmeDiagramKeywords: ['journey'],
@@ -416,6 +448,16 @@ export const RULE_METADATA = {
     readmeDiagramKeywords: ['quadrantChart'],
   },
   'quadrant-no-points': {
+    defaultSeverity: 'warn',
+    docsScope: 'quadrantChart',
+    readmeDiagramKeywords: ['quadrantChart'],
+  },
+  'quadrant-missing-x-axis': {
+    defaultSeverity: 'warn',
+    docsScope: 'quadrantChart',
+    readmeDiagramKeywords: ['quadrantChart'],
+  },
+  'quadrant-missing-y-axis': {
     defaultSeverity: 'warn',
     docsScope: 'quadrantChart',
     readmeDiagramKeywords: ['quadrantChart'],

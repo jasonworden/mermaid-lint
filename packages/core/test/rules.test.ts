@@ -34,12 +34,16 @@ describe('resolveRules', () => {
     expect(RULE_DEFAULTS['no-self-loop']).toBe('warn');
     expect(RULE_DEFAULTS['no-empty-labels']).toBe('warn');
     expect(RULE_DEFAULTS['no-orphan-nodes']).toBe('off');
+    expect(RULE_DEFAULTS['no-duplicate-node-declarations']).toBe('warn');
     expect(RULE_DEFAULTS['no-activate-without-deactivate']).toBe('warn');
     expect(RULE_DEFAULTS['prefer-explicit-participants']).toBe('off');
+    expect(RULE_DEFAULTS['sequence-duplicate-participant']).toBe('warn');
+    expect(RULE_DEFAULTS['class-duplicate-class']).toBe('warn');
     expect(RULE_DEFAULTS['no-duplicate-methods']).toBe('warn');
     expect(RULE_DEFAULTS['pie-duplicate-label']).toBe('warn');
     expect(RULE_DEFAULTS['pie-zero-value']).toBe('warn');
     expect(RULE_DEFAULTS['pie-no-data']).toBe('warn');
+    expect(RULE_DEFAULTS['state-duplicate-state']).toBe('warn');
     expect(RULE_DEFAULTS['state-duplicate-transition']).toBe('warn');
     expect(RULE_DEFAULTS['state-empty-composite']).toBe('warn');
     expect(RULE_DEFAULTS['state-self-transition']).toBe('off');
@@ -51,6 +55,7 @@ describe('resolveRules', () => {
     expect(RULE_DEFAULTS['gantt-empty-section']).toBe('warn');
     expect(RULE_DEFAULTS['journey-empty-section']).toBe('warn');
     expect(RULE_DEFAULTS['journey-score-out-of-range']).toBe('warn');
+    expect(RULE_DEFAULTS['journey-task-without-actor']).toBe('warn');
     expect(RULE_DEFAULTS['journey-no-tasks']).toBe('warn');
     expect(RULE_DEFAULTS['mindmap-duplicate-sibling']).toBe('warn');
     expect(RULE_DEFAULTS['mindmap-no-nodes']).toBe('warn');
@@ -63,6 +68,8 @@ describe('resolveRules', () => {
     expect(RULE_DEFAULTS['gitgraph-no-commits']).toBe('warn');
     expect(RULE_DEFAULTS['quadrant-duplicate-point']).toBe('warn');
     expect(RULE_DEFAULTS['quadrant-no-points']).toBe('warn');
+    expect(RULE_DEFAULTS['quadrant-missing-x-axis']).toBe('warn');
+    expect(RULE_DEFAULTS['quadrant-missing-y-axis']).toBe('warn');
     expect(RULE_DEFAULTS['quadrant-duplicate-quadrant']).toBe('warn');
   });
 

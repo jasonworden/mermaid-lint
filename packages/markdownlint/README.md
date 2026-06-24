@@ -43,8 +43,15 @@ Each check is its own markdownlint rule, named after the underlying
 | `mermaid-no-duplicate-edges` | The same edge is defined more than once | ✅ |
 | `mermaid-no-self-loop` | A node has an edge to itself | ✅ |
 | `mermaid-no-empty-labels` | A node has an empty label | ✅ |
+| `mermaid-no-duplicate-node-declarations` | A node is declared more than once with the same label | ✅ |
 | `mermaid-no-activate-without-deactivate` | Sequence activation without a matching deactivation | ✅ |
+| `mermaid-sequence-duplicate-participant` | A sequence participant is declared more than once | ✅ |
+| `mermaid-class-duplicate-class` | A class is declared more than once | ✅ |
 | `mermaid-no-duplicate-methods` | A class declares a duplicate method | ✅ |
+| `mermaid-state-duplicate-state` | A state is declared more than once | ✅ |
+| `mermaid-journey-task-without-actor` | A journey task has no actor | ✅ |
+| `mermaid-quadrant-missing-x-axis` | A quadrantChart has no x-axis label | ✅ |
+| `mermaid-quadrant-missing-y-axis` | A quadrantChart has no y-axis label | ✅ |
 | `mermaid-no-orphan-nodes` | A node is declared but never connected | — (`all` only) |
 | `mermaid-prefer-explicit-participants` | Sequence participant used before being declared | — (`all` only) |
 

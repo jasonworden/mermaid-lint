@@ -208,14 +208,20 @@ const RULE_DESCRIPTIONS: Record<RuleId, string> = {
   'no-self-loop': 'Mermaid: a node has an edge to itself',
   'no-empty-labels': 'Mermaid: a node has an empty label',
   'no-orphan-nodes': 'Mermaid: a node is declared but never connected',
+  'no-duplicate-node-declarations':
+    'Mermaid: a node is declared more than once with the same label',
   'no-activate-without-deactivate':
     'Mermaid: activation without a matching deactivation',
   'prefer-explicit-participants':
     'Mermaid: participant used before being declared',
+  'sequence-duplicate-participant':
+    'Mermaid: a sequence participant is declared more than once',
+  'class-duplicate-class': 'Mermaid: a class is declared more than once',
   'no-duplicate-methods': 'Mermaid: a class declares a duplicate method',
   'pie-duplicate-label': 'Mermaid: a pie slice label is defined more than once',
   'pie-zero-value': 'Mermaid: a pie slice has a value of 0',
   'pie-no-data': 'Mermaid: a pie chart has no data slices',
+  'state-duplicate-state': 'Mermaid: a state is declared more than once',
   'state-duplicate-transition':
     'Mermaid: the same state transition is defined more than once',
   'state-empty-composite': 'Mermaid: a composite state has an empty body',
@@ -233,6 +239,7 @@ const RULE_DESCRIPTIONS: Record<RuleId, string> = {
   'journey-empty-section': 'Mermaid: a journey section has no tasks',
   'journey-score-out-of-range':
     'Mermaid: a journey task score is outside the 1-5 range',
+  'journey-task-without-actor': 'Mermaid: a journey task has no actor',
   'journey-no-tasks': 'Mermaid: a journey has no tasks',
   'mindmap-duplicate-sibling':
     'Mermaid: a mindmap node duplicates a sibling under the same parent',
@@ -248,6 +255,8 @@ const RULE_DESCRIPTIONS: Record<RuleId, string> = {
   'quadrant-duplicate-point':
     'Mermaid: a quadrantChart data point label is defined more than once',
   'quadrant-no-points': 'Mermaid: a quadrantChart has no data points',
+  'quadrant-missing-x-axis': 'Mermaid: a quadrantChart has no x-axis label',
+  'quadrant-missing-y-axis': 'Mermaid: a quadrantChart has no y-axis label',
   'quadrant-duplicate-quadrant':
     'Mermaid: a quadrantChart region is labeled more than once',
 };

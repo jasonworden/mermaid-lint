@@ -152,6 +152,34 @@ describe('checkSemantics', () => {
     });
   });
 
+  describe('no-duplicate-node-declarations rule', () => {
+    it('returns [] when node ids are declared once', () => {
+      const b = block('flowchart LR\n  A[Same] --> B');
+      expect(only(b, 'no-duplicate-node-declarations')).toEqual([]);
+    });
+
+    it('flags duplicate node declarations with the same label', () => {
+      const b = block('flowchart LR\n  A[Same] --> B\n  A[Same] --> C');
+      const warnings = only(b, 'no-duplicate-node-declarations');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].severity).toBe('warn');
+      expect(warnings[0].message).toContain('`A`');
+      expect(warnings[0].message).toContain('line 2');
+      expect(warnings[0].line).toBe(3);
+    });
+
+    it('does not duplicate the conflicting-label duplicate-ids finding', () => {
+      const b = block('flowchart LR\n  A[Start] --> B\n  A[Begin] --> C');
+      expect(only(b, 'no-duplicate-node-declarations')).toEqual([]);
+      expect(only(b, 'duplicate-ids')).toHaveLength(1);
+    });
+
+    it('also runs for graph type', () => {
+      const b = block('graph LR\n  A[Same]\n  A[Same]', 'graph');
+      expect(only(b, 'no-duplicate-node-declarations')).toHaveLength(1);
+    });
+  });
+
   describe('prefer-flowchart rule', () => {
     it('flags the legacy `graph` keyword (warn)', () => {
       const b = block('graph LR\n  A --> B', 'graph');
@@ -582,6 +610,31 @@ describe('checkSemantics', () => {
     });
   });
 
+  describe('sequence-duplicate-participant rule', () => {
+    function sequenceBlock(body: string): Block {
+      return block(body, 'sequenceDiagram');
+    }
+
+    it('returns [] when participants are declared once', () => {
+      const b = sequenceBlock(
+        'sequenceDiagram\n  participant Alice\n  actor Bob\n  Alice->>Bob: Hi',
+      );
+      expect(only(b, 'sequence-duplicate-participant')).toEqual([]);
+    });
+
+    it('flags duplicate participant declarations', () => {
+      const b = sequenceBlock(
+        'sequenceDiagram\n  participant Alice\n  Alice->>Bob: Hi\n  participant Alice',
+      );
+      const warnings = only(b, 'sequence-duplicate-participant');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].severity).toBe('warn');
+      expect(warnings[0].message).toContain('`Alice`');
+      expect(warnings[0].message).toContain('line 2');
+      expect(warnings[0].line).toBe(4);
+    });
+  });
+
   describe('no-duplicate-methods rule', () => {
     function classBlock(body: string): Block {
       return block(body, 'classDiagram');
@@ -659,6 +712,34 @@ describe('checkSemantics', () => {
       );
       const warnings = only(b, 'no-duplicate-methods');
       expect(warnings[0].severity).toBe('warn');
+    });
+  });
+
+  describe('class-duplicate-class rule', () => {
+    function classBlock(body: string): Block {
+      return block(body, 'classDiagram');
+    }
+
+    it('returns [] when class declarations are unique', () => {
+      const b = classBlock('classDiagram\n  class User\n  class Account');
+      expect(only(b, 'class-duplicate-class')).toEqual([]);
+    });
+
+    it('flags duplicate class declarations', () => {
+      const b = classBlock('classDiagram\n  class User\n  class User');
+      const warnings = only(b, 'class-duplicate-class');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].severity).toBe('warn');
+      expect(warnings[0].message).toContain('`User`');
+      expect(warnings[0].message).toContain('line 2');
+      expect(warnings[0].line).toBe(3);
+    });
+
+    it('does not treat classDef as a class declaration', () => {
+      const b = classBlock(
+        'classDiagram\n  class User\n  classDef active fill:#fff',
+      );
+      expect(only(b, 'class-duplicate-class')).toEqual([]);
     });
   });
 
@@ -833,6 +914,39 @@ describe('checkSemantics', () => {
         'stateDiagram-v2\n  %% mermaid-lint-disable state-duplicate-transition\n  A --> B\n  A --> B',
       );
       expect(only(b, 'state-duplicate-transition')).toEqual([]);
+    });
+  });
+
+  describe('state-duplicate-state rule', () => {
+    function stateBlock(body: string): Block {
+      return block(body, 'stateDiagram-v2');
+    }
+
+    it('returns [] when state declarations are unique', () => {
+      const b = stateBlock('stateDiagram-v2\n  state A\n  state B');
+      expect(only(b, 'state-duplicate-state')).toEqual([]);
+    });
+
+    it('flags duplicate state declarations', () => {
+      const b = stateBlock('stateDiagram-v2\n  state A\n  state A');
+      const warnings = only(b, 'state-duplicate-state');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].severity).toBe('warn');
+      expect(warnings[0].message).toContain('`A`');
+      expect(warnings[0].message).toContain('line 2');
+      expect(warnings[0].line).toBe(3);
+    });
+
+    it('handles aliased state declarations', () => {
+      const b = stateBlock(
+        'stateDiagram-v2\n  state "Ready" as A\n  state "Waiting" as A',
+      );
+      expect(only(b, 'state-duplicate-state')).toHaveLength(1);
+    });
+
+    it('does not treat transition-only implicit states as declarations', () => {
+      const b = stateBlock('stateDiagram-v2\n  A --> B\n  A --> C');
+      expect(only(b, 'state-duplicate-state')).toEqual([]);
     });
   });
 
@@ -1292,6 +1406,33 @@ describe('checkSemantics', () => {
     });
   });
 
+  describe('journey-task-without-actor rule', () => {
+    function journeyBlock(body: string): Block {
+      return block(body, 'journey');
+    }
+
+    it('returns [] when every task has at least one actor', () => {
+      const b = journeyBlock(
+        'journey\n  section Work\n    Make tea: 5: Alice\n    Share tea: 4: Alice, Bob',
+      );
+      expect(only(b, 'journey-task-without-actor')).toEqual([]);
+    });
+
+    it('flags a task with no actor field', () => {
+      const b = journeyBlock('journey\n  section Work\n    Make tea: 5');
+      const warnings = only(b, 'journey-task-without-actor');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].severity).toBe('warn');
+      expect(warnings[0].message).toContain('`Make tea`');
+      expect(warnings[0].line).toBe(3);
+    });
+
+    it('flags a task with an empty actor field', () => {
+      const b = journeyBlock('journey\n  section Work\n    Make tea: 5:');
+      expect(only(b, 'journey-task-without-actor')).toHaveLength(1);
+    });
+  });
+
   describe('journey-no-tasks rule', () => {
     function journeyBlock(body: string): Block {
       return block(body, 'journey');
@@ -1669,6 +1810,62 @@ describe('checkSemantics', () => {
       expect(warnings).toHaveLength(1);
       expect(warnings[0].severity).toBe('warn');
       expect(warnings[0].line).toBe(1);
+    });
+  });
+
+  describe('quadrant-missing-x-axis rule', () => {
+    function quadrantBlock(body: string): Block {
+      return block(body, 'quadrantChart');
+    }
+
+    it('returns [] when the chart has an x-axis', () => {
+      const b = quadrantBlock(
+        'quadrantChart\n  x-axis Low --> High\n  y-axis Low --> High\n  A: [0.3, 0.6]',
+      );
+      expect(only(b, 'quadrant-missing-x-axis')).toEqual([]);
+    });
+
+    it('flags a chart with points and no x-axis', () => {
+      const b = quadrantBlock(
+        'quadrantChart\n  y-axis Low --> High\n  A: [0.3, 0.6]',
+      );
+      const warnings = only(b, 'quadrant-missing-x-axis');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].severity).toBe('warn');
+      expect(warnings[0].line).toBe(1);
+    });
+
+    it('does not fire on a chart with no points', () => {
+      const b = quadrantBlock('quadrantChart\n  title Reach');
+      expect(only(b, 'quadrant-missing-x-axis')).toEqual([]);
+    });
+  });
+
+  describe('quadrant-missing-y-axis rule', () => {
+    function quadrantBlock(body: string): Block {
+      return block(body, 'quadrantChart');
+    }
+
+    it('returns [] when the chart has a y-axis', () => {
+      const b = quadrantBlock(
+        'quadrantChart\n  x-axis Low --> High\n  y-axis Low --> High\n  A: [0.3, 0.6]',
+      );
+      expect(only(b, 'quadrant-missing-y-axis')).toEqual([]);
+    });
+
+    it('flags a chart with points and no y-axis', () => {
+      const b = quadrantBlock(
+        'quadrantChart\n  x-axis Low --> High\n  A: [0.3, 0.6]',
+      );
+      const warnings = only(b, 'quadrant-missing-y-axis');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].severity).toBe('warn');
+      expect(warnings[0].line).toBe(1);
+    });
+
+    it('does not fire on a chart with no points', () => {
+      const b = quadrantBlock('quadrantChart\n  title Reach');
+      expect(only(b, 'quadrant-missing-y-axis')).toEqual([]);
     });
   });
 

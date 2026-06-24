@@ -449,17 +449,17 @@ mermaid-lint validates all 19 Mermaid diagram types using the official `mermaid.
 
 | Type | Keyword | Supported | Related rules | Notes |
 |---|---|---|---|---|
-| Flowchart | `flowchart` / `graph` | ✅ | `duplicate-ids`, `prefer-flowchart`, `require-direction`, `no-duplicate-edges`, `no-self-loop`, `no-empty-labels`, `no-orphan-nodes` | `graph` is an alias for `flowchart` |
-| Sequence | `sequenceDiagram` | ✅ | `no-activate-without-deactivate`, `prefer-explicit-participants` | |
-| Class | `classDiagram` | ✅ | `no-duplicate-methods` | |
-| State | `stateDiagram-v2` | ✅ | `state-duplicate-transition`, `state-empty-composite`, `state-self-transition` | |
+| Flowchart | `flowchart` / `graph` | ✅ | `duplicate-ids`, `prefer-flowchart`, `require-direction`, `no-duplicate-edges`, `no-self-loop`, `no-empty-labels`, `no-orphan-nodes`, `no-duplicate-node-declarations` | `graph` is an alias for `flowchart` |
+| Sequence | `sequenceDiagram` | ✅ | `no-activate-without-deactivate`, `prefer-explicit-participants`, `sequence-duplicate-participant` | |
+| Class | `classDiagram` | ✅ | `class-duplicate-class`, `no-duplicate-methods` | |
+| State | `stateDiagram-v2` | ✅ | `state-duplicate-state`, `state-duplicate-transition`, `state-empty-composite`, `state-self-transition` | |
 | Entity-Relationship | `erDiagram` | ✅ | `er-duplicate-attribute`, `er-duplicate-entity`, `er-standalone-entity` | |
 | Pie chart | `pie` | ✅ | `pie-duplicate-label`, `pie-zero-value`, `pie-no-data` | |
 | Gantt | `gantt` | ✅ | `gantt-duplicate-task-id`, `gantt-undefined-dependency`, `gantt-empty-section` | |
 | Git graph | `gitGraph` | ✅ | `gitgraph-duplicate-commit-id`, `gitgraph-duplicate-tag`, `gitgraph-no-commits` | |
-| User journey | `journey` | ✅ | `journey-empty-section`, `journey-score-out-of-range`, `journey-no-tasks` | |
+| User journey | `journey` | ✅ | `journey-empty-section`, `journey-score-out-of-range`, `journey-task-without-actor`, `journey-no-tasks` | |
 | Mindmap | `mindmap` | ✅ | `mindmap-duplicate-sibling`, `mindmap-no-nodes`, `mindmap-deep-nesting` | |
-| Quadrant chart | `quadrantChart` | ✅ | `quadrant-duplicate-point`, `quadrant-no-points`, `quadrant-duplicate-quadrant` | |
+| Quadrant chart | `quadrantChart` | ✅ | `quadrant-duplicate-point`, `quadrant-no-points`, `quadrant-missing-x-axis`, `quadrant-missing-y-axis`, `quadrant-duplicate-quadrant` | |
 | Requirement | `requirementDiagram` | ✅ | - | |
 | C4 Context | `C4Context` | ✅ | - | |
 | Timeline | `timeline` | ✅ | `timeline-empty-section`, `timeline-empty-event`, `timeline-no-entries` | |
