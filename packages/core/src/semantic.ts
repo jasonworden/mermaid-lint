@@ -2191,6 +2191,191 @@ const gitgraphNoCommits: Rule = {
 };
 
 // ---------------------------------------------------------------------------
+// Architecture-beta helpers and rules
+// ---------------------------------------------------------------------------
+
+const ARCHITECTURE_DECL_RE =
+  /^\s*(service|group|junction)\s+([A-Za-z0-9_][\w-]*)\b/;
+const ARCHITECTURE_EDGE_RE =
+  /^\s*([A-Za-z0-9_][\w-]*)(?::([A-Za-z0-9_][\w-]*))?\s*--\s*(?:([A-Za-z0-9_][\w-]*):)?([A-Za-z0-9_][\w-]*)\s*$/;
+
+interface ArchitectureDeclaration {
+  line: number;
+}
+
+interface ArchitectureEdge {
+  leftId: string;
+  leftPort?: string;
+  rightPort?: string;
+  rightId: string;
+  line: number;
+}
+
+function isArchitecture(block: Block): boolean {
+  return block.type === 'architecture-beta';
+}
+
+function collectArchitectureDeclarations(
+  lines: string[],
+): ArchitectureDeclaration[] {
+  const declarations: ArchitectureDeclaration[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    if (raw.trimStart().startsWith('%%')) continue;
+    if (ARCHITECTURE_DECL_RE.test(raw)) {
+      declarations.push({ line: i + 1 });
+    }
+  }
+  return declarations;
+}
+
+function collectArchitectureEdges(lines: string[]): ArchitectureEdge[] {
+  const edges: ArchitectureEdge[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    if (raw.trimStart().startsWith('%%')) continue;
+    const edge = ARCHITECTURE_EDGE_RE.exec(raw);
+    if (edge === null) continue;
+    edges.push({
+      leftId: edge[1],
+      leftPort: edge[2] || undefined,
+      rightPort: edge[3] || undefined,
+      rightId: edge[4],
+      line: i + 1,
+    });
+  }
+  return edges;
+}
+
+function formatArchitectureEdge(edge: ArchitectureEdge): string {
+  const left = edge.leftPort ? `${edge.leftId}:${edge.leftPort}` : edge.leftId;
+  const right = edge.rightPort
+    ? `${edge.rightPort}:${edge.rightId}`
+    : edge.rightId;
+  return `${left} -- ${right}`;
+}
+
+const architectureNoElements: Rule = {
+  id: 'architecture-no-elements',
+  appliesTo: isArchitecture,
+  evaluate: ({ lines }) => {
+    if (collectArchitectureDeclarations(lines).length > 0) return [];
+    return [
+      {
+        message:
+          'architecture-beta has no declared elements, groups, or junctions; it parses but renders empty.',
+        line: 1,
+      },
+    ];
+  },
+};
+
+const architectureNoEdges: Rule = {
+  id: 'architecture-no-edges',
+  appliesTo: isArchitecture,
+  evaluate: ({ lines }) => {
+    if (collectArchitectureDeclarations(lines).length === 0) return [];
+    if (collectArchitectureEdges(lines).length > 0) return [];
+    return [
+      {
+        message:
+          'architecture-beta declares elements but has no edges; it renders as disconnected symbols and is usually incomplete.',
+        line: 1,
+      },
+    ];
+  },
+};
+
+const architectureDuplicateEdge: Rule = {
+  id: 'architecture-duplicate-edge',
+  appliesTo: isArchitecture,
+  evaluate: ({ lines }) => {
+    const seen = new Map<string, number>();
+    const findings: RuleFinding[] = [];
+
+    for (const edge of collectArchitectureEdges(lines)) {
+      const key = [
+        edge.leftId,
+        edge.leftPort ?? '',
+        edge.rightPort ?? '',
+        edge.rightId,
+      ].join('\u0000');
+      const first = seen.get(key);
+      if (first === undefined) {
+        seen.set(key, edge.line);
+        continue;
+      }
+      findings.push({
+        message: `architecture edge \`${formatArchitectureEdge(edge)}\` is declared more than once (first on line ${first}); repeated exact edges are usually a copy-paste mistake.`,
+        line: edge.line,
+      });
+    }
+
+    return findings;
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Packet-beta helpers and rules
+// ---------------------------------------------------------------------------
+
+const PACKET_FIELD_RE =
+  /^\s*(\d+(?:\s*-\s*\d+)?)\s*:\s*(?:"([^"]*)"|'([^']*)')\s*$/;
+
+interface PacketField {
+  range: string;
+  label: string;
+  line: number;
+}
+
+function isPacket(block: Block): boolean {
+  return block.type === 'packet-beta';
+}
+
+function collectPacketFields(lines: string[]): PacketField[] {
+  const fields: PacketField[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    if (raw.trimStart().startsWith('%%')) continue;
+    const field = PACKET_FIELD_RE.exec(raw);
+    if (field === null) continue;
+    fields.push({
+      range: field[1].replace(/\s+/g, ''),
+      label: field[2] ?? field[3] ?? '',
+      line: i + 1,
+    });
+  }
+  return fields;
+}
+
+const packetNoFields: Rule = {
+  id: 'packet-no-fields',
+  appliesTo: isPacket,
+  evaluate: ({ lines }) => {
+    if (collectPacketFields(lines).length > 0) return [];
+    return [
+      {
+        message:
+          'packet-beta has no field rows; it parses but renders as an empty packet.',
+        line: 1,
+      },
+    ];
+  },
+};
+
+const packetEmptyLabels: Rule = {
+  id: 'packet-empty-labels',
+  appliesTo: isPacket,
+  evaluate: ({ lines }) =>
+    collectPacketFields(lines)
+      .filter((field) => field.label.trim() === '')
+      .map((field) => ({
+        message: `packet field \`${field.range}\` has an empty label and will render as a blank field.`,
+        line: field.line,
+      })),
+};
+
+// ---------------------------------------------------------------------------
 // Quadrant chart helpers and rules
 // ---------------------------------------------------------------------------
 
@@ -2550,6 +2735,11 @@ const RULES: Rule[] = [
   gitgraphDuplicateCommitId,
   gitgraphDuplicateTag,
   gitgraphNoCommits,
+  architectureNoElements,
+  architectureNoEdges,
+  architectureDuplicateEdge,
+  packetNoFields,
+  packetEmptyLabels,
   quadrantDuplicatePoint,
   quadrantNoPoints,
   quadrantMissingXAxis,

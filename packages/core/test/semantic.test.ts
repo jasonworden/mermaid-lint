@@ -2205,4 +2205,122 @@ describe('checkSemantics', () => {
       expect(only(b, 'requirement-undefined-reference', rules)).toEqual([]);
     });
   });
+
+  describe('architecture-beta rules', () => {
+    function architectureBlock(body: string): Block {
+      return block(body, 'architecture-beta');
+    }
+
+    it('keeps a valid architecture model clean', () => {
+      const b = architectureBlock(
+        'architecture-beta\n  group api(cloud)[API]\n  service gateway(server)[Gateway] in api\n  service db(database)[Database]\n  gateway:R -- L:db',
+      );
+
+      expect(only(b, 'architecture-no-elements')).toEqual([]);
+      expect(only(b, 'architecture-no-edges')).toEqual([]);
+      expect(only(b, 'architecture-duplicate-edge')).toEqual([]);
+    });
+
+    it('flags architecture-beta with no declared elements', () => {
+      const b = architectureBlock('architecture-beta');
+      const warnings = only(b, 'architecture-no-elements');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].severity).toBe('warn');
+      expect(warnings[0].line).toBe(1);
+      expect(warnings[0].message).toContain('no declared elements');
+    });
+
+    it('flags architecture-beta with declarations but no edges', () => {
+      const b = architectureBlock(
+        'architecture-beta\n  service gateway(server)[Gateway]\n  junction hub\n  group api(cloud)[API]',
+      );
+      const warnings = only(b, 'architecture-no-edges');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].severity).toBe('warn');
+      expect(warnings[0].line).toBe(1);
+      expect(warnings[0].message).toContain('no edges');
+    });
+
+    it('flags repeated exact architecture edge declarations, including ports', () => {
+      const b = architectureBlock(
+        'architecture-beta\n  service gateway(server)[Gateway]\n  service db(database)[Database]\n  gateway:R -- L:db\n  gateway:R -- L:db',
+      );
+      const warnings = only(b, 'architecture-duplicate-edge');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].severity).toBe('warn');
+      expect(warnings[0].line).toBe(5);
+      expect(warnings[0].message).toContain('`gateway:R -- L:db`');
+      expect(warnings[0].message).toContain('line 4');
+    });
+
+    it('respects suppression directives and rule-off configuration', () => {
+      const suppressed = architectureBlock(
+        'architecture-beta\n  %% mermaid-lint-disable architecture-no-edges\n  service gateway(server)[Gateway]',
+      );
+      expect(only(suppressed, 'architecture-no-edges')).toEqual([]);
+
+      const b = architectureBlock(
+        'architecture-beta\n  service gateway(server)[Gateway]\n  service db(database)[Database]\n  gateway:R -- L:db\n  gateway:R -- L:db',
+      );
+      const rules: ResolvedRules = {
+        ...RULE_DEFAULTS,
+        'architecture-duplicate-edge': 'off',
+      };
+      expect(only(b, 'architecture-duplicate-edge', rules)).toEqual([]);
+    });
+  });
+
+  describe('packet-beta rules', () => {
+    function packetBlock(body: string): Block {
+      return block(body, 'packet-beta');
+    }
+
+    it('keeps a valid packet clean', () => {
+      const b = packetBlock(
+        'packet-beta\n  0-7: "Source Port"\n  8-15: "Destination Port"\n  16-31: "Sequence Number"',
+      );
+
+      expect(only(b, 'packet-no-fields')).toEqual([]);
+      expect(only(b, 'packet-empty-labels')).toEqual([]);
+    });
+
+    it('flags packet-beta with no field rows', () => {
+      const b = packetBlock('packet-beta');
+      const warnings = only(b, 'packet-no-fields');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].severity).toBe('warn');
+      expect(warnings[0].line).toBe(1);
+      expect(warnings[0].message).toContain('no field rows');
+    });
+
+    it('flags empty and whitespace-only field labels', () => {
+      const b = packetBlock(
+        'packet-beta\n  0-7: ""\n  8-15: "   "\n  16-31: "Sequence Number"',
+      );
+      const warnings = only(b, 'packet-empty-labels');
+      expect(warnings).toHaveLength(2);
+      expect(warnings.map((warning) => warning.severity)).toEqual([
+        'warn',
+        'warn',
+      ]);
+      expect(warnings[0].message).toContain('0-7');
+      expect(warnings[0].line).toBe(2);
+      expect(warnings[1].message).toContain('8-15');
+      expect(warnings[1].line).toBe(3);
+    });
+
+    it('respects suppression directives and rule-off configuration', () => {
+      const suppressed = packetBlock(
+        'packet-beta\n  %% mermaid-lint-disable packet-empty-labels\n  0-7: ""',
+      );
+      expect(only(suppressed, 'packet-empty-labels')).toEqual([]);
+
+      const b = packetBlock('packet-beta');
+      const rules: ResolvedRules = {
+        ...RULE_DEFAULTS,
+        'packet-no-fields': 'off',
+      };
+      expect(only(b, 'packet-no-fields', rules)).toEqual([]);
+    });
+  });
 });

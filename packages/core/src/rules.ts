@@ -43,10 +43,14 @@ export type RuleId =
   | 'xychart-no-series'
   | 'xychart-series-length-mismatch'
   | 'sankey-non-positive-value'
+  | 'sankey-duplicate-link'
   | 'sankey-self-loop'
   | 'block-no-blocks'
   | 'packet-no-fields'
+  | 'packet-empty-labels'
   | 'architecture-no-elements'
+  | 'architecture-no-edges'
+  | 'architecture-duplicate-edge'
   | 'no-duplicate-edges'
   | 'no-self-loop'
   | 'no-empty-labels'
@@ -86,6 +90,8 @@ export type RuleId =
   | 'gitgraph-duplicate-commit-id'
   | 'gitgraph-duplicate-tag'
   | 'gitgraph-no-commits'
+  | 'packet-no-fields'
+  | 'packet-empty-labels'
   | 'quadrant-duplicate-point'
   | 'quadrant-no-points'
   | 'quadrant-missing-x-axis'
@@ -255,6 +261,17 @@ export interface RuleMetadata {
  * same `tag:` used twice — a copy-paste mistake), and `gitgraph-no-commits` (a
  * `gitGraph` with no commits — parses but renders an empty diagram).
  *
+ * The architecture-beta rules are all advisory `warn`:
+ * `architecture-no-elements` (a diagram with no declared services, groups, or
+ * junctions — parses but renders empty), `architecture-no-edges` (declared
+ * symbols but no connections — usually incomplete), and
+ * `architecture-duplicate-edge` (the same architecture connection repeated
+ * between the same endpoints and ports — a copy-paste smell).
+ *
+ * The packet-beta rules are all advisory `warn`: `packet-no-fields` (a packet
+ * with no field rows — parses but renders empty) and `packet-empty-labels`
+ * (a field label that is empty or whitespace-only, which renders blank).
+ *
  * The quadrantChart rules are all advisory `warn`: `quadrant-duplicate-point`
  * (two data points with the same label — renders overlapping markers, usually
  * a copy-paste mistake), `quadrant-no-points` (a quadrantChart with axis or
@@ -340,7 +357,22 @@ export const RULE_METADATA = {
     docsScope: 'packet-beta',
     readmeDiagramKeywords: ['packet-beta'],
   },
+  'packet-empty-labels': {
+    defaultSeverity: 'warn',
+    docsScope: 'packet-beta',
+    readmeDiagramKeywords: ['packet-beta'],
+  },
   'architecture-no-elements': {
+    defaultSeverity: 'warn',
+    docsScope: 'architecture-beta',
+    readmeDiagramKeywords: ['architecture-beta'],
+  },
+  'architecture-no-edges': {
+    defaultSeverity: 'warn',
+    docsScope: 'architecture-beta',
+    readmeDiagramKeywords: ['architecture-beta'],
+  },
+  'architecture-duplicate-edge': {
     defaultSeverity: 'warn',
     docsScope: 'architecture-beta',
     readmeDiagramKeywords: ['architecture-beta'],
@@ -539,6 +571,16 @@ export const RULE_METADATA = {
     defaultSeverity: 'warn',
     docsScope: 'gitGraph',
     readmeDiagramKeywords: ['gitGraph'],
+  },
+  'packet-no-fields': {
+    defaultSeverity: 'warn',
+    docsScope: 'packet-beta',
+    readmeDiagramKeywords: ['packet-beta'],
+  },
+  'packet-empty-labels': {
+    defaultSeverity: 'warn',
+    docsScope: 'packet-beta',
+    readmeDiagramKeywords: ['packet-beta'],
   },
   'quadrant-duplicate-point': {
     defaultSeverity: 'warn',
