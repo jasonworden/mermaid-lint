@@ -7,7 +7,6 @@ Invalid diagrams get red squiggles as you type — in Markdown fenced
 Powered by [`@mermaid-lint/core`](https://www.npmjs.com/package/@mermaid-lint/core),
 the same engine behind the `mermaid-lint` CLI, so the editor matches CI.
 
-[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/mermaid-lint.mermaid-lint-vscode?label=VS%20Code%20Marketplace&logo=visualstudiocode)](https://marketplace.visualstudio.com/items?itemName=mermaid-lint.mermaid-lint-vscode)
 [![Open VSX](https://img.shields.io/open-vsx/v/mermaid-lint/mermaid-lint-vscode?label=Open%20VSX&logo=eclipseide)](https://open-vsx.org/extension/mermaid-lint/mermaid-lint-vscode)
 
 ## Install
@@ -98,49 +97,15 @@ invariants before changing the core integration.
 
 Published to the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=mermaid-lint.mermaid-lint-vscode)
 and [Open VSX](https://open-vsx.org/extension/mermaid-lint/mermaid-lint-vscode)
-under the install id `mermaid-lint.mermaid-lint-vscode`. Release and
-double-publish steps live in [`PUBLISHING.md`](PUBLISHING.md).
+under the install id `mermaid-lint.mermaid-lint-vscode`.
 
 ## Packaging & publishing
 
-> Full release runbook (npm + both extension registries, including token
-> retrieval): see [`PUBLISHING.md`](PUBLISHING.md). The summary below covers
-> just how the `.vsix` is assembled.
+See [`PUBLISHING.md`](PUBLISHING.md) for the full release runbook.
 
-The extension does **not** bundle `@mermaid-lint/core` (it pulls in jsdom and
-merman, which esbuild can't bundle), so the `.vsix` ships core + its dependency
-tree as a flat `node_modules`. Because pnpm's symlinked `node_modules` can't be
-packaged by `vsce`, [`scripts/package-vsix.sh`](scripts/package-vsix.sh) stages
-a clean directory and installs core from **npm** with plain `npm install`.
-
-**Prerequisite:** the matching `@mermaid-lint/core` version must be published to
-npm first. The monorepo publishes on a version tag:
-
-```bash
-git tag v0.19.0 && git push origin v0.19.0   # CI publishes @mermaid-lint/* to npm
-```
-
-Then build the `.vsix`:
-
-```bash
-pnpm install
-pnpm --filter mermaid-lint-vscode package
-# → packages/vscode/mermaid-lint-vscode-<version>.vsix
-# (override the core version for testing: --core-version 0.9.0)
-```
-
-Publish it (needs a [publisher](https://code.visualstudio.com/api/working-with-extensions/publishing-extension)
-matching the `publisher` field and a Personal Access Token):
-
-```bash
-pnpm --filter mermaid-lint-vscode exec vsce publish \
-  --packagePath mermaid-lint-vscode-<version>.vsix --pat <token>
-```
-
-The produced `.vsix` is ~25 MB (jsdom + mermaid). It has been verified to load
-and validate `.md`/`.mmd` from the packaged `node_modules`. The Marketplace icon
-is [`media/icon.png`](media/icon.png) (256×256), referenced by the `icon` field
-in `package.json`.
+The `.vsix` is assembled by [`scripts/package-vsix.sh`](scripts/package-vsix.sh),
+which stages a clean directory and installs `@mermaid-lint/core` from npm so
+`vsce` can package a flat `node_modules` tree.
 
 ## Relationship to `@mermaid-lint/markdownlint`
 

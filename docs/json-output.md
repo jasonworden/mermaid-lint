@@ -42,9 +42,9 @@ npx mermaid-lint --format json --all
     - **`ok`** — `true` if the diagram parses.
     - **`error`** — present when `ok` is `false`: `{ message, line, col }` with the
       precise location of the syntax error.
-    - **`warnings[]`** — semantic findings: `{ rule, message, line }`. See the
-      [semantic rules](../README.md#semantic-rules) for the rule list and how to
-      tune severity.
+    - **`warnings[]`** — semantic findings: `{ rule, message, line }`. See
+      [semantic-rules.md](semantic-rules.md) for the rule list and how to tune
+      severity.
 - **`summary`** — totals across all files, plus a `types` histogram.
 
 ## Example: fail CI on errors (any language)

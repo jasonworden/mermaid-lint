@@ -1,0 +1,74 @@
+# Semantic Rules
+
+In addition to syntax errors, mermaid-lint runs semantic rules over diagrams
+that `mermaid.parse()` accepts but that may be legacy, ambiguous, or render
+incorrectly.
+
+Each rule has a severity:
+
+- `off` disables the rule.
+- `warn` reports the rule without failing the run unless `--strict` is enabled.
+- `error` fails the run outright.
+
+Tune rules through the `rules` config key. Most rules default to `warn`;
+`duplicate-ids` defaults to `error` because Mermaid renders the wrong result.
+
+## Rule Reference
+
+| Rule | Default | Flags | Scope |
+|---|---|---|---|
+| `duplicate-ids` | `error` | Same node id declared twice with conflicting labels; Mermaid silently drops one | flowchart / graph |
+| `prefer-flowchart` | `warn` | The legacy `graph` keyword; `flowchart` is current and enables per-subgraph `direction` | graph |
+| `require-direction` | `warn` | `flowchart`/`graph` with no direction; silently defaults to `TD` | flowchart / graph |
+| `no-experimental` | `warn` | `*-beta` diagram types; unstable syntax that may break on a Mermaid upgrade | all |
+| `no-duplicate-edges` | `warn` | The same edge defined more than once; renders stacked, usually a copy-paste mistake | flowchart / graph |
+| `no-self-loop` | `warn` | A node with an edge to itself (`A --> A`); almost always unintentional | flowchart / graph |
+| `no-empty-labels` | `warn` | A node with an empty label (`A[ ]`); renders a blank shape | flowchart / graph |
+| `no-orphan-nodes` | `off` | A node declared but never connected by an edge. Off by default because it can false-positive on subgraph-only members | flowchart / graph |
+| `no-activate-without-deactivate` | `warn` | An `activate`/`+` with no matching `deactivate`/`-` or vice versa; leaves a dangling activation bar | sequenceDiagram |
+| `prefer-explicit-participants` | `off` | A participant used in a message before being declared; Mermaid auto-creates it | sequenceDiagram |
+| `no-duplicate-methods` | `warn` | The same method signature declared twice on one class; renders both | classDiagram |
+| `pie-duplicate-label` | `warn` | The same pie slice label defined more than once; usually a copy-paste mistake | pie |
+| `pie-zero-value` | `warn` | A pie slice with a value of `0`; renders as an invisible slice | pie |
+| `pie-no-data` | `warn` | A pie chart with no data slices; renders empty | pie |
+| `state-duplicate-transition` | `warn` | The same `src --> tgt : label` transition defined more than once; renders stacked, usually a copy-paste mistake | stateDiagram |
+| `state-empty-composite` | `warn` | A composite `state X { }` with an empty body; renders as an empty box | stateDiagram |
+| `state-self-transition` | `off` | A state with a transition to itself (`A --> A`). Off by default because self-transitions are valid and common in state machines | stateDiagram |
+| `er-duplicate-attribute` | `warn` | The same attribute name declared twice inside one entity block | erDiagram |
+| `er-duplicate-entity` | `warn` | An entity whose attribute block is defined more than once; Mermaid merges them, usually a copy-paste mistake | erDiagram |
+| `er-standalone-entity` | `off` | An entity with a defined block but no relationship; renders as an isolated box | erDiagram |
+| `gantt-duplicate-task-id` | `warn` | Two tasks declared with the same explicit id; makes `after`/`until` references ambiguous | gantt |
+| `gantt-undefined-dependency` | `warn` | A task whose `after`/`until` references an id no task defines; Mermaid places it at the chart start | gantt |
+| `gantt-empty-section` | `warn` | A `section` with no tasks; renders as an empty section header | gantt |
+| `mindmap-duplicate-sibling` | `warn` | Two child nodes under the same parent with identical text; renders two identical branches, usually a copy-paste mistake | mindmap |
+| `mindmap-no-nodes` | `warn` | A `mindmap` with only the keyword and no nodes; parses but renders an empty diagram | mindmap |
+| `mindmap-deep-nesting` | `off` | A node nested beyond five levels deep. Off by default because deep nesting is a matter of taste | mindmap |
+| `timeline-empty-section` | `warn` | A `section` with no time-period entries; renders as an empty section header | timeline |
+| `timeline-empty-event` | `warn` | A time period with a blank event field; renders an empty event bubble | timeline |
+| `timeline-no-entries` | `warn` | A `timeline` with no sections and no time periods; parses but renders an empty diagram | timeline |
+| `gitgraph-duplicate-commit-id` | `warn` | The same explicit `id:` on more than one commit; makes `merge`/`cherry-pick` references ambiguous | gitGraph |
+| `gitgraph-duplicate-tag` | `warn` | The same `tag:` used more than once; two commits render with the same tag | gitGraph |
+| `gitgraph-no-commits` | `warn` | A `gitGraph` with no commits; parses but renders an empty diagram | gitGraph |
+| `quadrant-duplicate-point` | `warn` | Two data points with the same label; renders overlapping markers, usually a copy-paste mistake | quadrantChart |
+| `quadrant-no-points` | `warn` | A quadrantChart with axis or quadrant labels but no data points; parses but renders an empty plot | quadrantChart |
+| `quadrant-duplicate-quadrant` | `warn` | The same quadrant region (`quadrant-1`-`quadrant-4`) labeled more than once; Mermaid keeps only the last | quadrantChart |
+
+## Example Output
+
+```text
+docs/api.md:7:1: error: duplicate-ids: node "A" declared with label "Start" (line 2) and "Begin" (line 7)
+docs/api.md:2:1: warning: prefer-flowchart: use `flowchart` instead of `graph`: ...
+```
+
+## Suppressions
+
+Suppress one rule for a diagram with a Mermaid comment:
+
+```mermaid
+%% mermaid-lint-disable duplicate-ids
+flowchart LR
+  A[Start] --> B[End]
+```
+
+Use a bare `%% mermaid-lint-disable` to suppress all semantic rules in a
+diagram, or use `--no-semantic` to disable semantic checks for a run.
