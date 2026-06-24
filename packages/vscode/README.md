@@ -107,6 +107,19 @@ The `.vsix` is assembled by [`scripts/package-vsix.sh`](scripts/package-vsix.sh)
 which stages a clean directory and installs `@mermaid-lint/core` from npm so
 `vsce` can package a flat `node_modules` tree.
 
+### Versioning
+
+`mermaid-lint-vscode` is versioned independently from the lockstep
+`@mermaid-lint/*` npm packages. The extension therefore does **not** rename
+itself to match every npm release number, and it may skip or lag npm package
+versions entirely.
+
+What matters is the packaged core dependency: a `.vsix` should be built against
+the published `@mermaid-lint/core` version it is meant to ship. In practice,
+that means an extension release such as `0.13.0` can legitimately package
+`@mermaid-lint/core@0.35.0` if that is the editor-facing behavior you want to
+deliver. See [`PUBLISHING.md`](PUBLISHING.md) for the release flow.
+
 ## Relationship to `@mermaid-lint/markdownlint`
 
 If you already use the [markdownlint](https://github.com/DavidAnson/markdownlint)
