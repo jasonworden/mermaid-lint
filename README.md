@@ -463,14 +463,14 @@ mermaid-lint validates all 19 Mermaid diagram types using the official `mermaid.
 | User journey | `journey` | ✅ | `journey-empty-section`, `journey-score-out-of-range`, `journey-task-without-actor`, `journey-no-tasks` | |
 | Mindmap | `mindmap` | ✅ | `mindmap-duplicate-sibling`, `mindmap-no-nodes`, `mindmap-deep-nesting` | |
 | Quadrant chart | `quadrantChart` | ✅ | `quadrant-duplicate-point`, `quadrant-no-points`, `quadrant-missing-x-axis`, `quadrant-missing-y-axis`, `quadrant-duplicate-quadrant` | |
-| Requirement | `requirementDiagram` | ✅ | - | |
+| Requirement | `requirementDiagram` | ✅ | `requirement-duplicate-name`, `requirement-duplicate-id`, `requirement-undefined-reference` | |
 | C4 Context | `C4Context` | ✅ | `c4-duplicate-id`, `c4-undefined-relationship-endpoint`, `c4-undefined-element-style`, `c4-undefined-relationship-style-endpoint` | |
 | Timeline | `timeline` | ✅ | `timeline-empty-section`, `timeline-empty-event`, `timeline-no-entries` | |
-| XY chart | `xychart-beta` | ✅ | `no-experimental` | Experimental |
-| Sankey | `sankey-beta` | ✅ | `no-experimental` | Experimental |
-| Block | `block-beta` | ✅ | `no-experimental` | Experimental |
-| Packet | `packet-beta` | ✅ | `no-experimental` | Experimental |
-| Architecture | `architecture-beta` | ✅ | `no-experimental` | Experimental |
+| XY chart | `xychart-beta` | ✅ | `no-experimental`, `xychart-missing-x-axis`, `xychart-missing-y-axis`, `xychart-no-series`, `xychart-series-length-mismatch` | Experimental |
+| Sankey | `sankey-beta` | ✅ | `no-experimental`, `sankey-non-positive-value`, `sankey-self-loop` | Experimental |
+| Block | `block-beta` | ✅ | `no-experimental`, `block-no-blocks` | Experimental |
+| Packet | `packet-beta` | ✅ | `no-experimental`, `packet-no-fields` | Experimental |
+| Architecture | `architecture-beta` | ✅ | `no-experimental`, `architecture-no-elements` | Experimental |
 | ZenUML | `zenuml` | ❌ | - | Requires separate [`@mermaid-js/mermaid-zenuml`](https://github.com/mermaid-js/zenuml-core) package; not bundled in mermaid v11 |
 
 ## Performance

@@ -145,6 +145,267 @@ const noExperimental: Rule = {
   ],
 };
 
+// ---------------------------------------------------------------------------
+// Experimental diagram helpers and rules
+// ---------------------------------------------------------------------------
+
+interface XychartSeries {
+  kind: 'line' | 'bar';
+  length: number;
+  line: number;
+}
+
+interface ParsedXychart {
+  hasXAxis: boolean;
+  xAxisLabelCount?: number;
+  hasYAxis: boolean;
+  series: XychartSeries[];
+}
+
+const XYCHART_X_AXIS_RE = /^x-axis\b/;
+const XYCHART_Y_AXIS_RE = /^y-axis\b/;
+const XYCHART_CATEGORICAL_X_AXIS_RE = /^x-axis\s*\[(.*)\]\s*$/;
+const XYCHART_SERIES_RE = /^(line|bar)\s*\[(.*)\]\s*$/;
+
+function isXychart(block: Block): boolean {
+  return block.type === 'xychart-beta';
+}
+
+function commaItemCount(value: string): number {
+  const trimmed = value.trim();
+  if (trimmed === '') return 0;
+  return trimmed
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean).length;
+}
+
+function parseXychart(lines: string[]): ParsedXychart {
+  const parsed: ParsedXychart = {
+    hasXAxis: false,
+    hasYAxis: false,
+    series: [],
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    if (trimmed === '' || trimmed.startsWith('%%')) continue;
+
+    if (XYCHART_X_AXIS_RE.test(trimmed)) {
+      parsed.hasXAxis = true;
+      const categorical = XYCHART_CATEGORICAL_X_AXIS_RE.exec(trimmed);
+      if (categorical !== null) {
+        parsed.xAxisLabelCount = commaItemCount(categorical[1]);
+      }
+      continue;
+    }
+
+    if (XYCHART_Y_AXIS_RE.test(trimmed)) {
+      parsed.hasYAxis = true;
+      continue;
+    }
+
+    const series = XYCHART_SERIES_RE.exec(trimmed);
+    if (series === null) continue;
+    parsed.series.push({
+      kind: series[1] as XychartSeries['kind'],
+      length: commaItemCount(series[2]),
+      line: i + 1,
+    });
+  }
+
+  return parsed;
+}
+
+const xychartMissingXAxis: Rule = {
+  id: 'xychart-missing-x-axis',
+  appliesTo: isXychart,
+  evaluate: ({ lines }) => {
+    const chart = parseXychart(lines);
+    if (chart.series.length === 0 || chart.hasXAxis) return [];
+    return [
+      {
+        message:
+          'xychart-beta has data series but no `x-axis`; add an explicit axis so the horizontal scale and labels are clear.',
+        line: 1,
+      },
+    ];
+  },
+};
+
+const xychartMissingYAxis: Rule = {
+  id: 'xychart-missing-y-axis',
+  appliesTo: isXychart,
+  evaluate: ({ lines }) => {
+    const chart = parseXychart(lines);
+    if (chart.series.length === 0 || chart.hasYAxis) return [];
+    return [
+      {
+        message:
+          'xychart-beta has data series but no `y-axis`; add an explicit axis so the vertical scale and units are clear.',
+        line: 1,
+      },
+    ];
+  },
+};
+
+const xychartNoSeries: Rule = {
+  id: 'xychart-no-series',
+  appliesTo: isXychart,
+  evaluate: ({ lines }) => {
+    if (parseXychart(lines).series.length > 0) return [];
+    return [
+      {
+        message:
+          'xychart-beta has no data series and renders empty; add at least one `line [...]` or `bar [...]` series.',
+        line: 1,
+      },
+    ];
+  },
+};
+
+const xychartSeriesLengthMismatch: Rule = {
+  id: 'xychart-series-length-mismatch',
+  appliesTo: isXychart,
+  evaluate: ({ lines }) => {
+    const chart = parseXychart(lines);
+    if (chart.series.length === 0) return [];
+
+    const findings: RuleFinding[] = [];
+    if (chart.xAxisLabelCount !== undefined) {
+      for (const series of chart.series) {
+        if (series.length === chart.xAxisLabelCount) continue;
+        findings.push({
+          message: `${series.kind} series has ${series.length} values but the categorical \`x-axis\` defines ${chart.xAxisLabelCount} labels; these lengths should match.`,
+          line: series.line,
+        });
+      }
+      return findings;
+    }
+
+    const [first, ...rest] = chart.series;
+    for (const series of rest) {
+      if (series.length === first.length) continue;
+      findings.push({
+        message: `${series.kind} series has ${series.length} values but the first series on line ${first.line} has ${first.length}; xychart-beta series should use the same length.`,
+        line: series.line,
+      });
+    }
+    return findings;
+  },
+};
+
+interface SankeyLink {
+  source: string;
+  target: string;
+  value: number;
+  line: number;
+}
+
+function isSankey(block: Block): boolean {
+  return block.type === 'sankey-beta';
+}
+
+function parseSankeyLinks(lines: string[]): SankeyLink[] {
+  const links: SankeyLink[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    if (trimmed === '' || trimmed.startsWith('%%')) continue;
+    const parts = trimmed.split(',');
+    if (parts.length !== 3) continue;
+
+    const source = parts[0].trim();
+    const target = parts[1].trim();
+    const value = Number(parts[2].trim());
+    if (source === '' || target === '' || !Number.isFinite(value)) continue;
+
+    links.push({ source, target, value, line: i + 1 });
+  }
+  return links;
+}
+
+const sankeyNonPositiveValue: Rule = {
+  id: 'sankey-non-positive-value',
+  appliesTo: isSankey,
+  evaluate: ({ lines }) =>
+    parseSankeyLinks(lines)
+      .filter((link) => link.value <= 0)
+      .map((link) => ({
+        message: `sankey link \`${link.source}\` → \`${link.target}\` has a non-positive value (${link.value}); sankey flows should be greater than 0.`,
+        line: link.line,
+      })),
+};
+
+const sankeySelfLoop: Rule = {
+  id: 'sankey-self-loop',
+  appliesTo: isSankey,
+  evaluate: ({ lines }) =>
+    parseSankeyLinks(lines)
+      .filter((link) => link.source === link.target)
+      .map((link) => ({
+        message: `sankey link \`${link.source}\` → \`${link.target}\` is a self-loop, which is usually unintentional.`,
+        line: link.line,
+      })),
+};
+
+const BLOCK_DECL_RE = /^\s*[A-Za-z_][\w-]*(?:\s*\[[^\]]*])?(?::\d+)?\s*$/;
+const PACKET_FIELD_RE = /^\s*\d+\s*-\s*\d+\s*:\s*".*"\s*$/;
+const ARCHITECTURE_ELEMENT_RE = /^\s*(service|group|junction)\b/;
+
+const blockNoBlocks: Rule = {
+  id: 'block-no-blocks',
+  appliesTo: (block) => block.type === 'block-beta',
+  evaluate: ({ lines }) => {
+    if (
+      lines.some((line) => {
+        const trimmed = line.trim();
+        return trimmed !== 'block-beta' && BLOCK_DECL_RE.test(trimmed);
+      })
+    ) {
+      return [];
+    }
+    return [
+      {
+        message:
+          'block-beta has no blocks and renders empty; add at least one block declaration.',
+        line: 1,
+      },
+    ];
+  },
+};
+
+const packetNoFields: Rule = {
+  id: 'packet-no-fields',
+  appliesTo: (block) => block.type === 'packet-beta',
+  evaluate: ({ lines }) => {
+    if (lines.some((line) => PACKET_FIELD_RE.test(line.trim()))) return [];
+    return [
+      {
+        message:
+          'packet-beta has no fields and renders empty; add at least one bit-range field row.',
+        line: 1,
+      },
+    ];
+  },
+};
+
+const architectureNoElements: Rule = {
+  id: 'architecture-no-elements',
+  appliesTo: (block) => block.type === 'architecture-beta',
+  evaluate: ({ lines }) => {
+    if (lines.some((line) => ARCHITECTURE_ELEMENT_RE.test(line.trim()))) {
+      return [];
+    }
+    return [
+      {
+        message:
+          'architecture-beta has no elements and renders empty; add at least one `service`, `group`, or `junction` declaration.',
+        line: 1,
+      },
+    ];
+  },
+};
+
 const duplicateIds: Rule = {
   id: 'duplicate-ids',
   appliesTo: isFlowchartOrGraph,
@@ -335,6 +596,196 @@ const noOrphanNodes: Rule = {
 };
 
 // ---------------------------------------------------------------------------
+// Requirement diagram helpers and rules
+// ---------------------------------------------------------------------------
+
+interface RequirementDefinition {
+  kind: 'requirement' | 'element';
+  line: number;
+  name: string;
+}
+
+interface RequirementRelationship {
+  endpoints: [string, string];
+  line: number;
+}
+
+interface ParsedRequirementDiagram {
+  definitions: RequirementDefinition[];
+  ids: Array<{ line: number; value: string }>;
+  relationships: RequirementRelationship[];
+}
+
+const REQUIREMENT_OPEN_RE = /^\s*(requirement|element)\s+(.+?)\s*\{\s*$/;
+const REQUIREMENT_ID_RE = /^\s*id\s*:\s*(.+?)\s*$/;
+
+function normalizeRequirementName(raw: string): string {
+  const withoutClass = raw.replace(/\s*:::[A-Za-z0-9_-]+\s*$/, '').trim();
+  if (
+    withoutClass.startsWith('"') &&
+    withoutClass.endsWith('"') &&
+    withoutClass.length >= 2
+  ) {
+    return withoutClass.slice(1, -1).trim();
+  }
+  return withoutClass;
+}
+
+function parseRequirementRelationship(
+  line: string,
+): RequirementRelationship['endpoints'] | null {
+  const trimmed = line.trim();
+
+  const forwardArrow = trimmed.lastIndexOf('->');
+  if (forwardArrow !== -1) {
+    const left = trimmed.slice(0, forwardArrow).trim();
+    const right = trimmed.slice(forwardArrow + 2).trim();
+    const relationStart = left.lastIndexOf(' - ');
+    if (relationStart === -1) return null;
+
+    const source = normalizeRequirementName(left.slice(0, relationStart));
+    const relation = left.slice(relationStart + 3).trim();
+    const target = normalizeRequirementName(right);
+    if (source !== '' && relation !== '' && target !== '') {
+      return [source, target];
+    }
+    return null;
+  }
+
+  const reverseArrow = trimmed.indexOf('<-');
+  if (reverseArrow !== -1) {
+    const left = trimmed.slice(0, reverseArrow).trim();
+    const right = trimmed.slice(reverseArrow + 2).trim();
+    const relationEnd = right.indexOf(' - ');
+    if (relationEnd === -1) return null;
+
+    const source = normalizeRequirementName(left);
+    const relation = right.slice(0, relationEnd).trim();
+    const target = normalizeRequirementName(right.slice(relationEnd + 3));
+    if (source !== '' && relation !== '' && target !== '') {
+      return [source, target];
+    }
+  }
+
+  return null;
+}
+
+function parseRequirementDiagram(lines: string[]): ParsedRequirementDiagram {
+  const definitions: RequirementDefinition[] = [];
+  const ids: ParsedRequirementDiagram['ids'] = [];
+  const relationships: RequirementRelationship[] = [];
+  let openBlock: RequirementDefinition['kind'] | null = null;
+
+  for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+    const line = lines[lineIdx];
+    const bodyLine = lineIdx + 1;
+    if (line.trimStart().startsWith('%%')) continue;
+
+    const opening = REQUIREMENT_OPEN_RE.exec(line);
+    if (opening !== null) {
+      const kind = opening[1] as RequirementDefinition['kind'];
+      const name = normalizeRequirementName(opening[2]);
+      definitions.push({ kind, line: bodyLine, name });
+      openBlock = kind;
+      continue;
+    }
+
+    if (openBlock === 'requirement') {
+      const id = REQUIREMENT_ID_RE.exec(line);
+      if (id !== null) {
+        ids.push({ line: bodyLine, value: id[1].trim() });
+      }
+    }
+
+    if (line.trim() === '}') {
+      openBlock = null;
+      continue;
+    }
+
+    const relationship = parseRequirementRelationship(line);
+    if (relationship !== null) {
+      relationships.push({ endpoints: relationship, line: bodyLine });
+    }
+  }
+
+  return { definitions, ids, relationships };
+}
+
+const requirementDuplicateName: Rule = {
+  id: 'requirement-duplicate-name',
+  appliesTo: (block) => block.type === 'requirementDiagram',
+  evaluate: ({ lines }) => {
+    const parsed = parseRequirementDiagram(lines);
+    const seen = new Map<string, number>();
+    const findings: RuleFinding[] = [];
+
+    for (const definition of parsed.definitions) {
+      const firstLine = seen.get(definition.name);
+      if (firstLine === undefined) {
+        seen.set(definition.name, definition.line);
+        continue;
+      }
+
+      findings.push({
+        message: `requirement/element name \`${definition.name}\` is declared more than once (first on line ${firstLine}); relationship and style targets become ambiguous.`,
+        line: definition.line,
+      });
+    }
+
+    return findings;
+  },
+};
+
+const requirementDuplicateId: Rule = {
+  id: 'requirement-duplicate-id',
+  appliesTo: (block) => block.type === 'requirementDiagram',
+  evaluate: ({ lines }) => {
+    const parsed = parseRequirementDiagram(lines);
+    const seen = new Map<string, number>();
+    const findings: RuleFinding[] = [];
+
+    for (const id of parsed.ids) {
+      const firstLine = seen.get(id.value);
+      if (firstLine === undefined) {
+        seen.set(id.value, id.line);
+        continue;
+      }
+
+      findings.push({
+        message: `requirement id \`${id.value}\` is declared more than once (first on line ${firstLine}); duplicate ids make requirement references ambiguous.`,
+        line: id.line,
+      });
+    }
+
+    return findings;
+  },
+};
+
+const requirementUndefinedReference: Rule = {
+  id: 'requirement-undefined-reference',
+  appliesTo: (block) => block.type === 'requirementDiagram',
+  evaluate: ({ lines }) => {
+    const parsed = parseRequirementDiagram(lines);
+    const definedNames = new Set(
+      parsed.definitions.map((definition) => definition.name),
+    );
+    const findings: RuleFinding[] = [];
+
+    for (const relationship of parsed.relationships) {
+      for (const endpoint of relationship.endpoints) {
+        if (!definedNames.has(endpoint)) {
+          findings.push({
+            message: `relationship endpoint \`${endpoint}\` does not match any defined requirement or element name.`,
+            line: relationship.line,
+          });
+        }
+      }
+    }
+
+    return findings;
+  },
+};
+
 // Sequence & class diagram helpers and rules
 // ---------------------------------------------------------------------------
 
@@ -1055,7 +1506,6 @@ const erStandaloneEntity: Rule = {
   },
 };
 
-// ---------------------------------------------------------------------------
 // Gantt chart helpers and rules
 // ---------------------------------------------------------------------------
 
@@ -2051,6 +2501,15 @@ const RULES: Rule[] = [
   preferFlowchart,
   requireDirection,
   noExperimental,
+  xychartMissingXAxis,
+  xychartMissingYAxis,
+  xychartNoSeries,
+  xychartSeriesLengthMismatch,
+  sankeyNonPositiveValue,
+  sankeySelfLoop,
+  blockNoBlocks,
+  packetNoFields,
+  architectureNoElements,
   duplicateIds,
   noDuplicateNodeDeclarations,
   noDuplicateEdges,
@@ -2072,6 +2531,9 @@ const RULES: Rule[] = [
   erDuplicateAttribute,
   erDuplicateEntity,
   erStandaloneEntity,
+  requirementDuplicateName,
+  requirementDuplicateId,
+  requirementUndefinedReference,
   ganttDuplicateTaskId,
   ganttUndefinedDependency,
   ganttEmptySection,

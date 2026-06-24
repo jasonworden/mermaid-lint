@@ -204,6 +204,18 @@ const RULE_DESCRIPTIONS: Record<RuleId, string> = {
     "Mermaid: prefer 'flowchart' over the legacy 'graph' keyword",
   'require-direction': 'Mermaid: diagram has no explicit direction',
   'no-experimental': 'Mermaid: experimental diagram type with unstable syntax',
+  'xychart-missing-x-axis': 'Mermaid: an XY chart has no x-axis',
+  'xychart-missing-y-axis': 'Mermaid: an XY chart has no y-axis',
+  'xychart-no-series': 'Mermaid: an XY chart has no data series',
+  'xychart-series-length-mismatch':
+    'Mermaid: XY chart series lengths do not agree',
+  'sankey-non-positive-value':
+    'Mermaid: a sankey link has a non-positive value',
+  'sankey-self-loop': 'Mermaid: a sankey link points to itself',
+  'block-no-blocks': 'Mermaid: a block diagram has no block declarations',
+  'packet-no-fields': 'Mermaid: a packet diagram has no fields',
+  'architecture-no-elements':
+    'Mermaid: an architecture diagram has no elements',
   'no-duplicate-edges': 'Mermaid: the same edge is defined more than once',
   'no-self-loop': 'Mermaid: a node has an edge to itself',
   'no-empty-labels': 'Mermaid: a node has an empty label',
@@ -236,6 +248,12 @@ const RULE_DESCRIPTIONS: Record<RuleId, string> = {
   'gantt-undefined-dependency':
     'Mermaid: a gantt task depends on an undefined task id',
   'gantt-empty-section': 'Mermaid: a gantt section has no tasks',
+  'requirement-duplicate-name':
+    'Mermaid: a requirement or element name is defined more than once',
+  'requirement-duplicate-id':
+    'Mermaid: a requirement id is defined more than once',
+  'requirement-undefined-reference':
+    'Mermaid: a requirement relationship endpoint is undefined',
   'journey-empty-section': 'Mermaid: a journey section has no tasks',
   'journey-score-out-of-range':
     'Mermaid: a journey task score is outside the 1-5 range',

@@ -38,6 +38,15 @@ export type RuleId =
   | 'prefer-flowchart'
   | 'require-direction'
   | 'no-experimental'
+  | 'xychart-missing-x-axis'
+  | 'xychart-missing-y-axis'
+  | 'xychart-no-series'
+  | 'xychart-series-length-mismatch'
+  | 'sankey-non-positive-value'
+  | 'sankey-self-loop'
+  | 'block-no-blocks'
+  | 'packet-no-fields'
+  | 'architecture-no-elements'
   | 'no-duplicate-edges'
   | 'no-self-loop'
   | 'no-empty-labels'
@@ -61,6 +70,9 @@ export type RuleId =
   | 'gantt-duplicate-task-id'
   | 'gantt-undefined-dependency'
   | 'gantt-empty-section'
+  | 'requirement-duplicate-name'
+  | 'requirement-duplicate-id'
+  | 'requirement-undefined-reference'
   | 'journey-empty-section'
   | 'journey-score-out-of-range'
   | 'journey-task-without-actor'
@@ -106,6 +118,8 @@ export type ResolvedRules = Record<RuleId, RuleSeverity>;
  */
 export type RuleDocsScope =
   | 'all'
+  | 'architecture-beta'
+  | 'block-beta'
   | 'classDiagram'
   | 'C4Context'
   | 'erDiagram'
@@ -115,11 +129,15 @@ export type RuleDocsScope =
   | 'graph'
   | 'journey'
   | 'mindmap'
+  | 'packet-beta'
   | 'pie'
   | 'quadrantChart'
+  | 'requirementDiagram'
+  | 'sankey-beta'
   | 'sequenceDiagram'
   | 'stateDiagram'
-  | 'timeline';
+  | 'timeline'
+  | 'xychart-beta';
 
 /**
  * Diagram keywords used by README.md's Diagram types table.
@@ -141,6 +159,7 @@ export type ReadmeDiagramKeyword =
   | 'packet-beta'
   | 'pie'
   | 'quadrantChart'
+  | 'requirementDiagram'
   | 'sankey-beta'
   | 'sequenceDiagram'
   | 'stateDiagram-v2'
@@ -203,6 +222,13 @@ export interface RuleMetadata {
  * and `gantt-empty-section` (a `section` with no tasks — renders as an empty
  * header).
  *
+ * The requirement-diagram rules are all advisory `warn`:
+ * `requirement-duplicate-name` (the same requirement/element name defined more
+ * than once — relationships and styling target names, so duplicates are
+ * ambiguous), `requirement-duplicate-id` (the same requirement `id:` used more
+ * than once), and `requirement-undefined-reference` (a relationship endpoint
+ * whose requirement/element name is never defined in the diagram).
+ *
  * The journey rules are all advisory `warn`: `journey-empty-section` (a
  * `section` with no tasks — renders as an empty section header),
  * `journey-score-out-of-range` (a task happiness score outside Mermaid's
@@ -239,6 +265,12 @@ export interface RuleMetadata {
  * x/y is outside `[0, 1]` is intentionally *not* a rule here: Mermaid's grammar
  * rejects it as a syntax error, so the parser already catches it.
  *
+ * The experimental-diagram rules are all advisory `warn`: the xychart rules
+ * catch missing axes, missing series, and length mismatches Mermaid accepts;
+ * the sankey rules catch non-positive link values and self-loops; and the
+ * block/packet/architecture rules flag parser-valid diagrams that otherwise
+ * render empty.
+ *
  * @internal
  */
 export const RULE_METADATA = {
@@ -267,6 +299,51 @@ export const RULE_METADATA = {
       'packet-beta',
       'architecture-beta',
     ],
+  },
+  'xychart-missing-x-axis': {
+    defaultSeverity: 'warn',
+    docsScope: 'xychart-beta',
+    readmeDiagramKeywords: ['xychart-beta'],
+  },
+  'xychart-missing-y-axis': {
+    defaultSeverity: 'warn',
+    docsScope: 'xychart-beta',
+    readmeDiagramKeywords: ['xychart-beta'],
+  },
+  'xychart-no-series': {
+    defaultSeverity: 'warn',
+    docsScope: 'xychart-beta',
+    readmeDiagramKeywords: ['xychart-beta'],
+  },
+  'xychart-series-length-mismatch': {
+    defaultSeverity: 'warn',
+    docsScope: 'xychart-beta',
+    readmeDiagramKeywords: ['xychart-beta'],
+  },
+  'sankey-non-positive-value': {
+    defaultSeverity: 'warn',
+    docsScope: 'sankey-beta',
+    readmeDiagramKeywords: ['sankey-beta'],
+  },
+  'sankey-self-loop': {
+    defaultSeverity: 'warn',
+    docsScope: 'sankey-beta',
+    readmeDiagramKeywords: ['sankey-beta'],
+  },
+  'block-no-blocks': {
+    defaultSeverity: 'warn',
+    docsScope: 'block-beta',
+    readmeDiagramKeywords: ['block-beta'],
+  },
+  'packet-no-fields': {
+    defaultSeverity: 'warn',
+    docsScope: 'packet-beta',
+    readmeDiagramKeywords: ['packet-beta'],
+  },
+  'architecture-no-elements': {
+    defaultSeverity: 'warn',
+    docsScope: 'architecture-beta',
+    readmeDiagramKeywords: ['architecture-beta'],
   },
   'no-duplicate-edges': {
     defaultSeverity: 'warn',
@@ -382,6 +459,21 @@ export const RULE_METADATA = {
     defaultSeverity: 'warn',
     docsScope: 'gantt',
     readmeDiagramKeywords: ['gantt'],
+  },
+  'requirement-duplicate-name': {
+    defaultSeverity: 'warn',
+    docsScope: 'requirementDiagram',
+    readmeDiagramKeywords: ['requirementDiagram'],
+  },
+  'requirement-duplicate-id': {
+    defaultSeverity: 'warn',
+    docsScope: 'requirementDiagram',
+    readmeDiagramKeywords: ['requirementDiagram'],
+  },
+  'requirement-undefined-reference': {
+    defaultSeverity: 'warn',
+    docsScope: 'requirementDiagram',
+    readmeDiagramKeywords: ['requirementDiagram'],
   },
   'journey-empty-section': {
     defaultSeverity: 'warn',

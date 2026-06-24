@@ -280,6 +280,164 @@ describe('checkSemantics', () => {
     });
   });
 
+  describe('experimental diagram-specific rules', () => {
+    it('flags xychart-beta with series but no x-axis', () => {
+      const b = block(
+        'xychart-beta\n  y-axis "Revenue" 0 --> 10\n  line [1, 2, 3]',
+        'xychart-beta',
+      );
+      const warnings = only(b, 'xychart-missing-x-axis');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].severity).toBe('warn');
+      expect(warnings[0].message).toContain('x-axis');
+    });
+
+    it('does not flag xychart-beta with an x-axis', () => {
+      const b = block(
+        'xychart-beta\n  x-axis [Jan, Feb, Mar]\n  y-axis "Revenue" 0 --> 10\n  line [1, 2, 3]',
+        'xychart-beta',
+      );
+      expect(only(b, 'xychart-missing-x-axis')).toEqual([]);
+    });
+
+    it('flags xychart-beta with series but no y-axis', () => {
+      const b = block(
+        'xychart-beta\n  x-axis [Jan, Feb, Mar]\n  line [1, 2, 3]',
+        'xychart-beta',
+      );
+      const warnings = only(b, 'xychart-missing-y-axis');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].severity).toBe('warn');
+      expect(warnings[0].message).toContain('y-axis');
+    });
+
+    it('does not flag xychart-beta with a y-axis', () => {
+      const b = block(
+        'xychart-beta\n  x-axis [Jan, Feb, Mar]\n  y-axis "Revenue" 0 --> 10\n  line [1, 2, 3]',
+        'xychart-beta',
+      );
+      expect(only(b, 'xychart-missing-y-axis')).toEqual([]);
+    });
+
+    it('flags xychart-beta with axes but no series', () => {
+      const b = block(
+        'xychart-beta\n  x-axis [Jan, Feb, Mar]\n  y-axis "Revenue" 0 --> 10',
+        'xychart-beta',
+      );
+      const warnings = only(b, 'xychart-no-series');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].severity).toBe('warn');
+      expect(warnings[0].message).toContain('no data series');
+    });
+
+    it('does not flag xychart-beta when it has a series', () => {
+      const b = block(
+        'xychart-beta\n  x-axis [Jan, Feb, Mar]\n  y-axis "Revenue" 0 --> 10\n  line [1, 2, 3]',
+        'xychart-beta',
+      );
+      expect(only(b, 'xychart-no-series')).toEqual([]);
+    });
+
+    it('flags xychart-beta when a series length does not match the categorical x-axis', () => {
+      const b = block(
+        'xychart-beta\n  x-axis [Jan, Feb, Mar]\n  y-axis "Revenue" 0 --> 10\n  line [1, 2]',
+        'xychart-beta',
+      );
+      const warnings = only(b, 'xychart-series-length-mismatch');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].severity).toBe('warn');
+      expect(warnings[0].line).toBe(4);
+      expect(warnings[0].message).toContain('series');
+      expect(warnings[0].message).toContain('3');
+      expect(warnings[0].message).toContain('2');
+    });
+
+    it('flags xychart-beta when series lengths disagree with each other', () => {
+      const b = block(
+        'xychart-beta\n  x-axis 0 --> 10\n  y-axis "Revenue" 0 --> 10\n  line [1, 2, 3]\n  bar [1, 2]',
+        'xychart-beta',
+      );
+      const warnings = only(b, 'xychart-series-length-mismatch');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].line).toBe(5);
+      expect(warnings[0].message).toContain('bar');
+    });
+
+    it('flags sankey-beta with a non-positive link value', () => {
+      const b = block('sankey-beta\n  A,B,0\n  B,C,-1', 'sankey-beta');
+      const warnings = only(b, 'sankey-non-positive-value');
+      expect(warnings).toHaveLength(2);
+      expect(warnings[0].severity).toBe('warn');
+      expect(warnings[0].message).toContain('non-positive');
+    });
+
+    it('does not flag sankey-beta with positive link values', () => {
+      const b = block('sankey-beta\n  A,B,1\n  B,C,2', 'sankey-beta');
+      expect(only(b, 'sankey-non-positive-value')).toEqual([]);
+    });
+
+    it('flags sankey-beta with a self-loop link', () => {
+      const b = block('sankey-beta\n  A,A,1', 'sankey-beta');
+      const warnings = only(b, 'sankey-self-loop');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].severity).toBe('warn');
+      expect(warnings[0].message).toContain('self-loop');
+      expect(warnings[0].message).toContain('`A`');
+    });
+
+    it('does not flag sankey-beta without self-loops', () => {
+      const b = block('sankey-beta\n  A,B,1', 'sankey-beta');
+      expect(only(b, 'sankey-self-loop')).toEqual([]);
+    });
+
+    it('flags block-beta with no block declarations', () => {
+      const b = block('block-beta\n  columns 2', 'block-beta');
+      const warnings = only(b, 'block-no-blocks');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].severity).toBe('warn');
+      expect(warnings[0].message).toContain('no blocks');
+    });
+
+    it('does not flag block-beta with a block declaration', () => {
+      const b = block('block-beta\n  columns 2\n  a["A"]:1', 'block-beta');
+      expect(only(b, 'block-no-blocks')).toEqual([]);
+    });
+
+    it('does not flag block-beta with a bare block declaration', () => {
+      const b = block('block-beta\n  a["A"]', 'block-beta');
+      expect(only(b, 'block-no-blocks')).toEqual([]);
+    });
+
+    it('flags packet-beta with no fields', () => {
+      const b = block('packet-beta\n  %% comment', 'packet-beta');
+      const warnings = only(b, 'packet-no-fields');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].severity).toBe('warn');
+      expect(warnings[0].message).toContain('no fields');
+    });
+
+    it('does not flag packet-beta with a field', () => {
+      const b = block('packet-beta\n  0-7: "Source Port"', 'packet-beta');
+      expect(only(b, 'packet-no-fields')).toEqual([]);
+    });
+
+    it('flags architecture-beta with no elements', () => {
+      const b = block('architecture-beta\n  %% comment', 'architecture-beta');
+      const warnings = only(b, 'architecture-no-elements');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].severity).toBe('warn');
+      expect(warnings[0].message).toContain('no elements');
+    });
+
+    it('does not flag architecture-beta with an element', () => {
+      const b = block(
+        'architecture-beta\n  service api(server)[API]',
+        'architecture-beta',
+      );
+      expect(only(b, 'architecture-no-elements')).toEqual([]);
+    });
+  });
+
   describe('no-duplicate-edges rule', () => {
     it('fires on a duplicate edge (warn)', () => {
       const b = block('flowchart LR\n  A --> B\n  A --> B');
@@ -1967,6 +2125,84 @@ describe('checkSemantics', () => {
         'C4Context\n  %% mermaid-lint-disable c4-undefined-relationship-endpoint\n  Person(customer, "Customer")\n  Rel(customer, banking, "Uses")',
       );
       expect(only(b, 'c4-undefined-relationship-endpoint')).toEqual([]);
+    });
+  });
+
+  describe('requirement diagram rules', () => {
+    function requirementBlock(body: string): Block {
+      return block(body, 'requirementDiagram');
+    }
+
+    it('keeps a valid requirement diagram clean, including quoted names, class suffixes, and forward references', () => {
+      const b = requirementBlock(
+        'requirementDiagram\n  "API Gateway" - contains -> login_req\n  requirement login_req:::product {\n    id: REQ-1\n    text: user logs in\n    risk: medium\n    verifymethod: test\n  }\n  element "API Gateway" {\n    type: system\n  }',
+      );
+
+      expect(only(b, 'requirement-duplicate-name')).toEqual([]);
+      expect(only(b, 'requirement-duplicate-id')).toEqual([]);
+      expect(only(b, 'requirement-undefined-reference')).toEqual([]);
+    });
+
+    it('flags duplicate requirement and element names, including cross-kind duplicates', () => {
+      const b = requirementBlock(
+        'requirementDiagram\n  requirement shared_name {\n    id: REQ-1\n    text: first\n    risk: medium\n    verifymethod: test\n  }\n  element shared_name {\n    type: system\n  }\n  requirement "Quoted Name" {\n    id: REQ-2\n    text: second\n    risk: low\n    verifymethod: inspection\n  }\n  element "Quoted Name":::external {\n    type: system\n  }',
+      );
+
+      const warnings = only(b, 'requirement-duplicate-name');
+      expect(warnings).toHaveLength(2);
+      expect(warnings.map((warning) => warning.severity)).toEqual([
+        'warn',
+        'warn',
+      ]);
+      expect(warnings[0].message).toContain('shared_name');
+      expect(warnings[0].message).toContain('line 2');
+      expect(warnings[0].line).toBe(8);
+      expect(warnings[1].message).toContain('Quoted Name');
+      expect(warnings[1].message).toContain('line 11');
+      expect(warnings[1].line).toBe(17);
+    });
+
+    it('flags duplicate requirement ids with the first definition line', () => {
+      const b = requirementBlock(
+        'requirementDiagram\n  requirement first_req {\n    id: REQ-42\n    text: first\n    risk: medium\n    verifymethod: test\n  }\n  requirement second_req {\n    id: REQ-42\n    text: second\n    risk: low\n    verifymethod: inspection\n  }',
+      );
+
+      const warnings = only(b, 'requirement-duplicate-id');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].severity).toBe('warn');
+      expect(warnings[0].message).toContain('REQ-42');
+      expect(warnings[0].message).toContain('line 3');
+      expect(warnings[0].line).toBe(9);
+    });
+
+    it('flags undefined relationship endpoints after collecting all names first', () => {
+      const b = requirementBlock(
+        'requirementDiagram\n  known_element - traces -> missing_requirement\n  missing_source <- satisfies - known_requirement\n  requirement known_requirement {\n    id: REQ-1\n    text: first\n    risk: medium\n    verifymethod: test\n  }\n  element known_element {\n    type: system\n  }',
+      );
+
+      const warnings = only(b, 'requirement-undefined-reference');
+      expect(warnings).toHaveLength(2);
+      expect(warnings[0].severity).toBe('warn');
+      expect(warnings[0].message).toContain('missing_requirement');
+      expect(warnings[0].line).toBe(2);
+      expect(warnings[1].message).toContain('missing_source');
+      expect(warnings[1].line).toBe(3);
+    });
+
+    it('respects suppression directives and rule-off configuration', () => {
+      const suppressed = requirementBlock(
+        'requirementDiagram\n  %% mermaid-lint-disable requirement-duplicate-name\n  requirement duplicate_name {\n    id: REQ-1\n    text: first\n    risk: medium\n    verifymethod: test\n  }\n  element duplicate_name {\n    type: system\n  }',
+      );
+      expect(only(suppressed, 'requirement-duplicate-name')).toEqual([]);
+
+      const b = requirementBlock(
+        'requirementDiagram\n  missing_source - traces -> missing_target',
+      );
+      const rules: ResolvedRules = {
+        ...RULE_DEFAULTS,
+        'requirement-undefined-reference': 'off',
+      };
+      expect(only(b, 'requirement-undefined-reference', rules)).toEqual([]);
     });
   });
 });
