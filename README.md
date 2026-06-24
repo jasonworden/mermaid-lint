@@ -54,7 +54,7 @@ and [textlint](#textlint) all gain Mermaid validation via a mermaid-lint rule.
 
 ## Packages
 
-| Package | npm | Description |
+| Package | Published | Description |
 |---|---|---|
 | [`@mermaid-lint/cli`](packages/cli) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/cli.svg)](https://www.npmjs.com/package/@mermaid-lint/cli) | CLI — `npx mermaid-lint` |
 | [`@mermaid-lint/remark`](packages/remark) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/remark.svg)](https://www.npmjs.com/package/@mermaid-lint/remark) | remark-lint plugin |
@@ -63,7 +63,7 @@ and [textlint](#textlint) all gain Mermaid validation via a mermaid-lint rule.
 | [`@mermaid-lint/vitest`](packages/vitest) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/vitest.svg)](https://www.npmjs.com/package/@mermaid-lint/vitest) | Vitest adapter |
 | [`@mermaid-lint/jest`](packages/jest) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/jest.svg)](https://www.npmjs.com/package/@mermaid-lint/jest) | Jest adapter |
 | [`@mermaid-lint/core`](packages/core) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/core.svg)](https://www.npmjs.com/package/@mermaid-lint/core) | Core utilities (extract, validate, discover) — [API docs](https://docs.mermaidlint.com) |
-| [`mermaid-lint-vscode`](packages/vscode) | _(unreleased)_ | VS Code extension — live squiggles for `.md` + `.mmd` |
+| [`mermaid-lint-vscode`](packages/vscode) | [![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/mermaid-lint.mermaid-lint-vscode.svg?label=Marketplace)](https://marketplace.visualstudio.com/items?itemName=mermaid-lint.mermaid-lint-vscode) [![Open VSX](https://img.shields.io/open-vsx/v/mermaid-lint/mermaid-lint-vscode.svg?label=Open%20VSX)](https://open-vsx.org/extension/mermaid-lint/mermaid-lint-vscode) | VS Code extension — live squiggles in Markdown (`.md`, `.markdown`) blocks + standalone `.mmd` files |
 
 ## CLI
 
@@ -499,6 +499,9 @@ In addition to syntax errors, mermaid-lint runs a set of semantic rules over dia
 | `gitgraph-duplicate-commit-id` | `warn` | The same explicit `id:` on more than one commit — renders but makes `merge`/`cherry-pick` references ambiguous | gitGraph |
 | `gitgraph-duplicate-tag` | `warn` | The same `tag:` used more than once — two commits render with the same tag, usually a copy-paste mistake | gitGraph |
 | `gitgraph-no-commits` | `warn` | A `gitGraph` with no commits — parses but renders an empty diagram | gitGraph |
+| `quadrant-duplicate-point` | `warn` | Two data points with the same label — renders overlapping markers, usually a copy-paste mistake | quadrantChart |
+| `quadrant-no-points` | `warn` | A quadrantChart with axis or quadrant labels but no data points — parses but renders an empty plot | quadrantChart |
+| `quadrant-duplicate-quadrant` | `warn` | The same quadrant region (`quadrant-1`–`quadrant-4`) labeled more than once — Mermaid keeps only the last | quadrantChart |
 
 ```
 docs/api.md:7:1: error: duplicate-ids: node "A" declared with label "Start" (line 2) and "Begin" (line 7)
@@ -544,7 +547,7 @@ mermaid-lint validates all 19 Mermaid diagram types using the official `mermaid.
 
 ## Performance
 
-Benchmarks run on Apple M4 Max (64 GB), Node.js 22. Corpus: one Markdown file with the given number of flowchart diagrams (~1/3 with duplicate-ID conflicts, all syntactically valid). Values are **total ms (ms per diagram)**.
+Benchmarks run on Apple M4 Max (64 GB), Node.js 22. Test input: one Markdown file with the given number of flowchart diagrams (~1/3 with duplicate-ID conflicts, all syntactically valid). Values are **total ms (ms per diagram)**.
 
 | Diagrams | mermaid-lint v0.3.0 | mermaid-lint v0.5.0 |
 |---|---|---|
@@ -557,7 +560,7 @@ Benchmarks run on Apple M4 Max (64 GB), Node.js 22. Corpus: one Markdown file wi
 
 **v0.5.0 is 3.4–4.0× faster** than v0.3.0. The fixed ~400 ms startup cost (Node.js + mermaid.js) is now eliminated on the happy path: `@mermanjs/web` WASM handles validation with ~100 ms init + ~0.1 ms/diagram. mermaid.js is only loaded when a diagram fails validation, where it supplies precise line/column error locations.
 
-**Validation accuracy:** mermaid-lint uses `@mermanjs/web` (Rust WASM) for the fast path. When merman signals an error, mermaid.js is the authoritative fallback — it provides precise line/col locations and is the final arbiter of validity. Parity between the two parsers is enforced by a CI test suite: a corpus of 24+ valid and 10+ invalid diagrams across all major Mermaid diagram types runs on every PR, failing if merman ever accepts a diagram that mermaid.js rejects. For corpora with parse errors, both runtimes load (~500 ms total).
+**Validation accuracy:** mermaid-lint uses `@mermanjs/web` (Rust WASM) for the fast path. When merman signals an error, mermaid.js is the authoritative fallback — it provides precise line/col locations and is the final arbiter of validity. Parity between the two parsers is enforced by a CI test suite: a test set of 24+ valid and 10+ invalid diagrams across all major Mermaid diagram types runs on every PR, failing if merman ever accepts a diagram that mermaid.js rejects. For files with parse errors, both runtimes load (~500 ms total).
 
 Run `pnpm bench` to reproduce.
 

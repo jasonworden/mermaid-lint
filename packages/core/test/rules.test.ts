@@ -58,6 +58,9 @@ describe('resolveRules', () => {
     expect(RULE_DEFAULTS['gitgraph-duplicate-commit-id']).toBe('warn');
     expect(RULE_DEFAULTS['gitgraph-duplicate-tag']).toBe('warn');
     expect(RULE_DEFAULTS['gitgraph-no-commits']).toBe('warn');
+    expect(RULE_DEFAULTS['quadrant-duplicate-point']).toBe('warn');
+    expect(RULE_DEFAULTS['quadrant-no-points']).toBe('warn');
+    expect(RULE_DEFAULTS['quadrant-duplicate-quadrant']).toBe('warn');
   });
 
   it('layers user overrides over the defaults', () => {
