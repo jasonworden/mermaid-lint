@@ -75,7 +75,7 @@ Tune rules through the `rules` config key. Most rules default to `warn`;
 | `gitgraph-no-commits` | `warn` | A `gitGraph` with no commits; parses but renders an empty diagram | gitGraph |
 | `packet-no-fields` | `warn` | A `packet-beta` diagram with no field rows; parses but renders empty | packet-beta |
 | `packet-empty-labels` | `warn` | A `packet-beta` field with an empty label; renders a blank cell | packet-beta |
-| `sankey-duplicate-link` | `warn` | The same `source,target,value` link repeated; links stack and the duplicate is usually accidental | sankey-beta |
+| `sankey-duplicate-link` | `warn` | The same `source,target` pair repeated, regardless of `value`; links stack and the duplicate is usually accidental | sankey-beta |
 | `sankey-self-loop` | `warn` | A sankey row whose source and target are the same; usually an invalid or accidental flow | sankey-beta |
 | `xychart-no-series` | `warn` | An `xychart-beta` diagram with axes but no `line` or `bar` series; parses but renders empty | xychart-beta |
 | `xychart-series-length-mismatch` | `warn` | A categorical `x-axis` whose label count does not match a `line` or `bar` series length | xychart-beta |

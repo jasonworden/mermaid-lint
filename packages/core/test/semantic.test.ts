@@ -2260,6 +2260,14 @@ describe('checkSemantics', () => {
       expect(only(b, 'architecture-no-edges')).toEqual([]);
     });
 
+    it('accepts Mermaid-valid architecture edges with optional whitespace around ids and ports', () => {
+      const b = architectureBlock(
+        'architecture-beta\n  service gateway(server)[Gateway]\n  service db1(database)[Database 1]\n  service db2(database)[Database 2]\n  service db3(database)[Database 3]\n  gateway :R -- L: db1\n  gateway:R -- L: db2\n  gateway :R -- L:db3',
+      );
+      expect(only(b, 'architecture-no-edges')).toEqual([]);
+      expect(only(b, 'architecture-duplicate-edge')).toEqual([]);
+    });
+
     it('flags repeated exact non-bare architecture edge declarations', () => {
       const b = architectureBlock(
         'architecture-beta\n  group edge(cloud)[Edge]\n  group data(database)[Data]\n  service gateway(server)[Gateway] in edge\n  service db(database)[Database] in data\n  gateway{group}:R --> L:db{group}\n  gateway{group}:R --> L:db{group}',
@@ -2271,6 +2279,17 @@ describe('checkSemantics', () => {
         '`gateway{group}:R --> L:db{group}`',
       );
       expect(warnings[0].message).toContain('line 6');
+    });
+
+    it('flags duplicate architecture edges when only endpoint whitespace differs', () => {
+      const b = architectureBlock(
+        'architecture-beta\n  service gateway(server)[Gateway]\n  service db(database)[Database]\n  gateway :R -- L: db\n  gateway:R -- L:db',
+      );
+      const warnings = only(b, 'architecture-duplicate-edge');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].line).toBe(5);
+      expect(warnings[0].message).toContain('`gateway:R -- L:db`');
+      expect(warnings[0].message).toContain('line 4');
     });
 
     it('respects suppression directives and rule-off configuration', () => {
@@ -2375,6 +2394,17 @@ describe('checkSemantics', () => {
       const warnings = only(b, 'sankey-duplicate-link');
       expect(warnings).toHaveLength(1);
       expect(warnings[0].severity).toBe('warn');
+      expect(warnings[0].message).toContain('Source');
+      expect(warnings[0].message).toContain('Target');
+      expect(warnings[0].line).toBe(3);
+    });
+
+    it('flags repeated source/target rows even when the values differ', () => {
+      const b = sankeyBlock(
+        'sankey-beta\n  Source,Target,10\n  Source,Target,999',
+      );
+      const warnings = only(b, 'sankey-duplicate-link');
+      expect(warnings).toHaveLength(1);
       expect(warnings[0].message).toContain('Source');
       expect(warnings[0].message).toContain('Target');
       expect(warnings[0].line).toBe(3);

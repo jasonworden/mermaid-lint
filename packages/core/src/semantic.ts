@@ -2230,7 +2230,7 @@ const gitgraphNoCommits: Rule = {
 const ARCHITECTURE_DECL_RE =
   /^\s*(service|group|junction)\s+([A-Za-z0-9_][\w-]*)\b/;
 const ARCHITECTURE_EDGE_RE =
-  /^\s*([A-Za-z0-9_][\w-]*)(\{group\})?:([TBLR])\s*(<)?--(>)?\s*([TBLR]):([A-Za-z0-9_][\w-]*)(\{group\})?\s*$/;
+  /^\s*([A-Za-z0-9_][\w-]*)(\{group\})?\s*:\s*([TBLR])\s*(<)?--(>)?\s*([TBLR])\s*:\s*([A-Za-z0-9_][\w-]*)(\{group\})?\s*$/;
 
 interface ArchitectureDeclaration {
   line: number;
