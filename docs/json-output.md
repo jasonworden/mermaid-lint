@@ -12,7 +12,7 @@ npx mermaid-lint --format json --all
 
 ```json
 {
-  "version": "0.34.0",
+  "version": "0.35.0",
   "files": [
     {
       "path": "docs/api.md",
