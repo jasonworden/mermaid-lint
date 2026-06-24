@@ -276,13 +276,6 @@ const RULE_DESCRIPTIONS: Record<RuleId, string> = {
     'Mermaid: a gitGraph commit id is used more than once',
   'gitgraph-duplicate-tag': 'Mermaid: a gitGraph tag is used more than once',
   'gitgraph-no-commits': 'Mermaid: a gitGraph has no commits',
-  'packet-no-fields': 'Mermaid: a packet diagram has no fields',
-  'packet-empty-labels': 'Mermaid: a packet field has an empty label',
-  'sankey-duplicate-link': 'Mermaid: a sankey link is defined more than once',
-  'sankey-self-loop': 'Mermaid: a sankey link points to itself',
-  'xychart-no-series': 'Mermaid: an xychart has no data series',
-  'xychart-series-length-mismatch':
-    'Mermaid: an xychart series length does not match the x-axis labels',
   'quadrant-duplicate-point':
     'Mermaid: a quadrantChart data point label is defined more than once',
   'quadrant-no-points': 'Mermaid: a quadrantChart has no data points',

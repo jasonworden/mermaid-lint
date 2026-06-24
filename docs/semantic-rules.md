@@ -73,12 +73,6 @@ Tune rules through the `rules` config key. Most rules default to `warn`;
 | `gitgraph-duplicate-commit-id` | `warn` | The same explicit `id:` on more than one commit; makes `merge`/`cherry-pick` references ambiguous | gitGraph |
 | `gitgraph-duplicate-tag` | `warn` | The same `tag:` used more than once; two commits render with the same tag | gitGraph |
 | `gitgraph-no-commits` | `warn` | A `gitGraph` with no commits; parses but renders an empty diagram | gitGraph |
-| `packet-no-fields` | `warn` | A `packet-beta` diagram with no field rows; parses but renders empty | packet-beta |
-| `packet-empty-labels` | `warn` | A `packet-beta` field with an empty label; renders a blank cell | packet-beta |
-| `sankey-duplicate-link` | `warn` | The same `source,target` pair repeated, regardless of `value`; links stack and the duplicate is usually accidental | sankey-beta |
-| `sankey-self-loop` | `warn` | A sankey row whose source and target are the same; usually an invalid or accidental flow | sankey-beta |
-| `xychart-no-series` | `warn` | An `xychart-beta` diagram with axes but no `line` or `bar` series; parses but renders empty | xychart-beta |
-| `xychart-series-length-mismatch` | `warn` | A categorical `x-axis` whose label count does not match a `line` or `bar` series length | xychart-beta |
 | `quadrant-duplicate-point` | `warn` | Two data points with the same label; renders overlapping markers, usually a copy-paste mistake | quadrantChart |
 | `quadrant-no-points` | `warn` | A quadrantChart with axis or quadrant labels but no data points; parses but renders an empty plot | quadrantChart |
 | `quadrant-missing-x-axis` | `warn` | A quadrantChart with data points but no `x-axis` label; default axis text hides chart intent | quadrantChart |

@@ -195,22 +195,18 @@ interface ParsedXychart {
   series: XychartSeries[];
 }
 
-const XYCHART_X_AXIS_RE = /^x-axis\b/;
-const XYCHART_Y_AXIS_RE = /^y-axis\b/;
-const XYCHART_CATEGORICAL_X_AXIS_RE = /^x-axis\s*\[(.*)\]\s*$/;
-const XYCHART_SERIES_RE = /^(line|bar)\s*\[(.*)\]\s*$/;
+const XYCHART_X_AXIS_RE = /^\s*x-axis\b/;
+const XYCHART_Y_AXIS_RE = /^\s*y-axis\b/;
+const XYCHART_CATEGORICAL_X_AXIS_RE =
+  /^\s*x-axis(?:\s+(?:"[^"]+"|[^\[\n]+?))?\s*\[(.*)\]\s*$/;
+const XYCHART_SERIES_RE = /^\s*(line|bar)\s*\[(.*)\]\s*$/;
 
 function isXychart(block: Block): boolean {
   return block.type === 'xychart-beta';
 }
 
 function commaItemCount(value: string): number {
-  const trimmed = value.trim();
-  if (trimmed === '') return 0;
-  return trimmed
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean).length;
+  return parseCsvCells(value)?.length ?? 0;
 }
 
 function parseXychart(lines: string[]): ParsedXychart {
@@ -290,7 +286,7 @@ const xychartNoSeries: Rule = {
     return [
       {
         message:
-          'xychart-beta has no data series and renders empty; add at least one `line [...]` or `bar [...]` series.',
+          'xychart-beta has no data series and renders no data; add at least one `line [...]` or `bar [...]` series.',
         line: 1,
       },
     ];
@@ -342,10 +338,11 @@ function isSankey(block: Block): boolean {
 function parseSankeyLinks(lines: string[]): SankeyLink[] {
   const links: SankeyLink[] = [];
   for (let i = 0; i < lines.length; i++) {
-    const trimmed = lines[i].trim();
+    const raw = lines[i];
+    const trimmed = raw.trim();
     if (trimmed === '' || trimmed.startsWith('%%')) continue;
-    const parts = trimmed.split(',');
-    if (parts.length !== 3) continue;
+    const parts = parseCsvCells(raw);
+    if (parts === null || parts.length !== 3) continue;
 
     const source = parts[0].trim();
     const target = parts[1].trim();
@@ -369,6 +366,30 @@ const sankeyNonPositiveValue: Rule = {
       })),
 };
 
+const sankeyDuplicateLink: Rule = {
+  id: 'sankey-duplicate-link',
+  appliesTo: isSankey,
+  evaluate: ({ lines }) => {
+    const seen = new Map<string, number>();
+    const findings: RuleFinding[] = [];
+
+    for (const link of parseSankeyLinks(lines)) {
+      const key = `${link.source}\u0000${link.target}`;
+      const first = seen.get(key);
+      if (first === undefined) {
+        seen.set(key, link.line);
+        continue;
+      }
+      findings.push({
+        message: `sankey link \`${link.source} -> ${link.target}\` is declared more than once (first on line ${first}); repeated source/target rows are usually copy-paste duplicates.`,
+        line: link.line,
+      });
+    }
+
+    return findings;
+  },
+};
+
 const sankeySelfLoop: Rule = {
   id: 'sankey-self-loop',
   appliesTo: isSankey,
@@ -382,8 +403,34 @@ const sankeySelfLoop: Rule = {
 };
 
 const BLOCK_DECL_RE = /^\s*[A-Za-z_][\w-]*(?:\s*\[[^\]]*])?(?::\d+)?\s*$/;
-const PACKET_FIELD_RE = /^\s*\d+\s*-\s*\d+\s*:\s*".*"\s*$/;
-const ARCHITECTURE_ELEMENT_RE = /^\s*(service|group|junction)\b/;
+const PACKET_FIELD_RE =
+  /^\s*(\+?\d+(?:\s*-\s*\d+)?)\s*:\s*(?:"([^"]*)"|'([^']*)')\s*(?:%%.*)?$/;
+
+interface PacketField {
+  range: string;
+  label: string;
+  line: number;
+}
+
+function isPacket(block: Block): boolean {
+  return block.type === 'packet-beta';
+}
+
+function collectPacketFields(lines: string[]): PacketField[] {
+  const fields: PacketField[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    if (raw.trimStart().startsWith('%%')) continue;
+    const field = PACKET_FIELD_RE.exec(raw);
+    if (field === null) continue;
+    fields.push({
+      range: field[1].replace(/\s+/g, ''),
+      label: field[2] ?? field[3] ?? '',
+      line: i + 1,
+    });
+  }
+  return fields;
+}
 
 const blockNoBlocks: Rule = {
   id: 'block-no-blocks',
@@ -409,34 +456,29 @@ const blockNoBlocks: Rule = {
 
 const packetNoFields: Rule = {
   id: 'packet-no-fields',
-  appliesTo: (block) => block.type === 'packet-beta',
+  appliesTo: isPacket,
   evaluate: ({ lines }) => {
-    if (lines.some((line) => PACKET_FIELD_RE.test(line.trim()))) return [];
+    if (collectPacketFields(lines).length > 0) return [];
     return [
       {
         message:
-          'packet-beta has no fields and renders empty; add at least one bit-range field row.',
+          'packet-beta has no field rows (no fields); it parses but renders as an empty packet.',
         line: 1,
       },
     ];
   },
 };
 
-const architectureNoElements: Rule = {
-  id: 'architecture-no-elements',
-  appliesTo: (block) => block.type === 'architecture-beta',
-  evaluate: ({ lines }) => {
-    if (lines.some((line) => ARCHITECTURE_ELEMENT_RE.test(line.trim()))) {
-      return [];
-    }
-    return [
-      {
-        message:
-          'architecture-beta has no elements and renders empty; add at least one `service`, `group`, or `junction` declaration.',
-        line: 1,
-      },
-    ];
-  },
+const packetEmptyLabels: Rule = {
+  id: 'packet-empty-labels',
+  appliesTo: isPacket,
+  evaluate: ({ lines }) =>
+    collectPacketFields(lines)
+      .filter((field) => field.label.trim() === '')
+      .map((field) => ({
+        message: `packet field \`${field.range}\` has an empty label and will render as a blank field.`,
+        line: field.line,
+      })),
 };
 
 const duplicateIds: Rule = {
@@ -2300,7 +2342,7 @@ const architectureNoElements: Rule = {
     return [
       {
         message:
-          'architecture-beta has no declared elements, groups, or junctions; it parses but renders empty.',
+          'architecture-beta has no elements (no declared elements), groups, or junctions; it parses but renders empty.',
         line: 1,
       },
     ];
@@ -2352,212 +2394,6 @@ const architectureDuplicateEdge: Rule = {
     }
 
     return findings;
-  },
-};
-
-// ---------------------------------------------------------------------------
-// Packet-beta helpers and rules
-// ---------------------------------------------------------------------------
-
-const PACKET_FIELD_RE =
-  /^\s*(\+?\d+(?:\s*-\s*\d+)?)\s*:\s*(?:"([^"]*)"|'([^']*)')\s*(?:%%.*)?$/;
-
-interface PacketField {
-  range: string;
-  label: string;
-  line: number;
-}
-
-function isPacket(block: Block): boolean {
-  return block.type === 'packet-beta';
-}
-
-function collectPacketFields(lines: string[]): PacketField[] {
-  const fields: PacketField[] = [];
-  for (let i = 0; i < lines.length; i++) {
-    const raw = lines[i];
-    if (raw.trimStart().startsWith('%%')) continue;
-    const field = PACKET_FIELD_RE.exec(raw);
-    if (field === null) continue;
-    fields.push({
-      range: field[1].replace(/\s+/g, ''),
-      label: field[2] ?? field[3] ?? '',
-      line: i + 1,
-    });
-  }
-  return fields;
-}
-
-const packetNoFields: Rule = {
-  id: 'packet-no-fields',
-  appliesTo: isPacket,
-  evaluate: ({ lines }) => {
-    if (collectPacketFields(lines).length > 0) return [];
-    return [
-      {
-        message:
-          'packet-beta has no field rows; it parses but renders as an empty packet.',
-        line: 1,
-      },
-    ];
-  },
-};
-
-const packetEmptyLabels: Rule = {
-  id: 'packet-empty-labels',
-  appliesTo: isPacket,
-  evaluate: ({ lines }) =>
-    collectPacketFields(lines)
-      .filter((field) => field.label.trim() === '')
-      .map((field) => ({
-        message: `packet field \`${field.range}\` has an empty label and will render as a blank field.`,
-        line: field.line,
-      })),
-};
-
-// ---------------------------------------------------------------------------
-// Sankey-beta helpers and rules
-// ---------------------------------------------------------------------------
-
-interface SankeyLink {
-  line: number;
-  source: string;
-  target: string;
-}
-
-function isSankey(block: Block): boolean {
-  return block.type === 'sankey-beta';
-}
-
-function collectSankeyLinks(lines: string[]): SankeyLink[] {
-  const links: SankeyLink[] = [];
-  for (let i = 0; i < lines.length; i++) {
-    const raw = lines[i];
-    const trimmed = raw.trim();
-    if (trimmed === '' || trimmed.startsWith('%%')) continue;
-    const row = parseCsvCells(raw);
-    if (row === null || row.length !== 3) continue;
-    links.push({
-      source: row[0].trim(),
-      target: row[1].trim(),
-      line: i + 1,
-    });
-  }
-  return links;
-}
-
-const sankeyDuplicateLink: Rule = {
-  id: 'sankey-duplicate-link',
-  appliesTo: isSankey,
-  evaluate: ({ lines }) => {
-    const seen = new Map<string, number>();
-    const findings: RuleFinding[] = [];
-
-    for (const link of collectSankeyLinks(lines)) {
-      const key = `${link.source}\u0000${link.target}`;
-      const first = seen.get(key);
-      if (first === undefined) {
-        seen.set(key, link.line);
-        continue;
-      }
-      findings.push({
-        message: `sankey link \`${link.source} -> ${link.target}\` is declared more than once (first on line ${first}); repeated source/target rows are usually copy-paste duplicates.`,
-        line: link.line,
-      });
-    }
-
-    return findings;
-  },
-};
-
-const sankeySelfLoop: Rule = {
-  id: 'sankey-self-loop',
-  appliesTo: isSankey,
-  evaluate: ({ lines }) =>
-    collectSankeyLinks(lines)
-      .filter((link) => link.source !== '' && link.source === link.target)
-      .map((link) => ({
-        message: `sankey link \`${link.source} -> ${link.target}\` is a self-loop; source and target are the same after trimming.`,
-        line: link.line,
-      })),
-};
-
-// ---------------------------------------------------------------------------
-// XY chart helpers and rules
-// ---------------------------------------------------------------------------
-
-const XYCHART_CATEGORICAL_X_AXIS_RE =
-  /^\s*x-axis(?:\s+(?:"[^"]+"|[^\[\n]+?))?\s*\[(.*)\]\s*$/;
-const XYCHART_SERIES_RE = /^\s*(bar|line)\s*\[(.*)\]\s*$/;
-
-interface XychartSeries {
-  kind: 'bar' | 'line';
-  count: number;
-  line: number;
-}
-
-function isXychart(block: Block): boolean {
-  return block.type === 'xychart-beta';
-}
-
-function collectXychartSeries(lines: string[]): XychartSeries[] {
-  const series: XychartSeries[] = [];
-  for (let i = 0; i < lines.length; i++) {
-    const raw = lines[i];
-    if (raw.trimStart().startsWith('%%')) continue;
-    const match = XYCHART_SERIES_RE.exec(raw);
-    if (match === null) continue;
-    const values = parseCsvCells(match[2]);
-    if (values === null) continue;
-    series.push({
-      kind: match[1] as XychartSeries['kind'],
-      count: values.length,
-      line: i + 1,
-    });
-  }
-  return series;
-}
-
-function collectXychartCategoricalXAxisLabels(
-  lines: string[],
-): string[] | null {
-  for (const raw of lines) {
-    if (raw.trimStart().startsWith('%%')) continue;
-    const match = XYCHART_CATEGORICAL_X_AXIS_RE.exec(raw);
-    if (match === null) continue;
-    return parseCsvCells(match[1])?.map((label) => label.trim()) ?? null;
-  }
-  return null;
-}
-
-const xychartNoSeries: Rule = {
-  id: 'xychart-no-series',
-  appliesTo: isXychart,
-  evaluate: ({ lines }) =>
-    collectXychartSeries(lines).length > 0
-      ? []
-      : [
-          {
-            message:
-              'xychart-beta has no `bar` or `line` series rows; it parses but renders no data.',
-            line: 1,
-          },
-        ],
-};
-
-const xychartSeriesLengthMismatch: Rule = {
-  id: 'xychart-series-length-mismatch',
-  appliesTo: isXychart,
-  evaluate: ({ lines }) => {
-    const labels = collectXychartCategoricalXAxisLabels(lines);
-    if (labels === null) return [];
-
-    return collectXychartSeries(lines)
-      .filter((series) => series.count !== labels.length)
-      .map((series) => ({
-        message: `xychart x-axis has ${labels.length} label(s), but ${series.kind} series has ${series.count} item(s).`,
-        line: series.line,
-      }));
   },
 };
 
@@ -2877,10 +2713,14 @@ const RULES: Rule[] = [
   xychartNoSeries,
   xychartSeriesLengthMismatch,
   sankeyNonPositiveValue,
+  sankeyDuplicateLink,
   sankeySelfLoop,
   blockNoBlocks,
   packetNoFields,
+  packetEmptyLabels,
   architectureNoElements,
+  architectureNoEdges,
+  architectureDuplicateEdge,
   duplicateIds,
   noDuplicateNodeDeclarations,
   noDuplicateEdges,
@@ -2921,15 +2761,6 @@ const RULES: Rule[] = [
   gitgraphDuplicateCommitId,
   gitgraphDuplicateTag,
   gitgraphNoCommits,
-  architectureNoElements,
-  architectureNoEdges,
-  architectureDuplicateEdge,
-  packetNoFields,
-  packetEmptyLabels,
-  sankeyDuplicateLink,
-  sankeySelfLoop,
-  xychartNoSeries,
-  xychartSeriesLengthMismatch,
   quadrantDuplicatePoint,
   quadrantNoPoints,
   quadrantMissingXAxis,

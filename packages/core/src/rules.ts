@@ -90,12 +90,6 @@ export type RuleId =
   | 'gitgraph-duplicate-commit-id'
   | 'gitgraph-duplicate-tag'
   | 'gitgraph-no-commits'
-  | 'packet-no-fields'
-  | 'packet-empty-labels'
-  | 'sankey-duplicate-link'
-  | 'sankey-self-loop'
-  | 'xychart-no-series'
-  | 'xychart-series-length-mismatch'
   | 'quadrant-duplicate-point'
   | 'quadrant-no-points'
   | 'quadrant-missing-x-axis'
@@ -356,6 +350,11 @@ export const RULE_METADATA = {
     docsScope: 'sankey-beta',
     readmeDiagramKeywords: ['sankey-beta'],
   },
+  'sankey-duplicate-link': {
+    defaultSeverity: 'warn',
+    docsScope: 'sankey-beta',
+    readmeDiagramKeywords: ['sankey-beta'],
+  },
   'sankey-self-loop': {
     defaultSeverity: 'warn',
     docsScope: 'sankey-beta',
@@ -585,36 +584,6 @@ export const RULE_METADATA = {
     defaultSeverity: 'warn',
     docsScope: 'gitGraph',
     readmeDiagramKeywords: ['gitGraph'],
-  },
-  'packet-no-fields': {
-    defaultSeverity: 'warn',
-    docsScope: 'packet-beta',
-    readmeDiagramKeywords: ['packet-beta'],
-  },
-  'packet-empty-labels': {
-    defaultSeverity: 'warn',
-    docsScope: 'packet-beta',
-    readmeDiagramKeywords: ['packet-beta'],
-  },
-  'sankey-duplicate-link': {
-    defaultSeverity: 'warn',
-    docsScope: 'sankey-beta',
-    readmeDiagramKeywords: ['sankey-beta'],
-  },
-  'sankey-self-loop': {
-    defaultSeverity: 'warn',
-    docsScope: 'sankey-beta',
-    readmeDiagramKeywords: ['sankey-beta'],
-  },
-  'xychart-no-series': {
-    defaultSeverity: 'warn',
-    docsScope: 'xychart-beta',
-    readmeDiagramKeywords: ['xychart-beta'],
-  },
-  'xychart-series-length-mismatch': {
-    defaultSeverity: 'warn',
-    docsScope: 'xychart-beta',
-    readmeDiagramKeywords: ['xychart-beta'],
   },
   'quadrant-duplicate-point': {
     defaultSeverity: 'warn',
