@@ -115,6 +115,37 @@ unset OVSX_TOKEN
 
 > **First publish only:** the `mermaid-lint` namespace must exist on Open VSX —
 > `npx ovsx create-namespace mermaid-lint --pat "$OVSX_TOKEN"` (idempotent).
+>
+> **Important:** creating the namespace is **not** enough to remove the
+> "publisher is not verified" warning. Open VSX starts new namespaces in an
+> **unverified** state until someone claims ownership of the namespace.
+>
+> To eliminate the warning shown on
+> <https://open-vsx.org/extension/mermaid-lint/mermaid-lint-vscode>:
+>
+> 1. Log in to <https://open-vsx.org> with the GitHub account that publishes the
+>    extension.
+> 2. Open a public namespace-claim issue at
+>    <https://github.com/EclipseFdn/open-vsx.org/issues/new>.
+> 3. Request ownership of the `mermaid-lint` namespace and link the extension,
+>    the VS Code Marketplace listing, and this repo as proof of control.
+>
+> Example issue body:
+>
+> ```md
+> I would like to claim ownership of the `mermaid-lint` namespace on Open VSX.
+>
+> - Namespace: `mermaid-lint`
+> - Open VSX extension: https://open-vsx.org/extension/mermaid-lint/mermaid-lint-vscode
+> - VS Code Marketplace: https://marketplace.visualstudio.com/items?itemName=mermaid-lint.mermaid-lint-vscode
+> - GitHub repository: https://github.com/jasonworden/mermaid-lint
+>
+> I publish and maintain this extension and have already logged in to
+> https://open-vsx.org/ with my GitHub account.
+> ```
+>
+> After Eclipse grants ownership, the namespace becomes verified and future
+> versions published by a namespace member no longer show the warning banner.
 
 Confirm: <https://open-vsx.org/extension/mermaid-lint/mermaid-lint-vscode>
 
@@ -126,5 +157,7 @@ Confirm: <https://open-vsx.org/extension/mermaid-lint/mermaid-lint-vscode>
 - [ ] `git tag vX.Y.Z && git push origin vX.Y.Z` → wait for npm publish (step 1).
 - [ ] `pnpm --filter mermaid-lint-vscode package` (step 2).
 - [ ] `vsce publish --packagePath …` (step 3).
+- [ ] If Open VSX shows an unverified publisher warning, claim ownership of the
+      `mermaid-lint` namespace (step 4 note).
 - [ ] `ovsx publish … --pat "$OVSX_TOKEN"` with the token from 1Password (step 4).
 - [ ] Verify both listings show the new version and icon.
