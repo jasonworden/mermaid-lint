@@ -9,7 +9,7 @@ Validate Mermaid diagrams embedded in Markdown files. Uses the official `mermaid
 [![CI](https://github.com/jasonworden/mermaid-lint/actions/workflows/ci.yml/badge.svg)](https://github.com/jasonworden/mermaid-lint/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-⚡ **3.4-4.0x faster** than the previous release — a Rust/WASM fast path validates the happy path in ~0.1 ms/diagram; the heavyweight `mermaid.parse()` loads only when a diagram actually errors. [See the benchmarks](docs/performance.md)
+⚡ **Fast by default** — a Rust/WASM parser validates the happy path in ~0.1 ms/diagram; the heavyweight pure-JS `mermaid.parse()` path loads only when a diagram actually errors. [See the benchmarks](docs/performance.md)
 
 Catches real syntax errors as you type — here the [VS Code extension](packages/vscode) flagging an unterminated edge label in a `.mmd` file:
 
