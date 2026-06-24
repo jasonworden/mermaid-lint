@@ -457,7 +457,7 @@ mermaid-lint validates all 19 Mermaid diagram types using the official `mermaid.
 | Pie chart | `pie` | ✅ | `pie-duplicate-label`, `pie-zero-value`, `pie-no-data` | |
 | Gantt | `gantt` | ✅ | `gantt-duplicate-task-id`, `gantt-undefined-dependency`, `gantt-empty-section` | |
 | Git graph | `gitGraph` | ✅ | `gitgraph-duplicate-commit-id`, `gitgraph-duplicate-tag`, `gitgraph-no-commits` | |
-| User journey | `journey` | ✅ | - | |
+| User journey | `journey` | ✅ | `journey-empty-section`, `journey-score-out-of-range`, `journey-no-tasks` | |
 | Mindmap | `mindmap` | ✅ | `mindmap-duplicate-sibling`, `mindmap-no-nodes`, `mindmap-deep-nesting` | |
 | Quadrant chart | `quadrantChart` | ✅ | `quadrant-duplicate-point`, `quadrant-no-points`, `quadrant-duplicate-quadrant` | |
 | Requirement | `requirementDiagram` | ✅ | - | |
