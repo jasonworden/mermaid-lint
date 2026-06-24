@@ -115,6 +115,19 @@ unset OVSX_TOKEN
 
 > **First publish only:** the `mermaid-lint` namespace must exist on Open VSX —
 > `npx ovsx create-namespace mermaid-lint --pat "$OVSX_TOKEN"` (idempotent).
+>
+> **Important:** creating the namespace is **not** enough to remove the
+> "publisher is not verified" warning. Open VSX starts new namespaces in an
+> **unverified** state until someone claims ownership of the namespace.
+>
+> If the extension page shows that warning, log in to <https://open-vsx.org>
+> with the publishing GitHub account and open a public namespace-claim issue at
+> <https://github.com/EclipseFdn/open-vsx.org/issues/new>. Request ownership of
+> the `mermaid-lint` namespace and include the Open VSX listing, the VS Code
+> Marketplace listing, and this repo as proof of control.
+>
+> After Eclipse grants ownership, the namespace becomes verified and future
+> versions published by a namespace member no longer show the warning banner.
 
 Confirm: <https://open-vsx.org/extension/mermaid-lint/mermaid-lint-vscode>
 
@@ -126,5 +139,7 @@ Confirm: <https://open-vsx.org/extension/mermaid-lint/mermaid-lint-vscode>
 - [ ] `git tag vX.Y.Z && git push origin vX.Y.Z` → wait for npm publish (step 1).
 - [ ] `pnpm --filter mermaid-lint-vscode package` (step 2).
 - [ ] `vsce publish --packagePath …` (step 3).
+- [ ] If Open VSX shows an unverified publisher warning, claim ownership of the
+      `mermaid-lint` namespace (step 4 note).
 - [ ] `ovsx publish … --pat "$OVSX_TOKEN"` with the token from 1Password (step 4).
 - [ ] Verify both listings show the new version and icon.
