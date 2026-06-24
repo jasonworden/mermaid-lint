@@ -1,6 +1,6 @@
 {
   "name": "@mermaid-lint/jest",
-  "version": "0.27.0",
+  "version": "0.28.0",
   "type": "module",
   "description": "Jest adapter for mermaid-lint",
   "exports": {
