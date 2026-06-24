@@ -145,6 +145,267 @@ const noExperimental: Rule = {
   ],
 };
 
+// ---------------------------------------------------------------------------
+// Experimental diagram helpers and rules
+// ---------------------------------------------------------------------------
+
+interface XychartSeries {
+  kind: 'line' | 'bar';
+  length: number;
+  line: number;
+}
+
+interface ParsedXychart {
+  hasXAxis: boolean;
+  xAxisLabelCount?: number;
+  hasYAxis: boolean;
+  series: XychartSeries[];
+}
+
+const XYCHART_X_AXIS_RE = /^x-axis\b/;
+const XYCHART_Y_AXIS_RE = /^y-axis\b/;
+const XYCHART_CATEGORICAL_X_AXIS_RE = /^x-axis\s*\[(.*)\]\s*$/;
+const XYCHART_SERIES_RE = /^(line|bar)\s*\[(.*)\]\s*$/;
+
+function isXychart(block: Block): boolean {
+  return block.type === 'xychart-beta';
+}
+
+function commaItemCount(value: string): number {
+  const trimmed = value.trim();
+  if (trimmed === '') return 0;
+  return trimmed
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean).length;
+}
+
+function parseXychart(lines: string[]): ParsedXychart {
+  const parsed: ParsedXychart = {
+    hasXAxis: false,
+    hasYAxis: false,
+    series: [],
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    if (trimmed === '' || trimmed.startsWith('%%')) continue;
+
+    if (XYCHART_X_AXIS_RE.test(trimmed)) {
+      parsed.hasXAxis = true;
+      const categorical = XYCHART_CATEGORICAL_X_AXIS_RE.exec(trimmed);
+      if (categorical !== null) {
+        parsed.xAxisLabelCount = commaItemCount(categorical[1]);
+      }
+      continue;
+    }
+
+    if (XYCHART_Y_AXIS_RE.test(trimmed)) {
+      parsed.hasYAxis = true;
+      continue;
+    }
+
+    const series = XYCHART_SERIES_RE.exec(trimmed);
+    if (series === null) continue;
+    parsed.series.push({
+      kind: series[1] as XychartSeries['kind'],
+      length: commaItemCount(series[2]),
+      line: i + 1,
+    });
+  }
+
+  return parsed;
+}
+
+const xychartMissingXAxis: Rule = {
+  id: 'xychart-missing-x-axis',
+  appliesTo: isXychart,
+  evaluate: ({ lines }) => {
+    const chart = parseXychart(lines);
+    if (chart.series.length === 0 || chart.hasXAxis) return [];
+    return [
+      {
+        message:
+          'xychart-beta has data series but no `x-axis`; add an explicit axis so the horizontal scale and labels are clear.',
+        line: 1,
+      },
+    ];
+  },
+};
+
+const xychartMissingYAxis: Rule = {
+  id: 'xychart-missing-y-axis',
+  appliesTo: isXychart,
+  evaluate: ({ lines }) => {
+    const chart = parseXychart(lines);
+    if (chart.series.length === 0 || chart.hasYAxis) return [];
+    return [
+      {
+        message:
+          'xychart-beta has data series but no `y-axis`; add an explicit axis so the vertical scale and units are clear.',
+        line: 1,
+      },
+    ];
+  },
+};
+
+const xychartNoSeries: Rule = {
+  id: 'xychart-no-series',
+  appliesTo: isXychart,
+  evaluate: ({ lines }) => {
+    if (parseXychart(lines).series.length > 0) return [];
+    return [
+      {
+        message:
+          'xychart-beta has no data series and renders empty; add at least one `line [...]` or `bar [...]` series.',
+        line: 1,
+      },
+    ];
+  },
+};
+
+const xychartSeriesLengthMismatch: Rule = {
+  id: 'xychart-series-length-mismatch',
+  appliesTo: isXychart,
+  evaluate: ({ lines }) => {
+    const chart = parseXychart(lines);
+    if (chart.series.length === 0) return [];
+
+    const findings: RuleFinding[] = [];
+    if (chart.xAxisLabelCount !== undefined) {
+      for (const series of chart.series) {
+        if (series.length === chart.xAxisLabelCount) continue;
+        findings.push({
+          message: `${series.kind} series has ${series.length} values but the categorical \`x-axis\` defines ${chart.xAxisLabelCount} labels; these lengths should match.`,
+          line: series.line,
+        });
+      }
+      return findings;
+    }
+
+    const [first, ...rest] = chart.series;
+    for (const series of rest) {
+      if (series.length === first.length) continue;
+      findings.push({
+        message: `${series.kind} series has ${series.length} values but the first series on line ${first.line} has ${first.length}; xychart-beta series should use the same length.`,
+        line: series.line,
+      });
+    }
+    return findings;
+  },
+};
+
+interface SankeyLink {
+  source: string;
+  target: string;
+  value: number;
+  line: number;
+}
+
+function isSankey(block: Block): boolean {
+  return block.type === 'sankey-beta';
+}
+
+function parseSankeyLinks(lines: string[]): SankeyLink[] {
+  const links: SankeyLink[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    if (trimmed === '' || trimmed.startsWith('%%')) continue;
+    const parts = trimmed.split(',');
+    if (parts.length !== 3) continue;
+
+    const source = parts[0].trim();
+    const target = parts[1].trim();
+    const value = Number(parts[2].trim());
+    if (source === '' || target === '' || !Number.isFinite(value)) continue;
+
+    links.push({ source, target, value, line: i + 1 });
+  }
+  return links;
+}
+
+const sankeyNonPositiveValue: Rule = {
+  id: 'sankey-non-positive-value',
+  appliesTo: isSankey,
+  evaluate: ({ lines }) =>
+    parseSankeyLinks(lines)
+      .filter((link) => link.value <= 0)
+      .map((link) => ({
+        message: `sankey link \`${link.source}\` → \`${link.target}\` has a non-positive value (${link.value}); sankey flows should be greater than 0.`,
+        line: link.line,
+      })),
+};
+
+const sankeySelfLoop: Rule = {
+  id: 'sankey-self-loop',
+  appliesTo: isSankey,
+  evaluate: ({ lines }) =>
+    parseSankeyLinks(lines)
+      .filter((link) => link.source === link.target)
+      .map((link) => ({
+        message: `sankey link \`${link.source}\` → \`${link.target}\` is a self-loop, which is usually unintentional.`,
+        line: link.line,
+      })),
+};
+
+const BLOCK_DECL_RE = /^\s*[A-Za-z_][\w-]*(?:\s*\[[^\]]*])?(?::\d+)?\s*$/;
+const PACKET_FIELD_RE = /^\s*\d+\s*-\s*\d+\s*:\s*".*"\s*$/;
+const ARCHITECTURE_ELEMENT_RE = /^\s*(service|group|junction)\b/;
+
+const blockNoBlocks: Rule = {
+  id: 'block-no-blocks',
+  appliesTo: (block) => block.type === 'block-beta',
+  evaluate: ({ lines }) => {
+    if (
+      lines.some((line) => {
+        const trimmed = line.trim();
+        return trimmed !== 'block-beta' && BLOCK_DECL_RE.test(trimmed);
+      })
+    ) {
+      return [];
+    }
+    return [
+      {
+        message:
+          'block-beta has no blocks and renders empty; add at least one block declaration.',
+        line: 1,
+      },
+    ];
+  },
+};
+
+const packetNoFields: Rule = {
+  id: 'packet-no-fields',
+  appliesTo: (block) => block.type === 'packet-beta',
+  evaluate: ({ lines }) => {
+    if (lines.some((line) => PACKET_FIELD_RE.test(line.trim()))) return [];
+    return [
+      {
+        message:
+          'packet-beta has no fields and renders empty; add at least one bit-range field row.',
+        line: 1,
+      },
+    ];
+  },
+};
+
+const architectureNoElements: Rule = {
+  id: 'architecture-no-elements',
+  appliesTo: (block) => block.type === 'architecture-beta',
+  evaluate: ({ lines }) => {
+    if (lines.some((line) => ARCHITECTURE_ELEMENT_RE.test(line.trim()))) {
+      return [];
+    }
+    return [
+      {
+        message:
+          'architecture-beta has no elements and renders empty; add at least one `service`, `group`, or `junction` declaration.',
+        line: 1,
+      },
+    ];
+  },
+};
+
 const duplicateIds: Rule = {
   id: 'duplicate-ids',
   appliesTo: isFlowchartOrGraph,
@@ -2240,6 +2501,15 @@ const RULES: Rule[] = [
   preferFlowchart,
   requireDirection,
   noExperimental,
+  xychartMissingXAxis,
+  xychartMissingYAxis,
+  xychartNoSeries,
+  xychartSeriesLengthMismatch,
+  sankeyNonPositiveValue,
+  sankeySelfLoop,
+  blockNoBlocks,
+  packetNoFields,
+  architectureNoElements,
   duplicateIds,
   noDuplicateNodeDeclarations,
   noDuplicateEdges,
