@@ -88,8 +88,7 @@ and CI usage.
 
 ### Integration guides
 
-Framework-specific setup notes live in [docs/integrations/README.md](docs/integrations/README.md),
-starting with [Slidev](docs/integrations/slidev.md).
+Framework-specific setup notes live in [docs/integrations/README.md](docs/integrations/README.md).
 
 ## GitHub Actions
 
