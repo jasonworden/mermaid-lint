@@ -86,6 +86,10 @@ project regardless of language. See [docs/ci-and-precommit.md](docs/ci-and-preco
 for Python/Go/Rust recipes, pre-commit hooks (`pre-commit`, husky + lint-staged),
 and CI usage.
 
+### Integration guides
+
+Framework-specific setup notes live in [docs/integrations/README.md](docs/integrations/README.md).
+
 ## GitHub Actions
 
 ```yaml
