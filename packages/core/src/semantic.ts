@@ -180,6 +180,41 @@ const duplicateIds: Rule = {
   },
 };
 
+const noDuplicateNodeDeclarations: Rule = {
+  id: 'no-duplicate-node-declarations',
+  appliesTo: isFlowchartOrGraph,
+  evaluate: ({ lines }) => {
+    const seen = new Map<string, { label: string; line: number }>();
+    const findings: RuleFinding[] = [];
+
+    for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+      const line = lines[lineIdx];
+      if (line.trimStart().startsWith('%%')) continue;
+
+      NODE_DECL_RE.lastIndex = 0;
+      for (;;) {
+        const m = NODE_DECL_RE.exec(line);
+        if (m === null) break;
+        const id = m[1];
+        const label = extractLabel(m);
+        const bodyLine = lineIdx + 1;
+
+        const prior = seen.get(id);
+        if (prior === undefined) {
+          seen.set(id, { label, line: bodyLine });
+        } else if (prior.label === label) {
+          findings.push({
+            message: `node \`${id}\` is declared with the same label more than once (first on line ${prior.line}); duplicate declarations are usually copy-paste noise.`,
+            line: bodyLine,
+          });
+        }
+      }
+    }
+
+    return findings;
+  },
+};
+
 const noDuplicateEdges: Rule = {
   id: 'no-duplicate-edges',
   appliesTo: isFlowchartOrGraph,
@@ -447,6 +482,34 @@ const preferExplicitParticipants: Rule = {
   },
 };
 
+const sequenceDuplicateParticipant: Rule = {
+  id: 'sequence-duplicate-participant',
+  appliesTo: (block) => block.type === 'sequenceDiagram',
+  evaluate: ({ lines }) => {
+    const seen = new Map<string, number>();
+    const findings: RuleFinding[] = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const raw = lines[i];
+      if (raw.trimStart().startsWith('%%')) continue;
+      const decl = SEQ_PARTICIPANT_RE.exec(raw);
+      if (decl === null) continue;
+      const id = decl[1];
+      const first = seen.get(id);
+      if (first === undefined) {
+        seen.set(id, i + 1);
+      } else {
+        findings.push({
+          message: `participant \`${id}\` is declared more than once (first on line ${first}); duplicate declarations make participant ordering and labels ambiguous.`,
+          line: i + 1,
+        });
+      }
+    }
+
+    return findings;
+  },
+};
+
 /**
  * Class member syntax supported:
  *   Block:  `class Foo {` … member lines … `}`
@@ -457,7 +520,36 @@ const preferExplicitParticipants: Rule = {
 const CLASS_OPEN_RE = /^\s*class\s+([A-Za-z_]\w*)\s*\{/;
 const CLASS_CLOSE_RE = /^\s*\}/;
 const CLASS_INLINE_RE = /^\s*([A-Za-z_]\w*)\s*:/;
+const CLASS_DECL_RE = /^\s*class\s+([A-Za-z_]\w*)\b/;
 const METHOD_RE = /([A-Za-z_]\w*)\s*\(([^)]*)\)/;
+
+const classDuplicateClass: Rule = {
+  id: 'class-duplicate-class',
+  appliesTo: (block) => block.type === 'classDiagram',
+  evaluate: ({ lines }) => {
+    const seen = new Map<string, number>();
+    const findings: RuleFinding[] = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const raw = lines[i];
+      if (raw.trimStart().startsWith('%%')) continue;
+      const decl = CLASS_DECL_RE.exec(raw);
+      if (decl === null) continue;
+      const name = decl[1];
+      const first = seen.get(name);
+      if (first === undefined) {
+        seen.set(name, i + 1);
+      } else {
+        findings.push({
+          message: `class \`${name}\` is declared more than once (first on line ${first}); Mermaid merges class declarations, which is usually a copy-paste mistake.`,
+          line: i + 1,
+        });
+      }
+    }
+
+    return findings;
+  },
+};
 
 const noDuplicateMethods: Rule = {
   id: 'no-duplicate-methods',
@@ -644,6 +736,10 @@ const STATE_COMPOSITE_OPEN_RE =
 /** A lone closing brace for a composite state block. */
 const STATE_COMPOSITE_CLOSE_RE = /^\s*\}\s*$/;
 
+/** Explicit state declaration: `state Foo` or `state "Description" as Foo`. */
+const STATE_DECL_RE =
+  /^\s*state\s+(?:"[^"]*"\s+as\s+)?([A-Za-z0-9_]+)(?:\s*(?:\{|$))/;
+
 interface StateTransition {
   source: string;
   target: string;
@@ -671,6 +767,34 @@ function parseStateTransitions(lines: string[]): StateTransition[] {
 function isState(block: Block): boolean {
   return block.type === 'stateDiagram' || block.type === 'stateDiagram-v2';
 }
+
+const stateDuplicateState: Rule = {
+  id: 'state-duplicate-state',
+  appliesTo: isState,
+  evaluate: ({ lines }) => {
+    const seen = new Map<string, number>();
+    const findings: RuleFinding[] = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const raw = lines[i];
+      if (raw.trimStart().startsWith('%%')) continue;
+      const decl = STATE_DECL_RE.exec(raw);
+      if (decl === null) continue;
+      const id = decl[1];
+      const first = seen.get(id);
+      if (first === undefined) {
+        seen.set(id, i + 1);
+      } else {
+        findings.push({
+          message: `state \`${id}\` is declared more than once (first on line ${first}); duplicate state declarations make labels and composite bodies ambiguous.`,
+          line: i + 1,
+        });
+      }
+    }
+
+    return findings;
+  },
+};
 
 const stateDuplicateTransition: Rule = {
   id: 'state-duplicate-transition',
@@ -1127,12 +1251,13 @@ const JOURNEY_KEYWORD_RE =
 /** A `section Name` line. Captures [1]=section name (trimmed). */
 const JOURNEY_SECTION_RE = /^section\s+(.+?)\s*$/;
 
-/** A journey task line. Captures [1]=task name, [2]=happiness score. */
-const JOURNEY_TASK_RE = /^(.+?)\s*:\s*(-?\d+(?:\.\d+)?)\s*(?::|$)/;
+/** A journey task line. Captures [1]=task name, [2]=happiness score, [3]=actors. */
+const JOURNEY_TASK_RE = /^(.+?)\s*:\s*(-?\d+(?:\.\d+)?)(?:\s*:\s*(.*))?$/;
 
 interface JourneyTask {
   name: string;
   score: number;
+  actors: string[];
   line: number;
 }
 
@@ -1148,7 +1273,18 @@ function parseJourneyTasks(lines: string[]): JourneyTask[] {
     if (JOURNEY_KEYWORD_RE.test(trimmed)) continue;
     const m = JOURNEY_TASK_RE.exec(trimmed);
     if (m === null) continue;
-    tasks.push({ name: m[1].trim(), score: Number(m[2]), line: i + 1 });
+    tasks.push({
+      name: m[1].trim(),
+      score: Number(m[2]),
+      actors:
+        m[3] === undefined
+          ? []
+          : m[3]
+              .split(',')
+              .map((actor) => actor.trim())
+              .filter((actor) => actor.length > 0),
+      line: i + 1,
+    });
   }
   return tasks;
 }
@@ -1207,6 +1343,18 @@ const journeyScoreOutOfRange: Rule = {
       .filter((task) => task.score < 1 || task.score > 5)
       .map((task) => ({
         message: `journey task \`${task.name}\` has score ${task.score}; Mermaid journey scores should be between 1 and 5.`,
+        line: task.line,
+      })),
+};
+
+const journeyTaskWithoutActor: Rule = {
+  id: 'journey-task-without-actor',
+  appliesTo: isJourney,
+  evaluate: ({ lines }) =>
+    parseJourneyTasks(lines)
+      .filter((task) => task.actors.length === 0)
+      .map((task) => ({
+        message: `journey task \`${task.name}\` has no actors; it renders without an owner lane and is usually incomplete.`,
         line: task.line,
       })),
 };
@@ -1610,6 +1758,9 @@ const QUADRANT_POINT_RE = /^(.+?)(?::::[\w-]+)?:\s*\[/;
 /** A quadrant-region label: `quadrant-1` … `quadrant-4`. Captures [1]=N. */
 const QUADRANT_REGION_RE = /^quadrant-([1-4])\b/;
 
+const QUADRANT_X_AXIS_RE = /^x-axis\b/;
+const QUADRANT_Y_AXIS_RE = /^y-axis\b/;
+
 function isQuadrantChart(block: Block): boolean {
   return block.type === 'quadrantChart';
 }
@@ -1676,6 +1827,42 @@ const quadrantNoPoints: Rule = {
   },
 };
 
+const quadrantMissingXAxis: Rule = {
+  id: 'quadrant-missing-x-axis',
+  appliesTo: isQuadrantChart,
+  evaluate: ({ lines }) => {
+    const hasPoint = lines.some((l) => isQuadrantPointLine(l.trim()));
+    if (!hasPoint) return [];
+    const hasAxis = lines.some((l) => QUADRANT_X_AXIS_RE.test(l.trim()));
+    if (hasAxis) return [];
+    return [
+      {
+        message:
+          'quadrantChart has data points but no `x-axis` label; Mermaid renders default axis text, which hides the chart intent.',
+        line: 1,
+      },
+    ];
+  },
+};
+
+const quadrantMissingYAxis: Rule = {
+  id: 'quadrant-missing-y-axis',
+  appliesTo: isQuadrantChart,
+  evaluate: ({ lines }) => {
+    const hasPoint = lines.some((l) => isQuadrantPointLine(l.trim()));
+    if (!hasPoint) return [];
+    const hasAxis = lines.some((l) => QUADRANT_Y_AXIS_RE.test(l.trim()));
+    if (hasAxis) return [];
+    return [
+      {
+        message:
+          'quadrantChart has data points but no `y-axis` label; Mermaid renders default axis text, which hides the chart intent.',
+        line: 1,
+      },
+    ];
+  },
+};
+
 const quadrantDuplicateQuadrant: Rule = {
   id: 'quadrant-duplicate-quadrant',
   appliesTo: isQuadrantChart,
@@ -1698,16 +1885,20 @@ const RULES: Rule[] = [
   requireDirection,
   noExperimental,
   duplicateIds,
+  noDuplicateNodeDeclarations,
   noDuplicateEdges,
   noSelfLoop,
   noEmptyLabels,
   noOrphanNodes,
   noActivateWithoutDeactivate,
   preferExplicitParticipants,
+  sequenceDuplicateParticipant,
+  classDuplicateClass,
   noDuplicateMethods,
   pieDuplicateLabel,
   pieZeroValue,
   pieNoData,
+  stateDuplicateState,
   stateDuplicateTransition,
   stateEmptyComposite,
   stateSelfTransition,
@@ -1719,6 +1910,7 @@ const RULES: Rule[] = [
   ganttEmptySection,
   journeyEmptySection,
   journeyScoreOutOfRange,
+  journeyTaskWithoutActor,
   journeyNoTasks,
   mindmapDuplicateSibling,
   mindmapNoNodes,
@@ -1731,6 +1923,8 @@ const RULES: Rule[] = [
   gitgraphNoCommits,
   quadrantDuplicatePoint,
   quadrantNoPoints,
+  quadrantMissingXAxis,
+  quadrantMissingYAxis,
   quadrantDuplicateQuadrant,
 ];
 

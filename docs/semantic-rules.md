@@ -25,12 +25,16 @@ Tune rules through the `rules` config key. Most rules default to `warn`;
 | `no-self-loop` | `warn` | A node with an edge to itself (`A --> A`); almost always unintentional | flowchart / graph |
 | `no-empty-labels` | `warn` | A node with an empty label (`A[ ]`); renders a blank shape | flowchart / graph |
 | `no-orphan-nodes` | `off` | A node declared but never connected by an edge. Off by default because it can false-positive on subgraph-only members | flowchart / graph |
+| `no-duplicate-node-declarations` | `warn` | The same node id declared more than once with the same label; usually copy-paste noise | flowchart / graph |
 | `no-activate-without-deactivate` | `warn` | An `activate`/`+` with no matching `deactivate`/`-` or vice versa; leaves a dangling activation bar | sequenceDiagram |
 | `prefer-explicit-participants` | `off` | A participant used in a message before being declared; Mermaid auto-creates it | sequenceDiagram |
+| `sequence-duplicate-participant` | `warn` | The same participant or actor id declared more than once; ordering and labels become ambiguous | sequenceDiagram |
+| `class-duplicate-class` | `warn` | The same class declared more than once; Mermaid merges declarations, usually a copy-paste mistake | classDiagram |
 | `no-duplicate-methods` | `warn` | The same method signature declared twice on one class; renders both | classDiagram |
 | `pie-duplicate-label` | `warn` | The same pie slice label defined more than once; usually a copy-paste mistake | pie |
 | `pie-zero-value` | `warn` | A pie slice with a value of `0`; renders as an invisible slice | pie |
 | `pie-no-data` | `warn` | A pie chart with no data slices; renders empty | pie |
+| `state-duplicate-state` | `warn` | The same state id declared more than once; labels and composite bodies become ambiguous | stateDiagram |
 | `state-duplicate-transition` | `warn` | The same `src --> tgt : label` transition defined more than once; renders stacked, usually a copy-paste mistake | stateDiagram |
 | `state-empty-composite` | `warn` | A composite `state X { }` with an empty body; renders as an empty box | stateDiagram |
 | `state-self-transition` | `off` | A state with a transition to itself (`A --> A`). Off by default because self-transitions are valid and common in state machines | stateDiagram |
@@ -42,6 +46,7 @@ Tune rules through the `rules` config key. Most rules default to `warn`;
 | `gantt-empty-section` | `warn` | A `section` with no tasks; renders as an empty section header | gantt |
 | `journey-empty-section` | `warn` | A `section` with no tasks; renders as an empty section header | journey |
 | `journey-score-out-of-range` | `warn` | A task happiness score outside Mermaid's documented 1-5 scale | journey |
+| `journey-task-without-actor` | `warn` | A journey task with no actor; renders without an owner lane and is usually incomplete | journey |
 | `journey-no-tasks` | `warn` | A `journey` with no tasks; parses but renders an empty diagram | journey |
 | `mindmap-duplicate-sibling` | `warn` | Two child nodes under the same parent with identical text; renders two identical branches, usually a copy-paste mistake | mindmap |
 | `mindmap-no-nodes` | `warn` | A `mindmap` with only the keyword and no nodes; parses but renders an empty diagram | mindmap |
@@ -54,6 +59,8 @@ Tune rules through the `rules` config key. Most rules default to `warn`;
 | `gitgraph-no-commits` | `warn` | A `gitGraph` with no commits; parses but renders an empty diagram | gitGraph |
 | `quadrant-duplicate-point` | `warn` | Two data points with the same label; renders overlapping markers, usually a copy-paste mistake | quadrantChart |
 | `quadrant-no-points` | `warn` | A quadrantChart with axis or quadrant labels but no data points; parses but renders an empty plot | quadrantChart |
+| `quadrant-missing-x-axis` | `warn` | A quadrantChart with data points but no `x-axis` label; default axis text hides chart intent | quadrantChart |
+| `quadrant-missing-y-axis` | `warn` | A quadrantChart with data points but no `y-axis` label; default axis text hides chart intent | quadrantChart |
 | `quadrant-duplicate-quadrant` | `warn` | The same quadrant region (`quadrant-1`-`quadrant-4`) labeled more than once; Mermaid keeps only the last | quadrantChart |
 
 ## Example Output
