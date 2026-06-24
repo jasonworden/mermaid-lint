@@ -2205,4 +2205,290 @@ describe('checkSemantics', () => {
       expect(only(b, 'requirement-undefined-reference', rules)).toEqual([]);
     });
   });
+
+  describe('architecture-beta rules', () => {
+    function architectureBlock(body: string): Block {
+      return block(body, 'architecture-beta');
+    }
+
+    it('keeps a valid architecture model clean', () => {
+      const b = architectureBlock(
+        'architecture-beta\n  group api(cloud)[API]\n  service gateway(server)[Gateway] in api\n  service db(database)[Database]\n  gateway:R -- L:db',
+      );
+
+      expect(only(b, 'architecture-no-elements')).toEqual([]);
+      expect(only(b, 'architecture-no-edges')).toEqual([]);
+      expect(only(b, 'architecture-duplicate-edge')).toEqual([]);
+    });
+
+    it('flags architecture-beta with no declared elements', () => {
+      const b = architectureBlock('architecture-beta');
+      const warnings = only(b, 'architecture-no-elements');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].severity).toBe('warn');
+      expect(warnings[0].line).toBe(1);
+      expect(warnings[0].message).toContain('no declared elements');
+    });
+
+    it('flags architecture-beta with declarations but no edges', () => {
+      const b = architectureBlock(
+        'architecture-beta\n  service gateway(server)[Gateway]\n  junction hub\n  group api(cloud)[API]',
+      );
+      const warnings = only(b, 'architecture-no-edges');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].severity).toBe('warn');
+      expect(warnings[0].line).toBe(1);
+      expect(warnings[0].message).toContain('no edges');
+    });
+
+    it('flags repeated exact architecture edge declarations, including ports', () => {
+      const b = architectureBlock(
+        'architecture-beta\n  service gateway(server)[Gateway]\n  service db(database)[Database]\n  gateway:R -- L:db\n  gateway:R -- L:db',
+      );
+      const warnings = only(b, 'architecture-duplicate-edge');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].severity).toBe('warn');
+      expect(warnings[0].line).toBe(5);
+      expect(warnings[0].message).toContain('`gateway:R -- L:db`');
+      expect(warnings[0].message).toContain('line 4');
+    });
+
+    it('treats arrow edges with {group} modifiers as valid edges', () => {
+      const b = architectureBlock(
+        'architecture-beta\n  group edge(cloud)[Edge]\n  group data(database)[Data]\n  service gateway(server)[Gateway] in edge\n  service db(database)[Database] in data\n  gateway{group}:R --> L:db{group}',
+      );
+      expect(only(b, 'architecture-no-edges')).toEqual([]);
+    });
+
+    it('accepts Mermaid-valid architecture edges with optional whitespace around ids and ports', () => {
+      const b = architectureBlock(
+        'architecture-beta\n  service gateway(server)[Gateway]\n  service db1(database)[Database 1]\n  service db2(database)[Database 2]\n  service db3(database)[Database 3]\n  gateway :R -- L: db1\n  gateway:R -- L: db2\n  gateway :R -- L:db3',
+      );
+      expect(only(b, 'architecture-no-edges')).toEqual([]);
+      expect(only(b, 'architecture-duplicate-edge')).toEqual([]);
+    });
+
+    it('flags repeated exact non-bare architecture edge declarations', () => {
+      const b = architectureBlock(
+        'architecture-beta\n  group edge(cloud)[Edge]\n  group data(database)[Data]\n  service gateway(server)[Gateway] in edge\n  service db(database)[Database] in data\n  gateway{group}:R --> L:db{group}\n  gateway{group}:R --> L:db{group}',
+      );
+      const warnings = only(b, 'architecture-duplicate-edge');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].line).toBe(7);
+      expect(warnings[0].message).toContain(
+        '`gateway{group}:R --> L:db{group}`',
+      );
+      expect(warnings[0].message).toContain('line 6');
+    });
+
+    it('flags duplicate architecture edges when only endpoint whitespace differs', () => {
+      const b = architectureBlock(
+        'architecture-beta\n  service gateway(server)[Gateway]\n  service db(database)[Database]\n  gateway :R -- L: db\n  gateway:R -- L:db',
+      );
+      const warnings = only(b, 'architecture-duplicate-edge');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].line).toBe(5);
+      expect(warnings[0].message).toContain('`gateway:R -- L:db`');
+      expect(warnings[0].message).toContain('line 4');
+    });
+
+    it('respects suppression directives and rule-off configuration', () => {
+      const suppressed = architectureBlock(
+        'architecture-beta\n  %% mermaid-lint-disable architecture-no-edges\n  service gateway(server)[Gateway]',
+      );
+      expect(only(suppressed, 'architecture-no-edges')).toEqual([]);
+
+      const b = architectureBlock(
+        'architecture-beta\n  service gateway(server)[Gateway]\n  service db(database)[Database]\n  gateway:R -- L:db\n  gateway:R -- L:db',
+      );
+      const rules: ResolvedRules = {
+        ...RULE_DEFAULTS,
+        'architecture-duplicate-edge': 'off',
+      };
+      expect(only(b, 'architecture-duplicate-edge', rules)).toEqual([]);
+    });
+  });
+
+  describe('packet-beta rules', () => {
+    function packetBlock(body: string): Block {
+      return block(body, 'packet-beta');
+    }
+
+    it('keeps a valid packet clean', () => {
+      const b = packetBlock(
+        'packet-beta\n  0-7: "Source Port"\n  8-15: "Destination Port"\n  16-31: "Sequence Number"',
+      );
+
+      expect(only(b, 'packet-no-fields')).toEqual([]);
+      expect(only(b, 'packet-empty-labels')).toEqual([]);
+    });
+
+    it('flags packet-beta with no field rows', () => {
+      const b = packetBlock('packet-beta');
+      const warnings = only(b, 'packet-no-fields');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].severity).toBe('warn');
+      expect(warnings[0].line).toBe(1);
+      expect(warnings[0].message).toContain('no field rows');
+    });
+
+    it('flags empty and whitespace-only field labels', () => {
+      const b = packetBlock(
+        'packet-beta\n  0-7: ""\n  8-15: "   "\n  16-31: "Sequence Number"',
+      );
+      const warnings = only(b, 'packet-empty-labels');
+      expect(warnings).toHaveLength(2);
+      expect(warnings.map((warning) => warning.severity)).toEqual([
+        'warn',
+        'warn',
+      ]);
+      expect(warnings[0].message).toContain('0-7');
+      expect(warnings[0].line).toBe(2);
+      expect(warnings[1].message).toContain('8-15');
+      expect(warnings[1].line).toBe(3);
+    });
+
+    it('treats +count rows as valid packet fields', () => {
+      const b = packetBlock('packet-beta\n  +8: "Flags"');
+      expect(only(b, 'packet-no-fields')).toEqual([]);
+    });
+
+    it('matches field rows with trailing inline comments', () => {
+      const b = packetBlock('packet-beta\n  +8: "" %% reserved bits');
+      const warnings = only(b, 'packet-empty-labels');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].message).toContain('+8');
+      expect(warnings[0].line).toBe(2);
+    });
+
+    it('respects suppression directives and rule-off configuration', () => {
+      const suppressed = packetBlock(
+        'packet-beta\n  %% mermaid-lint-disable packet-empty-labels\n  0-7: ""',
+      );
+      expect(only(suppressed, 'packet-empty-labels')).toEqual([]);
+
+      const b = packetBlock('packet-beta');
+      const rules: ResolvedRules = {
+        ...RULE_DEFAULTS,
+        'packet-no-fields': 'off',
+      };
+      expect(only(b, 'packet-no-fields', rules)).toEqual([]);
+    });
+  });
+
+  describe('sankey-beta rules', () => {
+    function sankeyBlock(body: string): Block {
+      return block(body, 'sankey-beta');
+    }
+
+    it('keeps a valid sankey diagram clean', () => {
+      const b = sankeyBlock('sankey-beta\n  Source,Target,10\n  Target,Sink,5');
+      expect(only(b, 'sankey-duplicate-link')).toEqual([]);
+      expect(only(b, 'sankey-self-loop')).toEqual([]);
+    });
+
+    it('flags repeated source/target rows after trimming endpoint whitespace', () => {
+      const b = sankeyBlock(
+        'sankey-beta\n  Source , Target,10\n  Source,Target ,5',
+      );
+      const warnings = only(b, 'sankey-duplicate-link');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].severity).toBe('warn');
+      expect(warnings[0].message).toContain('Source');
+      expect(warnings[0].message).toContain('Target');
+      expect(warnings[0].line).toBe(3);
+    });
+
+    it('flags repeated source/target rows even when the values differ', () => {
+      const b = sankeyBlock(
+        'sankey-beta\n  Source,Target,10\n  Source,Target,999',
+      );
+      const warnings = only(b, 'sankey-duplicate-link');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].message).toContain('Source');
+      expect(warnings[0].message).toContain('Target');
+      expect(warnings[0].line).toBe(3);
+    });
+
+    it('flags self-loop rows after trimming endpoint whitespace', () => {
+      const b = sankeyBlock('sankey-beta\n  Source , Source,10');
+      const warnings = only(b, 'sankey-self-loop');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].severity).toBe('warn');
+      expect(warnings[0].message).toContain('Source');
+      expect(warnings[0].message).toContain('self-loop');
+      expect(warnings[0].line).toBe(2);
+    });
+
+    it('respects suppression directives and rule-off configuration', () => {
+      const suppressed = sankeyBlock(
+        'sankey-beta\n  %% mermaid-lint-disable sankey-duplicate-link\n  A,B,1\n  A,B,2',
+      );
+      expect(only(suppressed, 'sankey-duplicate-link')).toEqual([]);
+
+      const b = sankeyBlock('sankey-beta\n  A,A,1');
+      const rules: ResolvedRules = {
+        ...RULE_DEFAULTS,
+        'sankey-self-loop': 'off',
+      };
+      expect(only(b, 'sankey-self-loop', rules)).toEqual([]);
+    });
+  });
+
+  describe('xychart-beta rules', () => {
+    function xychartBlock(body: string): Block {
+      return block(body, 'xychart-beta');
+    }
+
+    it('keeps a valid categorical xychart clean', () => {
+      const b = xychartBlock(
+        'xychart-beta\n  x-axis [Jan, Feb]\n  bar [10, 20]\n  line [12, 18]',
+      );
+      expect(only(b, 'xychart-no-series')).toEqual([]);
+      expect(only(b, 'xychart-series-length-mismatch')).toEqual([]);
+    });
+
+    it('flags an xychart-beta with no bar or line series rows', () => {
+      const b = xychartBlock(
+        'xychart-beta\n  title "Quarterly Revenue"\n  x-axis [Q1, Q2]',
+      );
+      const warnings = only(b, 'xychart-no-series');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].severity).toBe('warn');
+      expect(warnings[0].message).toContain('renders no data');
+      expect(warnings[0].line).toBe(1);
+    });
+
+    it('flags a categorical series whose item count does not match the x-axis labels', () => {
+      const b = xychartBlock('xychart-beta\n  x-axis [Jan, Feb]\n  bar [10]');
+      const warnings = only(b, 'xychart-series-length-mismatch');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].severity).toBe('warn');
+      expect(warnings[0].message).toContain('x-axis');
+      expect(warnings[0].message).toContain('2');
+      expect(warnings[0].message).toContain('1');
+      expect(warnings[0].line).toBe(3);
+    });
+
+    it('does not apply series-length-mismatch to numeric range x-axes', () => {
+      const b = xychartBlock(
+        'xychart-beta\n  x-axis 0 --> 10\n  bar [1, 2, 3]',
+      );
+      expect(only(b, 'xychart-series-length-mismatch')).toEqual([]);
+    });
+
+    it('respects suppression directives and rule-off configuration', () => {
+      const suppressed = xychartBlock(
+        'xychart-beta\n  %% mermaid-lint-disable xychart-no-series\n  x-axis [Jan, Feb]',
+      );
+      expect(only(suppressed, 'xychart-no-series')).toEqual([]);
+
+      const b = xychartBlock('xychart-beta\n  x-axis [Jan, Feb]\n  line [1]');
+      const rules: ResolvedRules = {
+        ...RULE_DEFAULTS,
+        'xychart-series-length-mismatch': 'off',
+      };
+      expect(only(b, 'xychart-series-length-mismatch', rules)).toEqual([]);
+    });
+  });
 });

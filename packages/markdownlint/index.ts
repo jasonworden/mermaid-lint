@@ -211,11 +211,17 @@ const RULE_DESCRIPTIONS: Record<RuleId, string> = {
     'Mermaid: XY chart series lengths do not agree',
   'sankey-non-positive-value':
     'Mermaid: a sankey link has a non-positive value',
+  'sankey-duplicate-link': 'Mermaid: a sankey link is defined more than once',
   'sankey-self-loop': 'Mermaid: a sankey link points to itself',
   'block-no-blocks': 'Mermaid: a block diagram has no block declarations',
   'packet-no-fields': 'Mermaid: a packet diagram has no fields',
+  'packet-empty-labels': 'Mermaid: a packet field has an empty label',
   'architecture-no-elements':
-    'Mermaid: an architecture diagram has no elements',
+    'Mermaid: an architecture diagram has no declared elements',
+  'architecture-no-edges':
+    'Mermaid: an architecture diagram has no declared edges',
+  'architecture-duplicate-edge':
+    'Mermaid: an architecture edge is defined more than once',
   'no-duplicate-edges': 'Mermaid: the same edge is defined more than once',
   'no-self-loop': 'Mermaid: a node has an edge to itself',
   'no-empty-labels': 'Mermaid: a node has an empty label',

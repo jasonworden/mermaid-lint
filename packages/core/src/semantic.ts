@@ -79,6 +79,39 @@ function isFlowchartOrGraph(block: Block): boolean {
   return block.type === 'flowchart' || block.type === 'graph';
 }
 
+function parseCsvCells(raw: string): string[] | null {
+  if (raw === '') return [];
+
+  const cells: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i];
+    if (ch === '"') {
+      if (inQuotes && raw[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (ch === ',' && !inQuotes) {
+      cells.push(current);
+      current = '';
+      continue;
+    }
+
+    current += ch;
+  }
+
+  if (inQuotes) return null;
+  cells.push(current);
+  return cells;
+}
+
 // ---------------------------------------------------------------------------
 // Suppression (computed once per checkSemantics call)
 // ---------------------------------------------------------------------------
@@ -162,22 +195,18 @@ interface ParsedXychart {
   series: XychartSeries[];
 }
 
-const XYCHART_X_AXIS_RE = /^x-axis\b/;
-const XYCHART_Y_AXIS_RE = /^y-axis\b/;
-const XYCHART_CATEGORICAL_X_AXIS_RE = /^x-axis\s*\[(.*)\]\s*$/;
-const XYCHART_SERIES_RE = /^(line|bar)\s*\[(.*)\]\s*$/;
+const XYCHART_X_AXIS_RE = /^\s*x-axis\b/;
+const XYCHART_Y_AXIS_RE = /^\s*y-axis\b/;
+const XYCHART_CATEGORICAL_X_AXIS_RE =
+  /^\s*x-axis(?:\s+(?:"[^"]+"|[^\[\n]+?))?\s*\[(.*)\]\s*$/;
+const XYCHART_SERIES_RE = /^\s*(line|bar)\s*\[(.*)\]\s*$/;
 
 function isXychart(block: Block): boolean {
   return block.type === 'xychart-beta';
 }
 
 function commaItemCount(value: string): number {
-  const trimmed = value.trim();
-  if (trimmed === '') return 0;
-  return trimmed
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean).length;
+  return parseCsvCells(value)?.length ?? 0;
 }
 
 function parseXychart(lines: string[]): ParsedXychart {
@@ -257,7 +286,7 @@ const xychartNoSeries: Rule = {
     return [
       {
         message:
-          'xychart-beta has no data series and renders empty; add at least one `line [...]` or `bar [...]` series.',
+          'xychart-beta has no data series and renders no data; add at least one `line [...]` or `bar [...]` series.',
         line: 1,
       },
     ];
@@ -309,10 +338,11 @@ function isSankey(block: Block): boolean {
 function parseSankeyLinks(lines: string[]): SankeyLink[] {
   const links: SankeyLink[] = [];
   for (let i = 0; i < lines.length; i++) {
-    const trimmed = lines[i].trim();
+    const raw = lines[i];
+    const trimmed = raw.trim();
     if (trimmed === '' || trimmed.startsWith('%%')) continue;
-    const parts = trimmed.split(',');
-    if (parts.length !== 3) continue;
+    const parts = parseCsvCells(raw);
+    if (parts === null || parts.length !== 3) continue;
 
     const source = parts[0].trim();
     const target = parts[1].trim();
@@ -336,6 +366,30 @@ const sankeyNonPositiveValue: Rule = {
       })),
 };
 
+const sankeyDuplicateLink: Rule = {
+  id: 'sankey-duplicate-link',
+  appliesTo: isSankey,
+  evaluate: ({ lines }) => {
+    const seen = new Map<string, number>();
+    const findings: RuleFinding[] = [];
+
+    for (const link of parseSankeyLinks(lines)) {
+      const key = `${link.source}\u0000${link.target}`;
+      const first = seen.get(key);
+      if (first === undefined) {
+        seen.set(key, link.line);
+        continue;
+      }
+      findings.push({
+        message: `sankey link \`${link.source} -> ${link.target}\` is declared more than once (first on line ${first}); repeated source/target rows are usually copy-paste duplicates.`,
+        line: link.line,
+      });
+    }
+
+    return findings;
+  },
+};
+
 const sankeySelfLoop: Rule = {
   id: 'sankey-self-loop',
   appliesTo: isSankey,
@@ -349,8 +403,34 @@ const sankeySelfLoop: Rule = {
 };
 
 const BLOCK_DECL_RE = /^\s*[A-Za-z_][\w-]*(?:\s*\[[^\]]*])?(?::\d+)?\s*$/;
-const PACKET_FIELD_RE = /^\s*\d+\s*-\s*\d+\s*:\s*".*"\s*$/;
-const ARCHITECTURE_ELEMENT_RE = /^\s*(service|group|junction)\b/;
+const PACKET_FIELD_RE =
+  /^\s*(\+?\d+(?:\s*-\s*\d+)?)\s*:\s*(?:"([^"]*)"|'([^']*)')\s*(?:%%.*)?$/;
+
+interface PacketField {
+  range: string;
+  label: string;
+  line: number;
+}
+
+function isPacket(block: Block): boolean {
+  return block.type === 'packet-beta';
+}
+
+function collectPacketFields(lines: string[]): PacketField[] {
+  const fields: PacketField[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    if (raw.trimStart().startsWith('%%')) continue;
+    const field = PACKET_FIELD_RE.exec(raw);
+    if (field === null) continue;
+    fields.push({
+      range: field[1].replace(/\s+/g, ''),
+      label: field[2] ?? field[3] ?? '',
+      line: i + 1,
+    });
+  }
+  return fields;
+}
 
 const blockNoBlocks: Rule = {
   id: 'block-no-blocks',
@@ -376,34 +456,29 @@ const blockNoBlocks: Rule = {
 
 const packetNoFields: Rule = {
   id: 'packet-no-fields',
-  appliesTo: (block) => block.type === 'packet-beta',
+  appliesTo: isPacket,
   evaluate: ({ lines }) => {
-    if (lines.some((line) => PACKET_FIELD_RE.test(line.trim()))) return [];
+    if (collectPacketFields(lines).length > 0) return [];
     return [
       {
         message:
-          'packet-beta has no fields and renders empty; add at least one bit-range field row.',
+          'packet-beta has no field rows (no fields); it parses but renders as an empty packet.',
         line: 1,
       },
     ];
   },
 };
 
-const architectureNoElements: Rule = {
-  id: 'architecture-no-elements',
-  appliesTo: (block) => block.type === 'architecture-beta',
-  evaluate: ({ lines }) => {
-    if (lines.some((line) => ARCHITECTURE_ELEMENT_RE.test(line.trim()))) {
-      return [];
-    }
-    return [
-      {
-        message:
-          'architecture-beta has no elements and renders empty; add at least one `service`, `group`, or `junction` declaration.',
-        line: 1,
-      },
-    ];
-  },
+const packetEmptyLabels: Rule = {
+  id: 'packet-empty-labels',
+  appliesTo: isPacket,
+  evaluate: ({ lines }) =>
+    collectPacketFields(lines)
+      .filter((field) => field.label.trim() === '')
+      .map((field) => ({
+        message: `packet field \`${field.range}\` has an empty label and will render as a blank field.`,
+        line: field.line,
+      })),
 };
 
 const duplicateIds: Rule = {
@@ -2191,6 +2266,138 @@ const gitgraphNoCommits: Rule = {
 };
 
 // ---------------------------------------------------------------------------
+// Architecture-beta helpers and rules
+// ---------------------------------------------------------------------------
+
+const ARCHITECTURE_DECL_RE =
+  /^\s*(service|group|junction)\s+([A-Za-z0-9_][\w-]*)\b/;
+const ARCHITECTURE_EDGE_RE =
+  /^\s*([A-Za-z0-9_][\w-]*)(\{group\})?\s*:\s*([TBLR])\s*(<)?--(>)?\s*([TBLR])\s*:\s*([A-Za-z0-9_][\w-]*)(\{group\})?\s*$/;
+
+interface ArchitectureDeclaration {
+  line: number;
+}
+
+interface ArchitectureEdge {
+  leftId: string;
+  leftGroup: boolean;
+  leftPort: string;
+  operator: string;
+  rightPort: string;
+  rightId: string;
+  rightGroup: boolean;
+  line: number;
+}
+
+function isArchitecture(block: Block): boolean {
+  return block.type === 'architecture-beta';
+}
+
+function collectArchitectureDeclarations(
+  lines: string[],
+): ArchitectureDeclaration[] {
+  const declarations: ArchitectureDeclaration[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    if (raw.trimStart().startsWith('%%')) continue;
+    if (ARCHITECTURE_DECL_RE.test(raw)) {
+      declarations.push({ line: i + 1 });
+    }
+  }
+  return declarations;
+}
+
+function collectArchitectureEdges(lines: string[]): ArchitectureEdge[] {
+  const edges: ArchitectureEdge[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    if (raw.trimStart().startsWith('%%')) continue;
+    const edge = ARCHITECTURE_EDGE_RE.exec(raw);
+    if (edge === null) continue;
+    edges.push({
+      leftId: edge[1],
+      leftGroup: edge[2] === '{group}',
+      leftPort: edge[3],
+      operator: `${edge[4] ?? ''}--${edge[5] ?? ''}`,
+      rightPort: edge[6],
+      rightId: edge[7],
+      rightGroup: edge[8] === '{group}',
+      line: i + 1,
+    });
+  }
+  return edges;
+}
+
+function formatArchitectureEdge(edge: ArchitectureEdge): string {
+  const left = `${edge.leftId}${edge.leftGroup ? '{group}' : ''}:${edge.leftPort}`;
+  const right = `${edge.rightPort}:${edge.rightId}${edge.rightGroup ? '{group}' : ''}`;
+  return `${left} ${edge.operator} ${right}`;
+}
+
+const architectureNoElements: Rule = {
+  id: 'architecture-no-elements',
+  appliesTo: isArchitecture,
+  evaluate: ({ lines }) => {
+    if (collectArchitectureDeclarations(lines).length > 0) return [];
+    return [
+      {
+        message:
+          'architecture-beta has no elements (no declared elements), groups, or junctions; it parses but renders empty.',
+        line: 1,
+      },
+    ];
+  },
+};
+
+const architectureNoEdges: Rule = {
+  id: 'architecture-no-edges',
+  appliesTo: isArchitecture,
+  evaluate: ({ lines }) => {
+    if (collectArchitectureDeclarations(lines).length === 0) return [];
+    if (collectArchitectureEdges(lines).length > 0) return [];
+    return [
+      {
+        message:
+          'architecture-beta declares elements but has no edges; it renders as disconnected symbols and is usually incomplete.',
+        line: 1,
+      },
+    ];
+  },
+};
+
+const architectureDuplicateEdge: Rule = {
+  id: 'architecture-duplicate-edge',
+  appliesTo: isArchitecture,
+  evaluate: ({ lines }) => {
+    const seen = new Map<string, number>();
+    const findings: RuleFinding[] = [];
+
+    for (const edge of collectArchitectureEdges(lines)) {
+      const key = [
+        edge.leftId,
+        edge.leftGroup ? 'group' : '',
+        edge.leftPort,
+        edge.operator,
+        edge.rightPort,
+        edge.rightId,
+        edge.rightGroup ? 'group' : '',
+      ].join('\u0000');
+      const first = seen.get(key);
+      if (first === undefined) {
+        seen.set(key, edge.line);
+        continue;
+      }
+      findings.push({
+        message: `architecture edge \`${formatArchitectureEdge(edge)}\` is declared more than once (first on line ${first}); repeated exact edges are usually a copy-paste mistake.`,
+        line: edge.line,
+      });
+    }
+
+    return findings;
+  },
+};
+
+// ---------------------------------------------------------------------------
 // Quadrant chart helpers and rules
 // ---------------------------------------------------------------------------
 
@@ -2506,10 +2713,14 @@ const RULES: Rule[] = [
   xychartNoSeries,
   xychartSeriesLengthMismatch,
   sankeyNonPositiveValue,
+  sankeyDuplicateLink,
   sankeySelfLoop,
   blockNoBlocks,
   packetNoFields,
+  packetEmptyLabels,
   architectureNoElements,
+  architectureNoEdges,
+  architectureDuplicateEdge,
   duplicateIds,
   noDuplicateNodeDeclarations,
   noDuplicateEdges,

@@ -43,10 +43,14 @@ export type RuleId =
   | 'xychart-no-series'
   | 'xychart-series-length-mismatch'
   | 'sankey-non-positive-value'
+  | 'sankey-duplicate-link'
   | 'sankey-self-loop'
   | 'block-no-blocks'
   | 'packet-no-fields'
+  | 'packet-empty-labels'
   | 'architecture-no-elements'
+  | 'architecture-no-edges'
+  | 'architecture-duplicate-edge'
   | 'no-duplicate-edges'
   | 'no-self-loop'
   | 'no-empty-labels'
@@ -255,6 +259,27 @@ export interface RuleMetadata {
  * same `tag:` used twice — a copy-paste mistake), and `gitgraph-no-commits` (a
  * `gitGraph` with no commits — parses but renders an empty diagram).
  *
+ * The architecture-beta rules are all advisory `warn`:
+ * `architecture-no-elements` (a diagram with no declared services, groups, or
+ * junctions — parses but renders empty), `architecture-no-edges` (declared
+ * symbols but no connections — usually incomplete), and
+ * `architecture-duplicate-edge` (the same architecture connection repeated
+ * between the same endpoints and ports — a copy-paste smell).
+ *
+ * The packet-beta rules are all advisory `warn`: `packet-no-fields` (a packet
+ * with no field rows — parses but renders empty) and `packet-empty-labels`
+ * (a field label that is empty or whitespace-only, which renders blank).
+ *
+ * The sankey-beta rules are all advisory `warn`: `sankey-duplicate-link`
+ * (the same source/target link row repeated — usually a copy-paste mistake)
+ * and `sankey-self-loop` (a row whose source and target are the same after
+ * trimming, which is usually accidental).
+ *
+ * The xychart-beta rules are all advisory `warn`: `xychart-no-series`
+ * (an xychart-beta with no `bar` or `line` rows — parses but renders no data)
+ * and `xychart-series-length-mismatch` (a categorical x-axis list whose label
+ * count does not match a bar/line series item count).
+ *
  * The quadrantChart rules are all advisory `warn`: `quadrant-duplicate-point`
  * (two data points with the same label — renders overlapping markers, usually
  * a copy-paste mistake), `quadrant-no-points` (a quadrantChart with axis or
@@ -325,6 +350,11 @@ export const RULE_METADATA = {
     docsScope: 'sankey-beta',
     readmeDiagramKeywords: ['sankey-beta'],
   },
+  'sankey-duplicate-link': {
+    defaultSeverity: 'warn',
+    docsScope: 'sankey-beta',
+    readmeDiagramKeywords: ['sankey-beta'],
+  },
   'sankey-self-loop': {
     defaultSeverity: 'warn',
     docsScope: 'sankey-beta',
@@ -340,7 +370,22 @@ export const RULE_METADATA = {
     docsScope: 'packet-beta',
     readmeDiagramKeywords: ['packet-beta'],
   },
+  'packet-empty-labels': {
+    defaultSeverity: 'warn',
+    docsScope: 'packet-beta',
+    readmeDiagramKeywords: ['packet-beta'],
+  },
   'architecture-no-elements': {
+    defaultSeverity: 'warn',
+    docsScope: 'architecture-beta',
+    readmeDiagramKeywords: ['architecture-beta'],
+  },
+  'architecture-no-edges': {
+    defaultSeverity: 'warn',
+    docsScope: 'architecture-beta',
+    readmeDiagramKeywords: ['architecture-beta'],
+  },
+  'architecture-duplicate-edge': {
     defaultSeverity: 'warn',
     docsScope: 'architecture-beta',
     readmeDiagramKeywords: ['architecture-beta'],
