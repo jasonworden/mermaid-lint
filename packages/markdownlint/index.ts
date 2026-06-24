@@ -234,6 +234,9 @@ const RULE_DESCRIPTIONS: Record<RuleId, string> = {
     'Mermaid: a mindmap node duplicates a sibling under the same parent',
   'mindmap-no-nodes': 'Mermaid: a mindmap has no nodes',
   'mindmap-deep-nesting': 'Mermaid: a mindmap node is nested too deeply',
+  'timeline-empty-section': 'Mermaid: a timeline section has no entries',
+  'timeline-empty-event': 'Mermaid: a timeline period has an empty event',
+  'timeline-no-entries': 'Mermaid: a timeline has no sections or time periods',
 };
 
 /**
