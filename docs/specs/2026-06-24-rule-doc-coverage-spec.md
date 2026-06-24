@@ -3,7 +3,7 @@
 **Generated:** 2026-06-24 | **Status:** Draft
 **Request:** "/one-shot-spec make sure agent gov knows to update
 - docs/semantic-rules.md
-- README 
+- README
 when adding/removing/editing rules.
 for new rules, and add a test that the doc + README cover all rules. REAMDE per diagram table must have all rules that apply to that rule (maybe the rule file/definition should have a frontmater tag or something that it can use as S-o-T
 
