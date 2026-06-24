@@ -9,7 +9,7 @@ Validate Mermaid diagrams embedded in Markdown files. Uses the official `mermaid
 [![CI](https://github.com/jasonworden/mermaid-lint/actions/workflows/ci.yml/badge.svg)](https://github.com/jasonworden/mermaid-lint/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-⚡ **3.4–4.0× faster** than the previous release — a Rust/WASM fast path validates the happy path in ~0.1 ms/diagram; the heavyweight `mermaid.parse()` loads only when a diagram actually errors. [See the benchmarks ↓](#performance)
+⚡ **Fast by default** — a Rust/WASM parser validates the happy path in ~0.1 ms/diagram; the heavyweight pure-JS `mermaid.parse()` path loads only when a diagram actually errors. [See the benchmarks](docs/performance.md)
 
 Catches real syntax errors as you type — here the [VS Code extension](packages/vscode) flagging an unterminated edge label in a `.mmd` file:
 
@@ -46,7 +46,7 @@ The exit code is non-zero on failure, so it drops straight into CI or a pre-comm
 | **Auto-fix** mechanical issues (`--fix`) | ✅ | ❌ |
 | **Editor** squiggles as you type | ✅ VS Code | ❌ |
 | Runs in **CI** / pre-commit | ✅ | ❌ |
-| Setup | `npx mermaid-lint` | — |
+| Setup | one command | — |
 
 Plain Markdown linters don't validate diagram bodies — but mermaid-lint plugs
 into the ones you already run: [markdownlint](#markdownlint), [remark](#remark),
@@ -56,35 +56,21 @@ and [textlint](#textlint) all gain Mermaid validation via a mermaid-lint rule.
 
 | Package | Published | Description |
 |---|---|---|
-| [`@mermaid-lint/cli`](packages/cli) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/cli.svg)](https://www.npmjs.com/package/@mermaid-lint/cli) | CLI — `npx mermaid-lint` |
+| [`@mermaid-lint/cli`](packages/cli) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/cli.svg)](https://www.npmjs.com/package/@mermaid-lint/cli) | Command-line runner |
 | [`@mermaid-lint/remark`](packages/remark) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/remark.svg)](https://www.npmjs.com/package/@mermaid-lint/remark) | remark-lint plugin |
 | [`@mermaid-lint/markdownlint`](packages/markdownlint) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/markdownlint.svg)](https://www.npmjs.com/package/@mermaid-lint/markdownlint) | markdownlint async custom rule |
 | [`@mermaid-lint/textlint`](packages/textlint) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/textlint.svg)](https://www.npmjs.com/package/@mermaid-lint/textlint) | textlint rule (async) |
 | [`@mermaid-lint/vitest`](packages/vitest) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/vitest.svg)](https://www.npmjs.com/package/@mermaid-lint/vitest) | Vitest adapter |
 | [`@mermaid-lint/jest`](packages/jest) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/jest.svg)](https://www.npmjs.com/package/@mermaid-lint/jest) | Jest adapter |
 | [`@mermaid-lint/core`](packages/core) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/core.svg)](https://www.npmjs.com/package/@mermaid-lint/core) | Core utilities (extract, validate, discover) — [API docs](https://docs.mermaidlint.com) |
-| [`mermaid-lint-vscode`](packages/vscode) | [![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/mermaid-lint.mermaid-lint-vscode.svg?label=Marketplace)](https://marketplace.visualstudio.com/items?itemName=mermaid-lint.mermaid-lint-vscode) [![Open VSX](https://img.shields.io/open-vsx/v/mermaid-lint/mermaid-lint-vscode.svg?label=Open%20VSX)](https://open-vsx.org/extension/mermaid-lint/mermaid-lint-vscode) | VS Code extension — live squiggles in Markdown (`.md`, `.markdown`) blocks + standalone `.mmd` files |
+| [`mermaid-lint-vscode`](packages/vscode) | [![VS Code Marketplace](https://img.shields.io/badge/Marketplace-VS%20Code-007ACC?logo=visualstudiocode)](https://marketplace.visualstudio.com/items?itemName=mermaid-lint.mermaid-lint-vscode) [![Open VSX](https://img.shields.io/open-vsx/v/mermaid-lint/mermaid-lint-vscode.svg?label=Open%20VSX)](https://open-vsx.org/extension/mermaid-lint/mermaid-lint-vscode) | VS Code extension — live squiggles in Markdown (`.md`, `.markdown`) blocks + standalone `.mmd` files |
 
 ## CLI
 
-```bash
-npx mermaid-lint                        # validate git-tracked *.md / *.mdx / *.markdown / *.mmd
-npx mermaid-lint --all                  # scan every supported file on disk
-npx mermaid-lint "docs/**/*.md"         # glob pattern (quoted to prevent shell expansion)
-npx mermaid-lint --include "docs/**/*.md" --exclude "docs/archive/**"  # named glob flags
-npx mermaid-lint --ext crv              # also discover *.crv files (Carve, etc.)
-npx mermaid-lint docs/page.crv          # explicitly-named files lint regardless of extension
-npx mermaid-lint -                      # read from stdin
-npx mermaid-lint --no-gitignore         # scan filesystem (include gitignored files)
-npx mermaid-lint --quiet                # failures only
-npx mermaid-lint --format json          # machine-readable JSON output
-npx mermaid-lint --strict               # treat semantic warnings as errors (exit 1)
-npx mermaid-lint --no-semantic          # skip semantic checks (syntax errors only)
-npx mermaid-lint --fix                  # auto-fix mechanical errors in git-tracked files
-npx mermaid-lint --fix "docs/**/*.md"   # fix only specific files
-```
-
 **Exit codes:** `0` = all valid · `1` = validation failures (or warnings with `--strict`) · `2` = usage/IO error
+
+See [docs/cli.md](docs/cli.md) for discovery modes, glob flags, stdin, JSON
+output, strict mode, semantic toggles, and `--fix` examples.
 
 **JSON output** (`--format json`) is documented in
 [docs/json-output.md](docs/json-output.md) — the full schema, field reference,
@@ -381,39 +367,15 @@ block body; use the CLI for those.)
 ## VS Code extension
 
 A dedicated extension (`mermaid-lint-vscode`, in [`packages/vscode`](packages/vscode))
-that validates Mermaid as you type and reports errors inline — no markdownlint
-setup required, and unlike the markdownlint rule it **also covers standalone
-`.mmd` files**.
+validates Mermaid as you type, including Markdown fences and standalone `.mmd`
+files. It reports inline diagnostics, hover messages, Problems-panel entries,
+and quick-fix code actions while honoring the same mermaid-lint config as the
+CLI.
 
-| Feature | |
-|---|---|
-| Inline squiggles on invalid ```` ```mermaid ```` blocks in **Markdown** | ✅ |
-| Inline squiggles in standalone **`.mmd`** files | ✅ |
-| Hover messages + **Problems panel** entries | ✅ |
-| Debounced **on-type** validation | ✅ |
-| Respects the [mermaid-lint config file](#configuration) (`strict`, `semantic`, `rules`, `fences`) | ✅ |
-| **Quick-fix** code actions (apply `--fix` autocorrections in-editor) | ✅ |
-
-Settings:
-
-```json
-{
-  "mermaidLint.enable": true,
-  "mermaidLint.delay": 300
-}
-```
-
-`strict`, `semantic`, per-rule `rules`, and `fences` all come from your project's
-mermaid-lint config file (e.g. `.mermaidlintrc`), so the editor matches the CLI —
-including off-by-default rules you enable there.
-
-**Install:** published to the
+Install it from the
 [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=mermaid-lint.mermaid-lint-vscode)
-and [Open VSX](https://open-vsx.org/extension/mermaid-lint/mermaid-lint-vscode)
-(Cursor / VSCodium / Windsurf / Gitpod) as `mermaid-lint.mermaid-lint-vscode` —
-search _Mermaid Lint_ in the Extensions panel, or
-`code --install-extension mermaid-lint.mermaid-lint-vscode`. Release and
-double-publish steps are in [`packages/vscode/PUBLISHING.md`](packages/vscode/PUBLISHING.md).
+or [Open VSX](https://open-vsx.org/extension/mermaid-lint/mermaid-lint-vscode),
+or run `code --install-extension mermaid-lint.mermaid-lint-vscode`.
 
 ## Vitest
 
@@ -463,50 +425,13 @@ flowchart LR
 
 ## Semantic rules
 
-In addition to syntax errors, mermaid-lint runs a set of semantic rules over diagrams that `mermaid.parse()` accepts but which are legacy, ambiguous, or render incorrectly. Each rule has a **per-rule severity** (`off` | `warn` | `error`) following [Biome's model](https://biomejs.dev/linter/): most rules default to `warn` (advisory — only fails the run under `--strict`), while a rule whose violation is unambiguously wrong defaults to `error` (fails the run outright). Tune any rule via the [`rules` config key](#configuration).
+In addition to syntax errors, mermaid-lint runs semantic rules over diagrams
+that `mermaid.parse()` accepts but which are legacy, ambiguous, or render
+incorrectly. Each rule has a per-rule severity (`off` | `warn` | `error`), and
+you can tune any rule via the [`rules` config key](#configuration).
 
-| Rule | Default | Flags | Scope |
-|---|---|---|---|
-| `duplicate-ids` | `error` | Same node id declared twice with conflicting labels — Mermaid silently drops one | flowchart / graph |
-| `prefer-flowchart` | `warn` | The legacy `graph` keyword — `flowchart` is current and enables per-subgraph `direction` | graph |
-| `require-direction` | `warn` | `flowchart`/`graph` with no direction — silently defaults to `TD` | flowchart / graph |
-| `no-experimental` | `warn` | `*-beta` diagram types — unstable syntax that may break on a Mermaid upgrade | all |
-| `no-duplicate-edges` | `warn` | The same edge defined more than once — renders stacked, usually a copy-paste mistake | flowchart / graph |
-| `no-self-loop` | `warn` | A node with an edge to itself (`A --> A`) — almost always unintentional | flowchart / graph |
-| `no-empty-labels` | `warn` | A node with an empty label (`A[ ]`) — renders a blank shape | flowchart / graph |
-| `no-orphan-nodes` | `off` | A node declared but never connected by an edge. Off by default (opt-in): can false-positive on subgraph-only members | flowchart / graph |
-| `no-activate-without-deactivate` | `warn` | An `activate`/`+` with no matching `deactivate`/`-` (or vice versa) — leaves a dangling activation bar | sequenceDiagram |
-| `prefer-explicit-participants` | `off` | A participant used in a message before being declared — Mermaid auto-creates it. Off by default (opt-in) | sequenceDiagram |
-| `no-duplicate-methods` | `warn` | The same method signature declared twice on one class — renders both | classDiagram |
-| `pie-duplicate-label` | `warn` | The same pie slice label defined more than once — usually a copy-paste mistake | pie |
-| `pie-zero-value` | `warn` | A pie slice with a value of `0` — renders as an invisible (zero-area) slice | pie |
-| `pie-no-data` | `warn` | A pie chart with no data slices — renders empty | pie |
-| `state-duplicate-transition` | `warn` | The same `src --> tgt : label` transition defined more than once — renders stacked, usually a copy-paste mistake | stateDiagram |
-| `state-empty-composite` | `warn` | A composite `state X { }` with an empty body — renders as an empty box | stateDiagram |
-| `state-self-transition` | `off` | A state with a transition to itself (`A --> A`). Off by default (opt-in): self-transitions are valid and common in state machines | stateDiagram |
-| `er-duplicate-attribute` | `warn` | The same attribute name declared twice inside one entity block | erDiagram |
-| `er-duplicate-entity` | `warn` | An entity whose attribute block is defined more than once — Mermaid merges them, usually a copy-paste mistake | erDiagram |
-| `er-standalone-entity` | `off` | An entity with a defined block but no relationship — renders as an isolated box. Off by default (opt-in) | erDiagram |
-| `gantt-duplicate-task-id` | `warn` | Two tasks declared with the same explicit id — makes `after`/`until` references ambiguous | gantt |
-| `gantt-undefined-dependency` | `warn` | A task whose `after`/`until` references an id no task defines — Mermaid places it at the chart start | gantt |
-| `gantt-empty-section` | `warn` | A `section` with no tasks — renders as an empty section header | gantt |
-| `mindmap-duplicate-sibling` | `warn` | Two child nodes under the same parent with identical text — renders two identical branches, usually a copy-paste mistake | mindmap |
-| `mindmap-no-nodes` | `warn` | A `mindmap` with only the keyword and no nodes — parses but renders an empty diagram | mindmap |
-| `mindmap-deep-nesting` | `off` | A node nested beyond 5 levels deep. Off by default (opt-in): deep nesting is a matter of taste | mindmap |
-| `timeline-empty-section` | `warn` | A `section` with no time-period entries — renders as an empty section header | timeline |
-| `timeline-empty-event` | `warn` | A time period with a blank event field (a trailing `:` or `: :`) — renders an empty event bubble | timeline |
-| `timeline-no-entries` | `warn` | A `timeline` with no sections and no time periods — parses but renders an empty diagram | timeline |
-| `gitgraph-duplicate-commit-id` | `warn` | The same explicit `id:` on more than one commit — renders but makes `merge`/`cherry-pick` references ambiguous | gitGraph |
-| `gitgraph-duplicate-tag` | `warn` | The same `tag:` used more than once — two commits render with the same tag, usually a copy-paste mistake | gitGraph |
-| `gitgraph-no-commits` | `warn` | A `gitGraph` with no commits — parses but renders an empty diagram | gitGraph |
-| `quadrant-duplicate-point` | `warn` | Two data points with the same label — renders overlapping markers, usually a copy-paste mistake | quadrantChart |
-| `quadrant-no-points` | `warn` | A quadrantChart with axis or quadrant labels but no data points — parses but renders an empty plot | quadrantChart |
-| `quadrant-duplicate-quadrant` | `warn` | The same quadrant region (`quadrant-1`–`quadrant-4`) labeled more than once — Mermaid keeps only the last | quadrantChart |
-
-```
-docs/api.md:7:1: error: duplicate-ids: node "A" declared with label "Start" (line 2) and "Begin" (line 7)
-docs/api.md:2:1: warning: prefer-flowchart: use `flowchart` instead of `graph`: …
-```
+See [docs/semantic-rules.md](docs/semantic-rules.md) for the full rule table,
+default severities, scopes, and example output.
 
 Suppress one rule per-diagram with a Mermaid comment:
 
@@ -522,47 +447,37 @@ Use a bare `%% mermaid-lint-disable` to suppress all rules in a diagram, or disa
 
 mermaid-lint validates all 19 Mermaid diagram types using the official `mermaid.parse()` API. Some alternative linters (e.g. [`maid`](https://github.com/egoist/maid)) only validate 5 types and silently pass all input for the other 14 (gantt, erDiagram, journey, mindmap, gitGraph, etc.). Every type in the table below is actively validated — none are pass-through.
 
-| Type | Keyword | Supported | Notes |
-|---|---|---|---|
-| Flowchart | `flowchart` / `graph` | ✅ | `graph` is an alias for `flowchart` |
-| Sequence | `sequenceDiagram` | ✅ | |
-| Class | `classDiagram` | ✅ | |
-| State | `stateDiagram-v2` | ✅ | |
-| Entity-Relationship | `erDiagram` | ✅ | |
-| Pie chart | `pie` | ✅ | |
-| Gantt | `gantt` | ✅ | |
-| Git graph | `gitGraph` | ✅ | |
-| User journey | `journey` | ✅ | |
-| Mindmap | `mindmap` | ✅ | |
-| Quadrant chart | `quadrantChart` | ✅ | |
-| Requirement | `requirementDiagram` | ✅ | |
-| C4 Context | `C4Context` | ✅ | |
-| Timeline | `timeline` | ✅ | |
-| XY chart | `xychart-beta` | ✅ | Experimental |
-| Sankey | `sankey-beta` | ✅ | Experimental |
-| Block | `block-beta` | ✅ | Experimental |
-| Packet | `packet-beta` | ✅ | Experimental |
-| Architecture | `architecture-beta` | ✅ | Experimental |
-| ZenUML | `zenuml` | ❌ | Requires separate [`@mermaid-js/mermaid-zenuml`](https://github.com/mermaid-js/zenuml-core) package; not bundled in mermaid v11 |
+| Type | Keyword | Supported | Related rules | Notes |
+|---|---|---|---|---|
+| Flowchart | `flowchart` / `graph` | ✅ | `duplicate-ids`, `prefer-flowchart`, `require-direction`, `no-duplicate-edges`, `no-self-loop`, `no-empty-labels`, `no-orphan-nodes` | `graph` is an alias for `flowchart` |
+| Sequence | `sequenceDiagram` | ✅ | `no-activate-without-deactivate`, `prefer-explicit-participants` | |
+| Class | `classDiagram` | ✅ | `no-duplicate-methods` | |
+| State | `stateDiagram-v2` | ✅ | `state-duplicate-transition`, `state-empty-composite`, `state-self-transition` | |
+| Entity-Relationship | `erDiagram` | ✅ | `er-duplicate-attribute`, `er-duplicate-entity`, `er-standalone-entity` | |
+| Pie chart | `pie` | ✅ | `pie-duplicate-label`, `pie-zero-value`, `pie-no-data` | |
+| Gantt | `gantt` | ✅ | `gantt-duplicate-task-id`, `gantt-undefined-dependency`, `gantt-empty-section` | |
+| Git graph | `gitGraph` | ✅ | `gitgraph-duplicate-commit-id`, `gitgraph-duplicate-tag`, `gitgraph-no-commits` | |
+| User journey | `journey` | ✅ | - | |
+| Mindmap | `mindmap` | ✅ | `mindmap-duplicate-sibling`, `mindmap-no-nodes`, `mindmap-deep-nesting` | |
+| Quadrant chart | `quadrantChart` | ✅ | `quadrant-duplicate-point`, `quadrant-no-points`, `quadrant-duplicate-quadrant` | |
+| Requirement | `requirementDiagram` | ✅ | - | |
+| C4 Context | `C4Context` | ✅ | - | |
+| Timeline | `timeline` | ✅ | `timeline-empty-section`, `timeline-empty-event`, `timeline-no-entries` | |
+| XY chart | `xychart-beta` | ✅ | `no-experimental` | Experimental |
+| Sankey | `sankey-beta` | ✅ | `no-experimental` | Experimental |
+| Block | `block-beta` | ✅ | `no-experimental` | Experimental |
+| Packet | `packet-beta` | ✅ | `no-experimental` | Experimental |
+| Architecture | `architecture-beta` | ✅ | `no-experimental` | Experimental |
+| ZenUML | `zenuml` | ❌ | - | Requires separate [`@mermaid-js/mermaid-zenuml`](https://github.com/mermaid-js/zenuml-core) package; not bundled in mermaid v11 |
 
 ## Performance
 
-Benchmarks run on Apple M4 Max (64 GB), Node.js 22. Test input: one Markdown file with the given number of flowchart diagrams (~1/3 with duplicate-ID conflicts, all syntactically valid). Values are **total ms (ms per diagram)**.
+The Rust/WASM fast path avoids the fixed mermaid.js + jsdom startup cost for
+valid diagrams, while mermaid.js remains the authoritative fallback for parser
+errors and precise line/column diagnostics.
 
-| Diagrams | mermaid-lint v0.3.0 | mermaid-lint v0.5.0 |
-|---|---|---|
-| 10 | — | 108 ms (10.8 ms/d) |
-| 50 | 407 ms (8.1 ms/d) | 121 ms (2.4 ms/d) |
-| 200 | 553 ms (2.8 ms/d) | 159 ms (0.8 ms/d) |
-| 1000 | 1018 ms (1.0 ms/d) | 260 ms (0.3 ms/d) |
-| 10000 | 6643 ms (0.7 ms/d) | 1699 ms (0.2 ms/d) |
-| 100000 | 62734 ms (0.63 ms/d) | 15590 ms (0.16 ms/d) |
-
-**v0.5.0 is 3.4–4.0× faster** than v0.3.0. The fixed ~400 ms startup cost (Node.js + mermaid.js) is now eliminated on the happy path: `@mermanjs/web` WASM handles validation with ~100 ms init + ~0.1 ms/diagram. mermaid.js is only loaded when a diagram fails validation, where it supplies precise line/column error locations.
-
-**Validation accuracy:** mermaid-lint uses `@mermanjs/web` (Rust WASM) for the fast path. When merman signals an error, mermaid.js is the authoritative fallback — it provides precise line/col locations and is the final arbiter of validity. Parity between the two parsers is enforced by a CI test suite: a test set of 24+ valid and 10+ invalid diagrams across all major Mermaid diagram types runs on every PR, failing if merman ever accepts a diagram that mermaid.js rejects. For files with parse errors, both runtimes load (~500 ms total).
-
-Run `pnpm bench` to reproduce.
+See [docs/performance.md](docs/performance.md) for benchmarks, parser-accuracy
+checks, and reproduction steps.
 
 ## Development
 
