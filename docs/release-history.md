@@ -4,7 +4,7 @@ This is a selective map of the releases that most changed what mermaid-lint is
 or how people use it. It is intentionally not a full changelog.
 
 ```mermaid
-timeline
+timeline TD
   title mermaid-lint
   v0.1 : CLI + core extraction
   v0.2 : Globs, .mdx/.mmd, JSON output
@@ -18,7 +18,7 @@ timeline
   v0.13 : shared markdown adapter + textlint rule
   v0.14 : CommonMark fence support + hosted API docs
   v0.17 : broader semantic rule set + per-rule severity
-  v0.2x : adapter parity: per-rule config + autofix across remark, markdownlint, textlint, and VS Code
+  v0.23 : adapter parity rollup: per-rule config + host autofix coverage across the Markdown integrations
   v0.34 : expanded semantic coverage (journey, timeline, C4Context) + docs consistency guards
 ```
 
@@ -41,9 +41,9 @@ Good candidates:
 Not every release needs an entry. This page is for notable releases, not for
 every minor, patch, or follow-up housekeeping version.
 
-An entry can roll up everything notable since the last version that already has
-an entry here; it does not need to represent only changes shipped in exactly
-one tagged `vx.y.z`.
+A `vx.y.z` entry can act as a rollup of everything notable since the last
+version that already has an entry here; it does not need to represent only
+changes shipped in exactly that one version.
 
 When a release is notable enough to change how people describe mermaid-lint in
 docs, demos, or release notes, add or update a short entry here in the same

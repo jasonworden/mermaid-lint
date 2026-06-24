@@ -358,7 +358,10 @@ describe('docs consistency', () => {
     expect(docs).toMatch(/## Maintenance/i);
     expect(docs).toMatch(/not every release needs an entry/i);
     expect(docs).toMatch(/notable release/i);
-    expect(docs).toMatch(/roll up everything notable since the last version/i);
+    expect(docs).toContain('`vx.y.z`');
+    expect(docs).toContain(
+      'can act as a rollup of everything notable since the last',
+    );
   });
 
   it('keeps local Markdown links resolvable', () => {
