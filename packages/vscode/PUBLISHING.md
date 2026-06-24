@@ -120,29 +120,11 @@ unset OVSX_TOKEN
 > "publisher is not verified" warning. Open VSX starts new namespaces in an
 > **unverified** state until someone claims ownership of the namespace.
 >
-> To eliminate the warning shown on
-> <https://open-vsx.org/extension/mermaid-lint/mermaid-lint-vscode>:
->
-> 1. Log in to <https://open-vsx.org> with the GitHub account that publishes the
->    extension.
-> 2. Open a public namespace-claim issue at
->    <https://github.com/EclipseFdn/open-vsx.org/issues/new>.
-> 3. Request ownership of the `mermaid-lint` namespace and link the extension,
->    the VS Code Marketplace listing, and this repo as proof of control.
->
-> Example issue body:
->
-> ```md
-> I would like to claim ownership of the `mermaid-lint` namespace on Open VSX.
->
-> - Namespace: `mermaid-lint`
-> - Open VSX extension: https://open-vsx.org/extension/mermaid-lint/mermaid-lint-vscode
-> - VS Code Marketplace: https://marketplace.visualstudio.com/items?itemName=mermaid-lint.mermaid-lint-vscode
-> - GitHub repository: https://github.com/jasonworden/mermaid-lint
->
-> I publish and maintain this extension and have already logged in to
-> https://open-vsx.org/ with my GitHub account.
-> ```
+> If the extension page shows that warning, log in to <https://open-vsx.org>
+> with the publishing GitHub account and open a public namespace-claim issue at
+> <https://github.com/EclipseFdn/open-vsx.org/issues/new>. Request ownership of
+> the `mermaid-lint` namespace and include the Open VSX listing, the VS Code
+> Marketplace listing, and this repo as proof of control.
 >
 > After Eclipse grants ownership, the namespace becomes verified and future
 > versions published by a namespace member no longer show the warning banner.
