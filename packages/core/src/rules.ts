@@ -89,7 +89,69 @@ export type RulesConfig = Partial<Record<RuleId, RuleSeverity>>;
 export type ResolvedRules = Record<RuleId, RuleSeverity>;
 
 /**
- * Default severity for each rule. `duplicate-ids` is `error` (a conflicting
+ * Scope labels used in docs/semantic-rules.md's Rule Reference table.
+ *
+ * @internal
+ */
+export type RuleDocsScope =
+  | 'all'
+  | 'classDiagram'
+  | 'erDiagram'
+  | 'flowchart / graph'
+  | 'gantt'
+  | 'gitGraph'
+  | 'graph'
+  | 'journey'
+  | 'mindmap'
+  | 'pie'
+  | 'quadrantChart'
+  | 'sequenceDiagram'
+  | 'stateDiagram'
+  | 'timeline';
+
+/**
+ * Diagram keywords used by README.md's Diagram types table.
+ *
+ * @internal
+ */
+export type ReadmeDiagramKeyword =
+  | 'architecture-beta'
+  | 'block-beta'
+  | 'classDiagram'
+  | 'erDiagram'
+  | 'flowchart'
+  | 'gantt'
+  | 'gitGraph'
+  | 'graph'
+  | 'journey'
+  | 'mindmap'
+  | 'packet-beta'
+  | 'pie'
+  | 'quadrantChart'
+  | 'sankey-beta'
+  | 'sequenceDiagram'
+  | 'stateDiagram-v2'
+  | 'timeline'
+  | 'xychart-beta';
+
+/**
+ * Documentation metadata for a semantic rule.
+ *
+ * @internal
+ */
+export interface RuleMetadata {
+  /** Default severity for the rule. */
+  defaultSeverity: RuleSeverity;
+  /** Exact Scope label expected in docs/semantic-rules.md. */
+  docsScope: RuleDocsScope;
+  /** README Diagram types keywords whose Related rules cell should list it. */
+  readmeDiagramKeywords: readonly ReadmeDiagramKeyword[];
+}
+
+/**
+ * Internal metadata for each rule. This is the source of truth for the public
+ * {@link RULE_DEFAULTS} map and for documentation coverage tests.
+ * `duplicate-ids` is `error` (a conflicting
  * duplicate id silently drops a label — wrong output); `no-duplicate-edges`,
  * `no-self-loop`, and `no-empty-labels` are advisory `warn`; `no-orphan-nodes`
  * defaults to `off` (opt-in) due to false-positive risk from subgraph-only
@@ -164,51 +226,220 @@ export type ResolvedRules = Record<RuleId, RuleSeverity>;
  * x/y is outside `[0, 1]` is intentionally *not* a rule here: Mermaid's grammar
  * rejects it as a syntax error, so the parser already catches it.
  *
- * @public
+ * @internal
  */
-export const RULE_DEFAULTS: ResolvedRules = {
-  'duplicate-ids': 'error',
-  'prefer-flowchart': 'warn',
-  'require-direction': 'warn',
-  'no-experimental': 'warn',
-  'no-duplicate-edges': 'warn',
-  'no-self-loop': 'warn',
-  'no-empty-labels': 'warn',
-  'no-orphan-nodes': 'off',
-  'no-activate-without-deactivate': 'warn',
-  'prefer-explicit-participants': 'off',
-  'no-duplicate-methods': 'warn',
-  'pie-duplicate-label': 'warn',
-  'pie-zero-value': 'warn',
-  'pie-no-data': 'warn',
-  'state-duplicate-transition': 'warn',
-  'state-empty-composite': 'warn',
-  'state-self-transition': 'off',
-  'er-duplicate-attribute': 'warn',
-  'er-duplicate-entity': 'warn',
-  'er-standalone-entity': 'off',
-  'gantt-duplicate-task-id': 'warn',
-  'gantt-undefined-dependency': 'warn',
-  'gantt-empty-section': 'warn',
-  'journey-empty-section': 'warn',
-  'journey-score-out-of-range': 'warn',
-  'journey-no-tasks': 'warn',
-  'mindmap-duplicate-sibling': 'warn',
-  'mindmap-no-nodes': 'warn',
-  'mindmap-deep-nesting': 'off',
-  'timeline-empty-section': 'warn',
-  'timeline-empty-event': 'warn',
-  'timeline-no-entries': 'warn',
-  'gitgraph-duplicate-commit-id': 'warn',
-  'gitgraph-duplicate-tag': 'warn',
-  'gitgraph-no-commits': 'warn',
-  'quadrant-duplicate-point': 'warn',
-  'quadrant-no-points': 'warn',
-  'quadrant-duplicate-quadrant': 'warn',
-};
+export const RULE_METADATA = {
+  'duplicate-ids': {
+    defaultSeverity: 'error',
+    docsScope: 'flowchart / graph',
+    readmeDiagramKeywords: ['flowchart', 'graph'],
+  },
+  'prefer-flowchart': {
+    defaultSeverity: 'warn',
+    docsScope: 'graph',
+    readmeDiagramKeywords: ['flowchart', 'graph'],
+  },
+  'require-direction': {
+    defaultSeverity: 'warn',
+    docsScope: 'flowchart / graph',
+    readmeDiagramKeywords: ['flowchart', 'graph'],
+  },
+  'no-experimental': {
+    defaultSeverity: 'warn',
+    docsScope: 'all',
+    readmeDiagramKeywords: [
+      'xychart-beta',
+      'sankey-beta',
+      'block-beta',
+      'packet-beta',
+      'architecture-beta',
+    ],
+  },
+  'no-duplicate-edges': {
+    defaultSeverity: 'warn',
+    docsScope: 'flowchart / graph',
+    readmeDiagramKeywords: ['flowchart', 'graph'],
+  },
+  'no-self-loop': {
+    defaultSeverity: 'warn',
+    docsScope: 'flowchart / graph',
+    readmeDiagramKeywords: ['flowchart', 'graph'],
+  },
+  'no-empty-labels': {
+    defaultSeverity: 'warn',
+    docsScope: 'flowchart / graph',
+    readmeDiagramKeywords: ['flowchart', 'graph'],
+  },
+  'no-orphan-nodes': {
+    defaultSeverity: 'off',
+    docsScope: 'flowchart / graph',
+    readmeDiagramKeywords: ['flowchart', 'graph'],
+  },
+  'no-activate-without-deactivate': {
+    defaultSeverity: 'warn',
+    docsScope: 'sequenceDiagram',
+    readmeDiagramKeywords: ['sequenceDiagram'],
+  },
+  'prefer-explicit-participants': {
+    defaultSeverity: 'off',
+    docsScope: 'sequenceDiagram',
+    readmeDiagramKeywords: ['sequenceDiagram'],
+  },
+  'no-duplicate-methods': {
+    defaultSeverity: 'warn',
+    docsScope: 'classDiagram',
+    readmeDiagramKeywords: ['classDiagram'],
+  },
+  'pie-duplicate-label': {
+    defaultSeverity: 'warn',
+    docsScope: 'pie',
+    readmeDiagramKeywords: ['pie'],
+  },
+  'pie-zero-value': {
+    defaultSeverity: 'warn',
+    docsScope: 'pie',
+    readmeDiagramKeywords: ['pie'],
+  },
+  'pie-no-data': {
+    defaultSeverity: 'warn',
+    docsScope: 'pie',
+    readmeDiagramKeywords: ['pie'],
+  },
+  'state-duplicate-transition': {
+    defaultSeverity: 'warn',
+    docsScope: 'stateDiagram',
+    readmeDiagramKeywords: ['stateDiagram-v2'],
+  },
+  'state-empty-composite': {
+    defaultSeverity: 'warn',
+    docsScope: 'stateDiagram',
+    readmeDiagramKeywords: ['stateDiagram-v2'],
+  },
+  'state-self-transition': {
+    defaultSeverity: 'off',
+    docsScope: 'stateDiagram',
+    readmeDiagramKeywords: ['stateDiagram-v2'],
+  },
+  'er-duplicate-attribute': {
+    defaultSeverity: 'warn',
+    docsScope: 'erDiagram',
+    readmeDiagramKeywords: ['erDiagram'],
+  },
+  'er-duplicate-entity': {
+    defaultSeverity: 'warn',
+    docsScope: 'erDiagram',
+    readmeDiagramKeywords: ['erDiagram'],
+  },
+  'er-standalone-entity': {
+    defaultSeverity: 'off',
+    docsScope: 'erDiagram',
+    readmeDiagramKeywords: ['erDiagram'],
+  },
+  'gantt-duplicate-task-id': {
+    defaultSeverity: 'warn',
+    docsScope: 'gantt',
+    readmeDiagramKeywords: ['gantt'],
+  },
+  'gantt-undefined-dependency': {
+    defaultSeverity: 'warn',
+    docsScope: 'gantt',
+    readmeDiagramKeywords: ['gantt'],
+  },
+  'gantt-empty-section': {
+    defaultSeverity: 'warn',
+    docsScope: 'gantt',
+    readmeDiagramKeywords: ['gantt'],
+  },
+  'journey-empty-section': {
+    defaultSeverity: 'warn',
+    docsScope: 'journey',
+    readmeDiagramKeywords: ['journey'],
+  },
+  'journey-score-out-of-range': {
+    defaultSeverity: 'warn',
+    docsScope: 'journey',
+    readmeDiagramKeywords: ['journey'],
+  },
+  'journey-no-tasks': {
+    defaultSeverity: 'warn',
+    docsScope: 'journey',
+    readmeDiagramKeywords: ['journey'],
+  },
+  'mindmap-duplicate-sibling': {
+    defaultSeverity: 'warn',
+    docsScope: 'mindmap',
+    readmeDiagramKeywords: ['mindmap'],
+  },
+  'mindmap-no-nodes': {
+    defaultSeverity: 'warn',
+    docsScope: 'mindmap',
+    readmeDiagramKeywords: ['mindmap'],
+  },
+  'mindmap-deep-nesting': {
+    defaultSeverity: 'off',
+    docsScope: 'mindmap',
+    readmeDiagramKeywords: ['mindmap'],
+  },
+  'timeline-empty-section': {
+    defaultSeverity: 'warn',
+    docsScope: 'timeline',
+    readmeDiagramKeywords: ['timeline'],
+  },
+  'timeline-empty-event': {
+    defaultSeverity: 'warn',
+    docsScope: 'timeline',
+    readmeDiagramKeywords: ['timeline'],
+  },
+  'timeline-no-entries': {
+    defaultSeverity: 'warn',
+    docsScope: 'timeline',
+    readmeDiagramKeywords: ['timeline'],
+  },
+  'gitgraph-duplicate-commit-id': {
+    defaultSeverity: 'warn',
+    docsScope: 'gitGraph',
+    readmeDiagramKeywords: ['gitGraph'],
+  },
+  'gitgraph-duplicate-tag': {
+    defaultSeverity: 'warn',
+    docsScope: 'gitGraph',
+    readmeDiagramKeywords: ['gitGraph'],
+  },
+  'gitgraph-no-commits': {
+    defaultSeverity: 'warn',
+    docsScope: 'gitGraph',
+    readmeDiagramKeywords: ['gitGraph'],
+  },
+  'quadrant-duplicate-point': {
+    defaultSeverity: 'warn',
+    docsScope: 'quadrantChart',
+    readmeDiagramKeywords: ['quadrantChart'],
+  },
+  'quadrant-no-points': {
+    defaultSeverity: 'warn',
+    docsScope: 'quadrantChart',
+    readmeDiagramKeywords: ['quadrantChart'],
+  },
+  'quadrant-duplicate-quadrant': {
+    defaultSeverity: 'warn',
+    docsScope: 'quadrantChart',
+    readmeDiagramKeywords: ['quadrantChart'],
+  },
+} satisfies Record<RuleId, RuleMetadata>;
 
-/** Every known rule id, derived from the defaults table. */
-export const ALL_RULE_IDS = Object.keys(RULE_DEFAULTS) as RuleId[];
+/** Every known rule id, derived from the metadata table. */
+export const ALL_RULE_IDS = Object.keys(RULE_METADATA) as RuleId[];
+
+function defaultsFromMetadata(): ResolvedRules {
+  const defaults = {} as ResolvedRules;
+  for (const id of ALL_RULE_IDS) {
+    defaults[id] = RULE_METADATA[id].defaultSeverity;
+  }
+  return defaults;
+}
+
+/** Default severity for each rule, derived from the metadata table. */
+export const RULE_DEFAULTS: ResolvedRules = defaultsFromMetadata();
 
 /**
  * Type guard for a {@link RuleSeverity} string, for validating config input.
