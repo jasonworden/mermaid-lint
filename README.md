@@ -460,7 +460,7 @@ mermaid-lint validates all 19 Mermaid diagram types using the official `mermaid.
 | User journey | `journey` | ✅ | `journey-empty-section`, `journey-score-out-of-range`, `journey-task-without-actor`, `journey-no-tasks` | |
 | Mindmap | `mindmap` | ✅ | `mindmap-duplicate-sibling`, `mindmap-no-nodes`, `mindmap-deep-nesting` | |
 | Quadrant chart | `quadrantChart` | ✅ | `quadrant-duplicate-point`, `quadrant-no-points`, `quadrant-missing-x-axis`, `quadrant-missing-y-axis`, `quadrant-duplicate-quadrant` | |
-| Requirement | `requirementDiagram` | ✅ | - | |
+| Requirement | `requirementDiagram` | ✅ | `requirement-duplicate-name`, `requirement-duplicate-id`, `requirement-undefined-reference` | |
 | C4 Context | `C4Context` | ✅ | `c4-duplicate-id`, `c4-undefined-relationship-endpoint`, `c4-undefined-element-style`, `c4-undefined-relationship-style-endpoint` | |
 | Timeline | `timeline` | ✅ | `timeline-empty-section`, `timeline-empty-event`, `timeline-no-entries` | |
 | XY chart | `xychart-beta` | ✅ | `no-experimental` | Experimental |

@@ -53,6 +53,9 @@ describe('resolveRules', () => {
     expect(RULE_DEFAULTS['gantt-duplicate-task-id']).toBe('warn');
     expect(RULE_DEFAULTS['gantt-undefined-dependency']).toBe('warn');
     expect(RULE_DEFAULTS['gantt-empty-section']).toBe('warn');
+    expect(RULE_DEFAULTS['requirement-duplicate-name']).toBe('warn');
+    expect(RULE_DEFAULTS['requirement-duplicate-id']).toBe('warn');
+    expect(RULE_DEFAULTS['requirement-undefined-reference']).toBe('warn');
     expect(RULE_DEFAULTS['journey-empty-section']).toBe('warn');
     expect(RULE_DEFAULTS['journey-score-out-of-range']).toBe('warn');
     expect(RULE_DEFAULTS['journey-task-without-actor']).toBe('warn');

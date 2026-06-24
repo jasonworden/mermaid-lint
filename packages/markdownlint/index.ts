@@ -236,6 +236,12 @@ const RULE_DESCRIPTIONS: Record<RuleId, string> = {
   'gantt-undefined-dependency':
     'Mermaid: a gantt task depends on an undefined task id',
   'gantt-empty-section': 'Mermaid: a gantt section has no tasks',
+  'requirement-duplicate-name':
+    'Mermaid: a requirement or element name is defined more than once',
+  'requirement-duplicate-id':
+    'Mermaid: a requirement id is defined more than once',
+  'requirement-undefined-reference':
+    'Mermaid: a requirement relationship endpoint is undefined',
   'journey-empty-section': 'Mermaid: a journey section has no tasks',
   'journey-score-out-of-range':
     'Mermaid: a journey task score is outside the 1-5 range',

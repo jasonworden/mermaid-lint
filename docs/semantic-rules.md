@@ -44,6 +44,9 @@ Tune rules through the `rules` config key. Most rules default to `warn`;
 | `gantt-duplicate-task-id` | `warn` | Two tasks declared with the same explicit id; makes `after`/`until` references ambiguous | gantt |
 | `gantt-undefined-dependency` | `warn` | A task whose `after`/`until` references an id no task defines; Mermaid places it at the chart start | gantt |
 | `gantt-empty-section` | `warn` | A `section` with no tasks; renders as an empty section header | gantt |
+| `requirement-duplicate-name` | `warn` | The same requirement or element name defined more than once; relationship and styling targets become ambiguous | requirementDiagram |
+| `requirement-duplicate-id` | `warn` | The same requirement `id:` value used more than once; requirement IDs should uniquely identify a single requirement | requirementDiagram |
+| `requirement-undefined-reference` | `warn` | A relationship endpoint whose requirement or element name is never defined in the diagram | requirementDiagram |
 | `journey-empty-section` | `warn` | A `section` with no tasks; renders as an empty section header | journey |
 | `journey-score-out-of-range` | `warn` | A task happiness score outside Mermaid's documented 1-5 scale | journey |
 | `journey-task-without-actor` | `warn` | A journey task with no actor; renders without an owner lane and is usually incomplete | journey |
