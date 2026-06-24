@@ -62,6 +62,10 @@ Tune rules through the `rules` config key. Most rules default to `warn`;
 | `quadrant-missing-x-axis` | `warn` | A quadrantChart with data points but no `x-axis` label; default axis text hides chart intent | quadrantChart |
 | `quadrant-missing-y-axis` | `warn` | A quadrantChart with data points but no `y-axis` label; default axis text hides chart intent | quadrantChart |
 | `quadrant-duplicate-quadrant` | `warn` | The same quadrant region (`quadrant-1`-`quadrant-4`) labeled more than once; Mermaid keeps only the last | quadrantChart |
+| `c4-duplicate-id` | `warn` | A C4 element or boundary id declared more than once; duplicate ids make relationships and styles ambiguous | C4Context |
+| `c4-undefined-relationship-endpoint` | `warn` | A C4 relationship whose source or target id is not declared | C4Context |
+| `c4-undefined-element-style` | `warn` | An `UpdateElementStyle` override that references an undeclared C4 element or boundary id | C4Context |
+| `c4-undefined-relationship-style-endpoint` | `warn` | An `UpdateRelStyle` override whose source or target id is not declared | C4Context |
 
 ## Example Output
 

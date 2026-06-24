@@ -78,7 +78,11 @@ export type RuleId =
   | 'quadrant-no-points'
   | 'quadrant-missing-x-axis'
   | 'quadrant-missing-y-axis'
-  | 'quadrant-duplicate-quadrant';
+  | 'quadrant-duplicate-quadrant'
+  | 'c4-duplicate-id'
+  | 'c4-undefined-relationship-endpoint'
+  | 'c4-undefined-element-style'
+  | 'c4-undefined-relationship-style-endpoint';
 
 /**
  * User-facing `rules` configuration: a partial map of rule id to desired
@@ -103,6 +107,7 @@ export type ResolvedRules = Record<RuleId, RuleSeverity>;
 export type RuleDocsScope =
   | 'all'
   | 'classDiagram'
+  | 'C4Context'
   | 'erDiagram'
   | 'flowchart / graph'
   | 'gantt'
@@ -124,6 +129,7 @@ export type RuleDocsScope =
 export type ReadmeDiagramKeyword =
   | 'architecture-beta'
   | 'block-beta'
+  | 'C4Context'
   | 'classDiagram'
   | 'erDiagram'
   | 'flowchart'
@@ -466,6 +472,26 @@ export const RULE_METADATA = {
     defaultSeverity: 'warn',
     docsScope: 'quadrantChart',
     readmeDiagramKeywords: ['quadrantChart'],
+  },
+  'c4-duplicate-id': {
+    defaultSeverity: 'warn',
+    docsScope: 'C4Context',
+    readmeDiagramKeywords: ['C4Context'],
+  },
+  'c4-undefined-relationship-endpoint': {
+    defaultSeverity: 'warn',
+    docsScope: 'C4Context',
+    readmeDiagramKeywords: ['C4Context'],
+  },
+  'c4-undefined-element-style': {
+    defaultSeverity: 'warn',
+    docsScope: 'C4Context',
+    readmeDiagramKeywords: ['C4Context'],
+  },
+  'c4-undefined-relationship-style-endpoint': {
+    defaultSeverity: 'warn',
+    docsScope: 'C4Context',
+    readmeDiagramKeywords: ['C4Context'],
   },
 } satisfies Record<RuleId, RuleMetadata>;
 

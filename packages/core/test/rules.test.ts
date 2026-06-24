@@ -71,6 +71,12 @@ describe('resolveRules', () => {
     expect(RULE_DEFAULTS['quadrant-missing-x-axis']).toBe('warn');
     expect(RULE_DEFAULTS['quadrant-missing-y-axis']).toBe('warn');
     expect(RULE_DEFAULTS['quadrant-duplicate-quadrant']).toBe('warn');
+    expect(RULE_DEFAULTS['c4-duplicate-id']).toBe('warn');
+    expect(RULE_DEFAULTS['c4-undefined-relationship-endpoint']).toBe('warn');
+    expect(RULE_DEFAULTS['c4-undefined-element-style']).toBe('warn');
+    expect(RULE_DEFAULTS['c4-undefined-relationship-style-endpoint']).toBe(
+      'warn',
+    );
   });
 
   it('layers user overrides over the defaults', () => {

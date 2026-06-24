@@ -259,6 +259,13 @@ const RULE_DESCRIPTIONS: Record<RuleId, string> = {
   'quadrant-missing-y-axis': 'Mermaid: a quadrantChart has no y-axis label',
   'quadrant-duplicate-quadrant':
     'Mermaid: a quadrantChart region is labeled more than once',
+  'c4-duplicate-id': 'Mermaid: a C4 element or boundary id is reused',
+  'c4-undefined-relationship-endpoint':
+    'Mermaid: a C4 relationship references an undefined endpoint',
+  'c4-undefined-element-style':
+    'Mermaid: a C4 element style references an undefined id',
+  'c4-undefined-relationship-style-endpoint':
+    'Mermaid: a C4 relationship style references an undefined endpoint',
 };
 
 /**
