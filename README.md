@@ -496,6 +496,9 @@ In addition to syntax errors, mermaid-lint runs a set of semantic rules over dia
 | `timeline-empty-section` | `warn` | A `section` with no time-period entries — renders as an empty section header | timeline |
 | `timeline-empty-event` | `warn` | A time period with a blank event field (a trailing `:` or `: :`) — renders an empty event bubble | timeline |
 | `timeline-no-entries` | `warn` | A `timeline` with no sections and no time periods — parses but renders an empty diagram | timeline |
+| `gitgraph-duplicate-commit-id` | `warn` | The same explicit `id:` on more than one commit — renders but makes `merge`/`cherry-pick` references ambiguous | gitGraph |
+| `gitgraph-duplicate-tag` | `warn` | The same `tag:` used more than once — two commits render with the same tag, usually a copy-paste mistake | gitGraph |
+| `gitgraph-no-commits` | `warn` | A `gitGraph` with no commits — parses but renders an empty diagram | gitGraph |
 
 ```
 docs/api.md:7:1: error: duplicate-ids: node "A" declared with label "Start" (line 2) and "Begin" (line 7)

@@ -62,7 +62,10 @@ export type RuleId =
   | 'mindmap-deep-nesting'
   | 'timeline-empty-section'
   | 'timeline-empty-event'
-  | 'timeline-no-entries';
+  | 'timeline-no-entries'
+  | 'gitgraph-duplicate-commit-id'
+  | 'gitgraph-duplicate-tag'
+  | 'gitgraph-no-commits';
 
 /**
  * User-facing `rules` configuration: a partial map of rule id to desired
@@ -133,6 +136,12 @@ export type ResolvedRules = Record<RuleId, RuleSeverity>;
  * `timeline-no-entries` (a `timeline` with no sections and no time periods —
  * parses but renders an empty diagram).
  *
+ * The gitGraph rules are all advisory `warn`: `gitgraph-duplicate-commit-id`
+ * (the same explicit `id:` on more than one commit — renders but makes
+ * `merge`/`cherry-pick` references ambiguous), `gitgraph-duplicate-tag` (the
+ * same `tag:` used twice — a copy-paste mistake), and `gitgraph-no-commits` (a
+ * `gitGraph` with no commits — parses but renders an empty diagram).
+ *
  * @public
  */
 export const RULE_DEFAULTS: ResolvedRules = {
@@ -165,6 +174,9 @@ export const RULE_DEFAULTS: ResolvedRules = {
   'timeline-empty-section': 'warn',
   'timeline-empty-event': 'warn',
   'timeline-no-entries': 'warn',
+  'gitgraph-duplicate-commit-id': 'warn',
+  'gitgraph-duplicate-tag': 'warn',
+  'gitgraph-no-commits': 'warn',
 };
 
 /** Every known rule id, derived from the defaults table. */
