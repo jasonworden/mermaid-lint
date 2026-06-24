@@ -12,13 +12,13 @@ npx mermaid-lint --format json --all
 
 ```json
 {
-  "version": "0.30.0",
+  "version": "0.32.0",
   "files": [
     {
       "path": "docs/api.md",
       "diagrams": [
         { "line": 42, "col": 1, "type": "flowchart", "ok": true,
-          "warnings": [{ "rule": "duplicate-ids", "message": "node \"A\" declared with label \"Start\" (line 2) and \"Begin\" (line 7)", "line": 7 }] },
+          "warnings": [{ "rule": "duplicate-ids", "message": "node \"A\" declared with label \"Start\" (line 2) and \"Begin\" (line 7)", "line": 7, "severity": "error" }] },
         { "line": 89, "col": 1, "type": "sequenceDiagram", "ok": false,
           "error": { "message": "Expecting 'SPACE'", "line": 2, "col": 5 }, "warnings": [] }
       ]
@@ -42,7 +42,7 @@ npx mermaid-lint --format json --all
     - **`ok`** — `true` if the diagram parses.
     - **`error`** — present when `ok` is `false`: `{ message, line, col }` with the
       precise location of the syntax error.
-    - **`warnings[]`** — semantic findings: `{ rule, message, line }`. See
+    - **`warnings[]`** — semantic findings: `{ rule, message, line, severity }`. See
       [semantic-rules.md](semantic-rules.md) for the rule list and how to tune
       severity.
 - **`summary`** — totals across all files, plus a `types` histogram.

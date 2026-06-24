@@ -80,6 +80,14 @@ the repo's pinned binaries rather than `npx`; see
   add or update its `README.md` in the same change; keep it in sync with the
   matching section of the root [README.md](README.md). `mermaid-lint-vscode` is
   `private` (Marketplace, not npm) but still ships a README.
+- **Docs consistency tests cover release/documentation drift.** When adding or
+  removing a package, bumping package versions, changing the CLI JSON version,
+  moving docs, or editing package-manager docs, update the matching package
+  `README.md`, root README package table, [docs/json-output.md](docs/json-output.md),
+  [docs/package-manager.md](docs/package-manager.md), and local Markdown link
+  paths as needed. `pnpm test` fails if package READMEs, lockstep versions,
+  workspace dependencies, documented current versions, or local doc link paths
+  drift.
 - **Semantic rule docs stay in sync.** When adding, removing, renaming, or
   changing a semantic rule, update the rule metadata in
   `packages/core/src/rules.ts`, the rule reference in
