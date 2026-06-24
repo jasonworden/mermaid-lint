@@ -65,7 +65,10 @@ export type RuleId =
   | 'timeline-no-entries'
   | 'gitgraph-duplicate-commit-id'
   | 'gitgraph-duplicate-tag'
-  | 'gitgraph-no-commits';
+  | 'gitgraph-no-commits'
+  | 'quadrant-duplicate-point'
+  | 'quadrant-no-points'
+  | 'quadrant-duplicate-quadrant';
 
 /**
  * User-facing `rules` configuration: a partial map of rule id to desired
@@ -142,6 +145,16 @@ export type ResolvedRules = Record<RuleId, RuleSeverity>;
  * same `tag:` used twice — a copy-paste mistake), and `gitgraph-no-commits` (a
  * `gitGraph` with no commits — parses but renders an empty diagram).
  *
+ * The quadrantChart rules are all advisory `warn`: `quadrant-duplicate-point`
+ * (two data points with the same label — renders overlapping markers, usually
+ * a copy-paste mistake), `quadrant-no-points` (a quadrantChart with axis or
+ * quadrant labels but no data points — parses but renders an empty plot, the
+ * analogue of `pie-no-data`), and `quadrant-duplicate-quadrant` (the same
+ * quadrant region — `quadrant-1` through `quadrant-4` — labeled more than once;
+ * Mermaid silently keeps the last, dropping the earlier label). A point whose
+ * x/y is outside `[0, 1]` is intentionally *not* a rule here: Mermaid's grammar
+ * rejects it as a syntax error, so the parser already catches it.
+ *
  * @public
  */
 export const RULE_DEFAULTS: ResolvedRules = {
@@ -177,6 +190,9 @@ export const RULE_DEFAULTS: ResolvedRules = {
   'gitgraph-duplicate-commit-id': 'warn',
   'gitgraph-duplicate-tag': 'warn',
   'gitgraph-no-commits': 'warn',
+  'quadrant-duplicate-point': 'warn',
+  'quadrant-no-points': 'warn',
+  'quadrant-duplicate-quadrant': 'warn',
 };
 
 /** Every known rule id, derived from the defaults table. */

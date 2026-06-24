@@ -241,6 +241,11 @@ const RULE_DESCRIPTIONS: Record<RuleId, string> = {
     'Mermaid: a gitGraph commit id is used more than once',
   'gitgraph-duplicate-tag': 'Mermaid: a gitGraph tag is used more than once',
   'gitgraph-no-commits': 'Mermaid: a gitGraph has no commits',
+  'quadrant-duplicate-point':
+    'Mermaid: a quadrantChart data point label is defined more than once',
+  'quadrant-no-points': 'Mermaid: a quadrantChart has no data points',
+  'quadrant-duplicate-quadrant':
+    'Mermaid: a quadrantChart region is labeled more than once',
 };
 
 /**
