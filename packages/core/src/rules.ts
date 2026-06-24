@@ -59,7 +59,10 @@ export type RuleId =
   | 'gantt-empty-section'
   | 'mindmap-duplicate-sibling'
   | 'mindmap-no-nodes'
-  | 'mindmap-deep-nesting';
+  | 'mindmap-deep-nesting'
+  | 'timeline-empty-section'
+  | 'timeline-empty-event'
+  | 'timeline-no-entries';
 
 /**
  * User-facing `rules` configuration: a partial map of rule id to desired
@@ -123,6 +126,13 @@ export type ResolvedRules = Record<RuleId, RuleSeverity>;
  * `mindmap-deep-nesting` defaults to `off` because nesting depth is a matter of
  * taste — opt in to flag nodes nested beyond a fixed depth threshold.
  *
+ * The timeline rules are all advisory `warn`: `timeline-empty-section` (a
+ * `section` with no time-period entries — renders an empty section header),
+ * `timeline-empty-event` (a time period with a blank event field, e.g. a
+ * trailing `:` or `: :` — renders an empty event bubble), and
+ * `timeline-no-entries` (a `timeline` with no sections and no time periods —
+ * parses but renders an empty diagram).
+ *
  * @public
  */
 export const RULE_DEFAULTS: ResolvedRules = {
@@ -152,6 +162,9 @@ export const RULE_DEFAULTS: ResolvedRules = {
   'mindmap-duplicate-sibling': 'warn',
   'mindmap-no-nodes': 'warn',
   'mindmap-deep-nesting': 'off',
+  'timeline-empty-section': 'warn',
+  'timeline-empty-event': 'warn',
+  'timeline-no-entries': 'warn',
 };
 
 /** Every known rule id, derived from the defaults table. */

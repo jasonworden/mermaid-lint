@@ -493,6 +493,9 @@ In addition to syntax errors, mermaid-lint runs a set of semantic rules over dia
 | `mindmap-duplicate-sibling` | `warn` | Two child nodes under the same parent with identical text — renders two identical branches, usually a copy-paste mistake | mindmap |
 | `mindmap-no-nodes` | `warn` | A `mindmap` with only the keyword and no nodes — parses but renders an empty diagram | mindmap |
 | `mindmap-deep-nesting` | `off` | A node nested beyond 5 levels deep. Off by default (opt-in): deep nesting is a matter of taste | mindmap |
+| `timeline-empty-section` | `warn` | A `section` with no time-period entries — renders as an empty section header | timeline |
+| `timeline-empty-event` | `warn` | A time period with a blank event field (a trailing `:` or `: :`) — renders an empty event bubble | timeline |
+| `timeline-no-entries` | `warn` | A `timeline` with no sections and no time periods — parses but renders an empty diagram | timeline |
 
 ```
 docs/api.md:7:1: error: duplicate-ids: node "A" declared with label "Start" (line 2) and "Begin" (line 7)

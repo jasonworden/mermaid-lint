@@ -52,6 +52,9 @@ describe('resolveRules', () => {
     expect(RULE_DEFAULTS['mindmap-duplicate-sibling']).toBe('warn');
     expect(RULE_DEFAULTS['mindmap-no-nodes']).toBe('warn');
     expect(RULE_DEFAULTS['mindmap-deep-nesting']).toBe('off');
+    expect(RULE_DEFAULTS['timeline-empty-section']).toBe('warn');
+    expect(RULE_DEFAULTS['timeline-empty-event']).toBe('warn');
+    expect(RULE_DEFAULTS['timeline-no-entries']).toBe('warn');
   });
 
   it('layers user overrides over the defaults', () => {
