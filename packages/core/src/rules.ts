@@ -61,6 +61,9 @@ export type RuleId =
   | 'gantt-duplicate-task-id'
   | 'gantt-undefined-dependency'
   | 'gantt-empty-section'
+  | 'requirement-duplicate-name'
+  | 'requirement-duplicate-id'
+  | 'requirement-undefined-reference'
   | 'journey-empty-section'
   | 'journey-score-out-of-range'
   | 'journey-task-without-actor'
@@ -117,6 +120,7 @@ export type RuleDocsScope =
   | 'mindmap'
   | 'pie'
   | 'quadrantChart'
+  | 'requirementDiagram'
   | 'sequenceDiagram'
   | 'stateDiagram'
   | 'timeline';
@@ -141,6 +145,7 @@ export type ReadmeDiagramKeyword =
   | 'packet-beta'
   | 'pie'
   | 'quadrantChart'
+  | 'requirementDiagram'
   | 'sankey-beta'
   | 'sequenceDiagram'
   | 'stateDiagram-v2'
@@ -202,6 +207,13 @@ export interface RuleMetadata {
  * references an id no task defines — Mermaid places it at the chart start),
  * and `gantt-empty-section` (a `section` with no tasks — renders as an empty
  * header).
+ *
+ * The requirement-diagram rules are all advisory `warn`:
+ * `requirement-duplicate-name` (the same requirement/element name defined more
+ * than once — relationships and styling target names, so duplicates are
+ * ambiguous), `requirement-duplicate-id` (the same requirement `id:` used more
+ * than once), and `requirement-undefined-reference` (a relationship endpoint
+ * whose requirement/element name is never defined in the diagram).
  *
  * The journey rules are all advisory `warn`: `journey-empty-section` (a
  * `section` with no tasks — renders as an empty section header),
@@ -382,6 +394,21 @@ export const RULE_METADATA = {
     defaultSeverity: 'warn',
     docsScope: 'gantt',
     readmeDiagramKeywords: ['gantt'],
+  },
+  'requirement-duplicate-name': {
+    defaultSeverity: 'warn',
+    docsScope: 'requirementDiagram',
+    readmeDiagramKeywords: ['requirementDiagram'],
+  },
+  'requirement-duplicate-id': {
+    defaultSeverity: 'warn',
+    docsScope: 'requirementDiagram',
+    readmeDiagramKeywords: ['requirementDiagram'],
+  },
+  'requirement-undefined-reference': {
+    defaultSeverity: 'warn',
+    docsScope: 'requirementDiagram',
+    readmeDiagramKeywords: ['requirementDiagram'],
   },
   'journey-empty-section': {
     defaultSeverity: 'warn',
