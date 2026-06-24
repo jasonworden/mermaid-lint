@@ -467,10 +467,10 @@ mermaid-lint validates all 19 Mermaid diagram types using the official `mermaid.
 | C4 Context | `C4Context` | ✅ | `c4-duplicate-id`, `c4-undefined-relationship-endpoint`, `c4-undefined-element-style`, `c4-undefined-relationship-style-endpoint` | |
 | Timeline | `timeline` | ✅ | `timeline-empty-section`, `timeline-empty-event`, `timeline-no-entries` | |
 | XY chart | `xychart-beta` | ✅ | `no-experimental`, `xychart-missing-x-axis`, `xychart-missing-y-axis`, `xychart-no-series`, `xychart-series-length-mismatch` | Experimental |
-| Sankey | `sankey-beta` | ✅ | `no-experimental`, `sankey-non-positive-value`, `sankey-self-loop` | Experimental |
+| Sankey | `sankey-beta` | ✅ | `no-experimental`, `sankey-non-positive-value`, `sankey-duplicate-link`, `sankey-self-loop` | Experimental |
 | Block | `block-beta` | ✅ | `no-experimental`, `block-no-blocks` | Experimental |
-| Packet | `packet-beta` | ✅ | `no-experimental`, `packet-no-fields` | Experimental |
-| Architecture | `architecture-beta` | ✅ | `no-experimental`, `architecture-no-elements` | Experimental |
+| Packet | `packet-beta` | ✅ | `no-experimental`, `packet-no-fields`, `packet-empty-labels` | Experimental |
+| Architecture | `architecture-beta` | ✅ | `no-experimental`, `architecture-no-elements`, `architecture-no-edges`, `architecture-duplicate-edge` | Experimental |
 | ZenUML | `zenuml` | ❌ | - | Requires separate [`@mermaid-js/mermaid-zenuml`](https://github.com/mermaid-js/zenuml-core) package; not bundled in mermaid v11 |
 
 ## Performance

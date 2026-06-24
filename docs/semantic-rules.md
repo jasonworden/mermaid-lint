@@ -26,10 +26,14 @@ Tune rules through the `rules` config key. Most rules default to `warn`;
 | `xychart-no-series` | `warn` | An `xychart-beta` with no `line [...]` or `bar [...]` series; parses but renders empty | xychart-beta |
 | `xychart-series-length-mismatch` | `warn` | An `xychart-beta` whose series lengths do not match each other or a categorical `x-axis` label count | xychart-beta |
 | `sankey-non-positive-value` | `warn` | A `sankey-beta` link with a value of `0` or below; the flow has no positive weight | sankey-beta |
+| `sankey-duplicate-link` | `warn` | The same `source,target` pair repeated, even with a different value; links stack and the duplicate is usually accidental | sankey-beta |
 | `sankey-self-loop` | `warn` | A `sankey-beta` link whose source and target are the same; usually a copy-paste mistake | sankey-beta |
 | `block-no-blocks` | `warn` | A `block-beta` diagram with no block declarations; parses but renders empty | block-beta |
 | `packet-no-fields` | `warn` | A `packet-beta` diagram with no bit-range field rows; parses but renders empty | packet-beta |
-| `architecture-no-elements` | `warn` | An `architecture-beta` diagram with no `service`, `group`, or `junction` declarations; parses but renders empty | architecture-beta |
+| `packet-empty-labels` | `warn` | A `packet-beta` field with an empty label; renders a blank cell | packet-beta |
+| `architecture-no-elements` | `warn` | An `architecture-beta` diagram with no services, groups, or junctions; parses but renders empty | architecture-beta |
+| `architecture-no-edges` | `warn` | An `architecture-beta` diagram with declared elements but no edges; usually incomplete | architecture-beta |
+| `architecture-duplicate-edge` | `warn` | The same architecture connection defined more than once; usually a copy-paste mistake | architecture-beta |
 | `no-duplicate-edges` | `warn` | The same edge defined more than once; renders stacked, usually a copy-paste mistake | flowchart / graph |
 | `no-self-loop` | `warn` | A node with an edge to itself (`A --> A`); almost always unintentional | flowchart / graph |
 | `no-empty-labels` | `warn` | A node with an empty label (`A[ ]`); renders a blank shape | flowchart / graph |
@@ -69,6 +73,12 @@ Tune rules through the `rules` config key. Most rules default to `warn`;
 | `gitgraph-duplicate-commit-id` | `warn` | The same explicit `id:` on more than one commit; makes `merge`/`cherry-pick` references ambiguous | gitGraph |
 | `gitgraph-duplicate-tag` | `warn` | The same `tag:` used more than once; two commits render with the same tag | gitGraph |
 | `gitgraph-no-commits` | `warn` | A `gitGraph` with no commits; parses but renders an empty diagram | gitGraph |
+| `packet-no-fields` | `warn` | A `packet-beta` diagram with no field rows; parses but renders empty | packet-beta |
+| `packet-empty-labels` | `warn` | A `packet-beta` field with an empty label; renders a blank cell | packet-beta |
+| `sankey-duplicate-link` | `warn` | The same `source,target,value` link repeated; links stack and the duplicate is usually accidental | sankey-beta |
+| `sankey-self-loop` | `warn` | A sankey row whose source and target are the same; usually an invalid or accidental flow | sankey-beta |
+| `xychart-no-series` | `warn` | An `xychart-beta` diagram with axes but no `line` or `bar` series; parses but renders empty | xychart-beta |
+| `xychart-series-length-mismatch` | `warn` | A categorical `x-axis` whose label count does not match a `line` or `bar` series length | xychart-beta |
 | `quadrant-duplicate-point` | `warn` | Two data points with the same label; renders overlapping markers, usually a copy-paste mistake | quadrantChart |
 | `quadrant-no-points` | `warn` | A quadrantChart with axis or quadrant labels but no data points; parses but renders an empty plot | quadrantChart |
 | `quadrant-missing-x-axis` | `warn` | A quadrantChart with data points but no `x-axis` label; default axis text hides chart intent | quadrantChart |
