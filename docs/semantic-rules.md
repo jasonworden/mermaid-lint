@@ -40,6 +40,9 @@ Tune rules through the `rules` config key. Most rules default to `warn`;
 | `gantt-duplicate-task-id` | `warn` | Two tasks declared with the same explicit id; makes `after`/`until` references ambiguous | gantt |
 | `gantt-undefined-dependency` | `warn` | A task whose `after`/`until` references an id no task defines; Mermaid places it at the chart start | gantt |
 | `gantt-empty-section` | `warn` | A `section` with no tasks; renders as an empty section header | gantt |
+| `journey-empty-section` | `warn` | A `section` with no tasks; renders as an empty section header | journey |
+| `journey-score-out-of-range` | `warn` | A task happiness score outside Mermaid's documented 1-5 scale | journey |
+| `journey-no-tasks` | `warn` | A `journey` with no tasks; parses but renders an empty diagram | journey |
 | `mindmap-duplicate-sibling` | `warn` | Two child nodes under the same parent with identical text; renders two identical branches, usually a copy-paste mistake | mindmap |
 | `mindmap-no-nodes` | `warn` | A `mindmap` with only the keyword and no nodes; parses but renders an empty diagram | mindmap |
 | `mindmap-deep-nesting` | `off` | A node nested beyond five levels deep. Off by default because deep nesting is a matter of taste | mindmap |

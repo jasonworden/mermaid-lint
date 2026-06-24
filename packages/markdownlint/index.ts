@@ -230,6 +230,10 @@ const RULE_DESCRIPTIONS: Record<RuleId, string> = {
   'gantt-undefined-dependency':
     'Mermaid: a gantt task depends on an undefined task id',
   'gantt-empty-section': 'Mermaid: a gantt section has no tasks',
+  'journey-empty-section': 'Mermaid: a journey section has no tasks',
+  'journey-score-out-of-range':
+    'Mermaid: a journey task score is outside the 1-5 range',
+  'journey-no-tasks': 'Mermaid: a journey has no tasks',
   'mindmap-duplicate-sibling':
     'Mermaid: a mindmap node duplicates a sibling under the same parent',
   'mindmap-no-nodes': 'Mermaid: a mindmap has no nodes',

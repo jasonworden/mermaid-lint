@@ -49,6 +49,9 @@ describe('resolveRules', () => {
     expect(RULE_DEFAULTS['gantt-duplicate-task-id']).toBe('warn');
     expect(RULE_DEFAULTS['gantt-undefined-dependency']).toBe('warn');
     expect(RULE_DEFAULTS['gantt-empty-section']).toBe('warn');
+    expect(RULE_DEFAULTS['journey-empty-section']).toBe('warn');
+    expect(RULE_DEFAULTS['journey-score-out-of-range']).toBe('warn');
+    expect(RULE_DEFAULTS['journey-no-tasks']).toBe('warn');
     expect(RULE_DEFAULTS['mindmap-duplicate-sibling']).toBe('warn');
     expect(RULE_DEFAULTS['mindmap-no-nodes']).toBe('warn');
     expect(RULE_DEFAULTS['mindmap-deep-nesting']).toBe('off');

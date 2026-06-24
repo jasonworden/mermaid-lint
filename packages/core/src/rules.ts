@@ -57,6 +57,9 @@ export type RuleId =
   | 'gantt-duplicate-task-id'
   | 'gantt-undefined-dependency'
   | 'gantt-empty-section'
+  | 'journey-empty-section'
+  | 'journey-score-out-of-range'
+  | 'journey-no-tasks'
   | 'mindmap-duplicate-sibling'
   | 'mindmap-no-nodes'
   | 'mindmap-deep-nesting'
@@ -125,6 +128,12 @@ export type ResolvedRules = Record<RuleId, RuleSeverity>;
  * and `gantt-empty-section` (a `section` with no tasks — renders as an empty
  * header).
  *
+ * The journey rules are all advisory `warn`: `journey-empty-section` (a
+ * `section` with no tasks — renders as an empty section header),
+ * `journey-score-out-of-range` (a task happiness score outside Mermaid's
+ * documented 1-5 range), and `journey-no-tasks` (a `journey` with no tasks —
+ * parses but renders an empty diagram).
+ *
  * The mindmap rules: `mindmap-duplicate-sibling` (`warn`) flags two child nodes
  * under the same parent with identical text (renders two identical branches — a
  * copy-paste mistake); `mindmap-no-nodes` (`warn`) flags a `mindmap` with only
@@ -181,6 +190,9 @@ export const RULE_DEFAULTS: ResolvedRules = {
   'gantt-duplicate-task-id': 'warn',
   'gantt-undefined-dependency': 'warn',
   'gantt-empty-section': 'warn',
+  'journey-empty-section': 'warn',
+  'journey-score-out-of-range': 'warn',
+  'journey-no-tasks': 'warn',
   'mindmap-duplicate-sibling': 'warn',
   'mindmap-no-nodes': 'warn',
   'mindmap-deep-nesting': 'off',
