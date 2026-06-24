@@ -76,6 +76,9 @@ output, strict mode, semantic toggles, and `--fix` examples.
 [docs/json-output.md](docs/json-output.md) — the full schema, field reference,
 and a CI-scripting example.
 
+For a selective project arc instead of a full changelog, see
+[Release history](docs/release-history.md).
+
 ### Beyond JavaScript projects
 
 mermaid-lint only requires Node.js ≥20 and runs via `npx`, so it works in any

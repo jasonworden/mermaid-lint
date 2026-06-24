@@ -348,6 +348,22 @@ describe('docs consistency', () => {
     expect(docs).toContain(nodeEngine);
   });
 
+  it('keeps the notable release history documented and linked from the README', () => {
+    const docPath = 'docs/release-history.md';
+    const readme = readRepoFile('README.md');
+    const docs = readRepoFile(docPath);
+
+    expect(readme).toContain(`[Release history](${docPath})`);
+    expect(docs).toContain('# Release history');
+    expect(docs).toMatch(/## Maintenance/i);
+    expect(docs).toMatch(/not every release needs an entry/i);
+    expect(docs).toMatch(/notable release/i);
+    expect(docs).toContain('`vx.y.z`');
+    expect(docs).toContain(
+      'can act as a rollup of everything notable since the last',
+    );
+  });
+
   it('keeps local Markdown links resolvable', () => {
     for (const file of markdownFilesToCheck()) {
       const markdown = readRepoFile(file);
