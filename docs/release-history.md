@@ -19,7 +19,7 @@ timeline TD
   v0.14 : CommonMark fence support + hosted API docs
   v0.17 : broader semantic rule set + per-rule severity
   v0.23 : adapter parity rollup: per-rule config + host autofix coverage across the Markdown integrations
-  v0.34 : expanded semantic coverage (journey, timeline, C4Context) + docs consistency guards
+  v0.35 : expanded semantic coverage (journey, timeline, C4Context, experimental diagrams) + docs consistency guards
 ```
 
 ## What belongs here
