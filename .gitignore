@@ -9,6 +9,7 @@ coverage/
 
 .worktrees/
 docs/superpowers/
+docs/specs/
 .envrc
 .claude/worktrees/
 .superpowers/
