@@ -73,6 +73,12 @@ the repo's pinned binaries rather than `npx`; see
   on its own track. CI publishes on a `v*` tag. When you bump the version, also
   update the `--format json` `version` assertions in
   `packages/cli/test/cli.test.ts` (they hard-code the current version).
+- **Read the closest `AGENTS.md` first.** When editing inside a package or
+  subdirectory, follow the nearest guide before this root one; `packages/vscode/AGENTS.md`
+  is especially important for extension work.
+- **Keep published packages on the declared runtime floor.** Code in published
+  packages must stay compatible with `package.json` `engines.node` (`>=20`), even
+  though CI currently runs on Node 24.
 - **Every published package needs a `README.md`.** npm shows "no README data"
   for any package without one, and a README only reaches npm on the *next*
   publish — so a README added after a version shipped won't appear until the
@@ -80,6 +86,12 @@ the repo's pinned binaries rather than `npx`; see
   add or update its `README.md` in the same change; keep it in sync with the
   matching section of the root [README.md](README.md). `mermaid-lint-vscode` is
   `private` (Marketplace, not npm) but still ships a README.
+- **Treat `fixBlockBody` as a mechanical contract.** Keep it line-count
+  preserving and limited to syntax-only fixes so markdownlint, remark, and
+  textlint can map fixes back to source correctly.
+- **When validation behavior changes, update core first and test both surfaces.**
+  For extraction, line mapping, or diagnostics, cover fenced Markdown and
+  standalone `.mmd` flows whenever they could differ.
 - **Docs consistency tests cover release/documentation drift.** When adding or
   removing a package, bumping package versions, changing the CLI JSON version,
   moving docs, or editing package-manager docs, update the matching package
