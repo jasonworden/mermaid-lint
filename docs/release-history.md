@@ -18,6 +18,7 @@ timeline
   v0.13 : shared markdown adapter + textlint rule
   v0.14 : CommonMark fence support + hosted API docs
   v0.17 : broader semantic rule set + per-rule severity
+  v0.2x : adapter parity: per-rule config + autofix across remark, markdownlint, textlint, and VS Code
   v0.34 : expanded semantic coverage (journey, timeline, C4Context) + docs consistency guards
 ```
 
@@ -40,5 +41,10 @@ Good candidates:
 Not every release needs an entry. This page is for notable releases, not for
 every minor, patch, or follow-up housekeeping version.
 
+An entry can roll up everything notable since the last version that already has
+an entry here; it does not need to represent only changes shipped in exactly
+one tagged `vx.y.z`.
+
 When a release is notable enough to change how people describe mermaid-lint in
-docs, demos, or release notes, add a short entry here in the same patch.
+docs, demos, or release notes, add or update a short entry here in the same
+patch.
