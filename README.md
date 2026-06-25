@@ -39,12 +39,12 @@ The exit code is non-zero on failure, so it drops straight into CI or a pre-comm
 
 mermaid-lint gives you actual Mermaid validation anywhere you write diagrams:
 
-- Catches Mermaid **syntax errors** across all **19 diagram types**
-- Reports the precise **line and column** of the error
-- Adds opt-in **semantic** warnings like duplicate node IDs
-- **Auto-fixes** mechanical issues with `--fix`
-- Shows **editor squiggles** as you type in VS Code
-- Fits into **CI**, pre-commit hooks, and existing lint pipelines with one command
+- 💥 Catches Mermaid **syntax errors** across all **19 diagram types**
+- 📍 Reports the precise **line and column** of the error
+- 🧠 Adds opt-in **semantic** warnings like duplicate node IDs
+- 🔧 **Auto-fixes** mechanical issues with `--fix`
+- 🌈 Shows **editor squiggles** as you type in VS Code
+- 🚀 Fits into **CI**, pre-commit hooks, and existing lint pipelines with one command
 
 Plain Markdown linters don't validate diagram bodies — but mermaid-lint plugs
 into the ones you already run: [markdownlint](#markdownlint), [remark](#remark),
