@@ -63,6 +63,12 @@ and [textlint](#textlint) all gain Mermaid validation via a mermaid-lint rule.
 | [`@mermaid-lint/core`](packages/core) | [![npm](https://img.shields.io/npm/v/@mermaid-lint/core.svg)](https://www.npmjs.com/package/@mermaid-lint/core) | Core utilities (extract, validate, discover) — [API docs](https://docs.mermaidlint.com) |
 | [`mermaid-lint-vscode`](packages/vscode) | [![VS Code Marketplace](https://img.shields.io/badge/Marketplace-VS%20Code-007ACC?logo=visualstudiocode)](https://marketplace.visualstudio.com/items?itemName=mermaid-lint.mermaid-lint-vscode) [![Open VSX](https://img.shields.io/open-vsx/v/mermaid-lint/mermaid-lint-vscode.svg?label=Open%20VSX)](https://open-vsx.org/extension/mermaid-lint/mermaid-lint-vscode) | VS Code extension — live squiggles in Markdown (`.md`, `.markdown`) blocks + standalone `.mmd` files |
 
+> **Versioning note:** the published `@mermaid-lint/*` npm packages move in
+> lockstep and share one version. `mermaid-lint-vscode` does **not** mirror that
+> numbering: it is versioned independently, may skip npm package version
+> numbers, and may ship a newer published `@mermaid-lint/core` without renaming
+> itself to match. See [`packages/vscode/PUBLISHING.md`](packages/vscode/PUBLISHING.md).
+
 ## CLI
 
 **Exit codes:** `0` = all valid · `1` = validation failures (or warnings with `--strict`) · `2` = usage/IO error
@@ -83,6 +89,10 @@ mermaid-lint only requires Node.js ≥20 and runs via `npx`, so it works in any
 project regardless of language. See [docs/ci-and-precommit.md](docs/ci-and-precommit.md)
 for Python/Go/Rust recipes, pre-commit hooks (`pre-commit`, husky + lint-staged),
 and CI usage.
+
+### Integration guides
+
+Framework-specific setup notes live in [docs/integrations/README.md](docs/integrations/README.md).
 
 ## GitHub Actions
 
@@ -377,6 +387,10 @@ Install it from the
 [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=mermaid-lint.mermaid-lint-vscode)
 or [Open VSX](https://open-vsx.org/extension/mermaid-lint/mermaid-lint-vscode),
 or run `code --install-extension mermaid-lint.mermaid-lint-vscode`.
+
+The extension's version is independent from the lockstep `@mermaid-lint/*` npm
+package version. An extension release may therefore lag, skip, or package a
+newer published core version without using the same version number as npm.
 
 ## Vitest
 
