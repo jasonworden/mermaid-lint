@@ -1,0 +1,170 @@
+name: release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/cli/package.json'
+      - 'packages/core/package.json'
+      - 'packages/jest/package.json'
+      - 'packages/markdownlint/package.json'
+      - 'packages/remark/package.json'
+      - 'packages/textlint/package.json'
+      - 'packages/vitest/package.json'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: npm-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      NPM_REGISTRY: https://registry.npmjs.org
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # pnpm version comes from the "packageManager" field in package.json.
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'pnpm'
+
+      - name: Inspect release state
+        id: release-state
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="$(node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+
+          const manifests = [
+            'packages/cli/package.json',
+            'packages/core/package.json',
+            'packages/jest/package.json',
+            'packages/markdownlint/package.json',
+            'packages/remark/package.json',
+            'packages/textlint/package.json',
+            'packages/vitest/package.json',
+          ].map((path) => JSON.parse(readFileSync(path, 'utf8')));
+
+          const versions = [...new Set(manifests.map((manifest) => manifest.version))];
+          if (versions.length !== 1) {
+            throw new Error(
+              `Expected lockstep @mermaid-lint package versions, got: ${manifests
+                .map((manifest) => `${manifest.name}@${manifest.version}`)
+                .join(', ')}`,
+            );
+          }
+
+          process.stdout.write(versions[0]);
+          NODE
+          )"
+          tag="v${version}"
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+
+          if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
+            echo "tag_exists=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "tag_exists=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+          if gh release view "${tag}" >/dev/null 2>&1; then
+            echo "release_exists=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "release_exists=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+          published_count=0
+          total_packages=0
+          while IFS= read -r package_name; do
+            total_packages="$((total_packages + 1))"
+            if npm view "${package_name}@${version}" version --registry="${NPM_REGISTRY}" >/dev/null 2>&1; then
+              published_count="$((published_count + 1))"
+            fi
+          done <<'PACKAGES'
+          @mermaid-lint/cli
+          @mermaid-lint/core
+          @mermaid-lint/jest
+          @mermaid-lint/markdownlint
+          @mermaid-lint/remark
+          @mermaid-lint/textlint
+          @mermaid-lint/vitest
+          PACKAGES
+
+          if [[ "${published_count}" -eq 0 ]]; then
+            publish_state="unpublished"
+          elif [[ "${published_count}" -eq "${total_packages}" ]]; then
+            publish_state="published"
+          else
+            publish_state="partial"
+          fi
+
+          echo "publish_state=${publish_state}" >> "${GITHUB_OUTPUT}"
+
+      - name: Guard against partial npm publish state
+        if: steps.release-state.outputs.publish_state == 'partial'
+        run: |
+          echo "Some but not all @mermaid-lint packages are already published at ${{ steps.release-state.outputs.version }}." >&2
+          echo "Resolve the partial publish manually before rerunning release.yml." >&2
+          exit 1
+
+      - name: Install dependencies
+        if: steps.release-state.outputs.publish_state == 'unpublished'
+        run: pnpm install
+
+      - name: Lint
+        if: steps.release-state.outputs.publish_state == 'unpublished'
+        run: pnpm lint
+
+      - name: Build
+        if: steps.release-state.outputs.publish_state == 'unpublished'
+        run: pnpm -r build
+
+      - name: Test (vitest — core, cli, vitest adapter)
+        if: steps.release-state.outputs.publish_state == 'unpublished'
+        run: pnpm test --reporter=verbose
+
+      - name: Test (jest adapter)
+        if: steps.release-state.outputs.publish_state == 'unpublished'
+        run: pnpm --filter @mermaid-lint/jest test
+
+      - name: API docs build + Cloudflare Pages safety check (typedoc)
+        if: steps.release-state.outputs.publish_state == 'unpublished'
+        run: |
+          pnpm --filter @mermaid-lint/core docs
+          node scripts/check-docs-cloudflare-safe.mjs packages/core/docs
+
+      - name: Publish public npm packages
+        if: steps.release-state.outputs.publish_state == 'unpublished'
+        run: pnpm -r publish --access public --no-git-checks
+
+      - name: Create and push release tag
+        if: steps.release-state.outputs.tag_exists != 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ steps.release-state.outputs.tag }}" -m "Release ${{ steps.release-state.outputs.tag }}"
+          git push origin "${{ steps.release-state.outputs.tag }}"
+
+      - name: Create GitHub Release
+        if: steps.release-state.outputs.release_exists != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.release-state.outputs.tag }}" \
+            --title "${{ steps.release-state.outputs.tag }}" \
+            --generate-notes \
+            --verify-tag

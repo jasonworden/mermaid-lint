@@ -4,7 +4,7 @@ This repo ships to **three** registries from **two** toolchains:
 
 | Artifact | Registry | Tool | Trigger |
 |---|---|---|---|
-| `@mermaid-lint/{core,cli,vitest,jest,remark,markdownlint}` | npm | `pnpm publish` (CI) | git **version tag** |
+| `@mermaid-lint/{core,cli,vitest,jest,remark,markdownlint,textlint}` | npm | `pnpm publish` (GitHub Actions trusted publishing) | version bump merged to `main` |
 | `mermaid-lint-vscode` | VS Code Marketplace | [`vsce`](https://github.com/microsoft/vscode-vsce) | manual |
 | `mermaid-lint-vscode` | [Open VSX](https://open-vsx.org) | [`ovsx`](https://github.com/eclipse/openvsx/tree/master/cli) | manual |
 
@@ -15,22 +15,28 @@ constraint is: **publish `@mermaid-lint/core` to npm before building the
 [`README.md`](README.md#packaging--publishing)).
 
 > **Versions are independent.** The npm libraries share one version (`core`,
-> `cli`, … all move together on a tag). `mermaid-lint-vscode` carries its **own**
+> `cli`, … all move together in one automated release). `mermaid-lint-vscode` carries its **own**
 > version in [`package.json`](package.json) and is bumped on its own cadence
 > (e.g. an icon-only change bumps just the extension). When building a `.vsix`,
 > pin it to a *published* core version with `--core-version`.
 
 ---
 
-## 1. Publish the npm libraries (tag-triggered)
+## 1. Publish the npm libraries (version bump on `main`)
 
-The monorepo publishes `@mermaid-lint/*` to npm from CI when you push a version
-tag. Bump, tag, push:
+The monorepo publishes `@mermaid-lint/*` from [`.github/workflows/release.yml`](../../.github/workflows/release.yml)
+when a commit on `main` bumps the shared package version. The workflow uses npm
+trusted publishing (GitHub Actions OIDC), then creates the matching git tag and
+a GitHub Release with GitHub-generated notes.
+
+Bump the lockstep package version(s), merge to `main`, then wait for the
+workflow to finish:
 
 ```bash
-# from the repo root, on an up-to-date main
-git tag v0.19.0
-git push origin v0.19.0     # CI runs `pnpm -r publish` → npm
+# from the repo root, on a branch that will merge to main
+# bump packages/{core,cli,vitest,jest,remark,markdownlint,textlint}/package.json
+git push
+# merge to main -> release.yml runs `pnpm -r publish`, then creates vX.Y.Z + a GitHub Release
 ```
 
 Verify (bypassing any local registry mirror such as a corporate Nexus in
@@ -40,9 +46,11 @@ Verify (bypassing any local registry mirror such as a corporate Nexus in
 npm view @mermaid-lint/core version --registry=https://registry.npmjs.org/
 ```
 
-If a tag's publish was missed, re-pushing the **same** tag re-triggers the
-workflow; npm rejects a re-publish of an already-published version, so this is
-safe.
+If publish succeeded but tag / GitHub Release creation failed, rerun
+`release.yml` manually from the Actions tab. The workflow detects that the npm
+packages are already published, skips the re-publish, then backfills the
+missing tag and/or GitHub Release. If the workflow reports a **partial publish**
+state, stop and repair that release manually before rerunning it.
 
 ---
 
@@ -135,8 +143,9 @@ Confirm: <https://open-vsx.org/extension/mermaid-lint/mermaid-lint-vscode>
 
 ## Quick checklist for a normal release
 
-- [ ] Bump versions (npm libs via tag; extension via `package.json`).
-- [ ] `git tag vX.Y.Z && git push origin vX.Y.Z` → wait for npm publish (step 1).
+- [ ] Bump versions (npm libs via the shared package manifests; extension via `package.json`).
+- [ ] Bump the shared `@mermaid-lint/*` version and merge it to `main`.
+- [ ] Wait for `release.yml` to publish npm, create `vX.Y.Z`, and create the GitHub Release.
 - [ ] `pnpm --filter mermaid-lint-vscode package` (step 2).
 - [ ] `vsce publish --packagePath …` (step 3).
 - [ ] If Open VSX shows an unverified publisher warning, claim ownership of the

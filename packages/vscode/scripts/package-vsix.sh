@@ -7,7 +7,8 @@
 # as a flat, symlink-free node_modules. pnpm's symlinked node_modules can't be
 # packaged by vsce, so we stage a clean directory and install core from npm with
 # plain `npm install`. This means the matching @mermaid-lint/core version must be
-# PUBLISHED to npm first (push a v<version> tag → the publish CI job).
+# PUBLISHED to npm first (merge a version bump to `main` → release.yml publishes
+# npm, then creates v<version> and a GitHub Release).
 #
 # Usage:
 #   scripts/package-vsix.sh [--core-version <ver>] [--out <dir>]
@@ -136,7 +137,7 @@ main() {
 
   msg_info "Installing production dependencies (flat) — core@^${CORE_VERSION} from npm…"
   if ! (cd "${STAGING}" && npm install --omit=dev --no-audit --no-fund >/dev/null 2>&1); then
-    die "npm install failed — is @mermaid-lint/core@^${CORE_VERSION} published to npm? (publish the npm packages first via a v${version} tag)"
+    die "npm install failed — is @mermaid-lint/core@^${CORE_VERSION} published to npm? (merge the matching version bump to main so release.yml can publish it first)"
   fi
 
   mkdir -p "${OUT_DIR}"
