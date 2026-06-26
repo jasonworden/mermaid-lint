@@ -1,4 +1,4 @@
-# mermaid-lint
+# mermaid-lint 🧜‍♂️
 
 Validate Mermaid diagrams embedded in Markdown files. Uses the official `mermaid.parse()` API — catches real syntax errors, not just missing diagram-type keywords.
 
