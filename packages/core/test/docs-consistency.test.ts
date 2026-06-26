@@ -364,6 +364,35 @@ describe('docs consistency', () => {
     );
   });
 
+  it('keeps npm release automation documented and wired through a dedicated workflow', () => {
+    const ci = readRepoFile('.github/workflows/ci.yml');
+    const release = readRepoFile('.github/workflows/release.yml');
+    const runbook = readRepoFile('packages/vscode/PUBLISHING.md');
+    const vscodeAgents = readRepoFile('packages/vscode/AGENTS.md');
+
+    expect(ci).toContain('branches: [main]');
+    expect(ci).not.toContain("tags: ['v*']");
+    expect(ci).not.toContain('pnpm -r publish');
+
+    expect(release).toContain('name: release');
+    expect(release).toContain('branches: [main]');
+    expect(release).toContain('workflow_dispatch:');
+    expect(release).toContain('id-token: write');
+    expect(release).toContain(
+      'pnpm -r publish --access public --no-git-checks',
+    );
+    expect(release).toContain('gh release create');
+    expect(release).toContain('--generate-notes');
+
+    expect(runbook).toContain('version bump');
+    expect(runbook).toContain('GitHub Release');
+    expect(runbook).toContain('generated notes');
+    expect(runbook).toContain('release.yml');
+
+    expect(vscodeAgents).toContain('version bump');
+    expect(vscodeAgents).toContain('release workflow');
+  });
+
   it('keeps local Markdown links resolvable', () => {
     for (const file of markdownFilesToCheck()) {
       const markdown = readRepoFile(file);

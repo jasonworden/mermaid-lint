@@ -66,8 +66,9 @@ stages a clean dir and `npm install`s `@mermaid-lint/core` from **npm** (not the
 workspace) because the `.vsix` must ship a flat, symlink-free `node_modules`
 (pnpm's symlinks can't be packaged by vsce, and core/jsdom/merman can't be
 bundled). **Prerequisite:** the matching `@mermaid-lint/core` version must be on
-npm first (push a `v<version>` tag → publish CI job). Test the mechanics against
-an already-published version with `--core-version <ver>`. Never run `vsce` in the
+npm first (merge a version bump to `main` → the release workflow publishes npm,
+creates `v<version>`, and opens a GitHub Release). Test the mechanics against an
+already-published version with `--core-version <ver>`. Never run `vsce` in the
 package dir directly — it would package pnpm's symlinked `node_modules`.
 
 ## After any change, verify
