@@ -1,6 +1,6 @@
 const path = require('node:path');
 const vscode = require('vscode');
-const { test } = require('./harness.cjs');
+const { test } = require('zora');
 
 // Shared with the human-facing demo: packages/vscode/demo/.
 const DEMO_DIR = path.join(__dirname, '..', '..', 'demo');
