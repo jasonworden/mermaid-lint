@@ -57,14 +57,13 @@ pnpm --filter mermaid-lint-vscode test:e2e     # VS Code extension-host e2e (nee
 pnpm lint                                       # biome check . (lint + format)
 ```
 
-CI (`.github/workflows/ci.yml`) has three jobs: a run-once `quality` job on Node
-24 (`pnpm lint` → `pnpm -r build` → typedoc API-docs build + Cloudflare safety
-check), a `test` job that runs `pnpm test` → jest adapter across a Node matrix
-(**20, 22, 24, 26** — proving the `>=20` floor), and a single-Node VS Code e2e
-job. Version-independent gates (lint, docs check) live in `quality` so they run
-once, not once per matrix entry. Run these locally before pushing. **Lint/format
-is [Biome](https://biomejs.dev), not ESLint** — and run the repo's pinned
-binaries rather than `npx`; see [docs/package-manager.md](docs/package-manager.md).
+CI (`.github/workflows/ci.yml`) has three jobs: a run-once `quality` job (lint →
+build → typedoc API-docs + Cloudflare safety check), a `test` job across a Node
+matrix (20/22/24/26), and a single-Node VS Code e2e job — see
+[docs/node-support.md](docs/node-support.md) for why it's split this way. Run
+these locally before pushing. **Lint/format is [Biome](https://biomejs.dev), not
+ESLint** — and run the repo's pinned binaries rather than `npx`; see
+[docs/package-manager.md](docs/package-manager.md).
 
 ## Conventions
 
@@ -80,14 +79,12 @@ binaries rather than `npx`; see [docs/package-manager.md](docs/package-manager.m
   subdirectory, follow the nearest guide before this root one; `packages/vscode/AGENTS.md`
   is especially important for extension work.
 - **Keep published packages on the declared runtime floor.** Code in published
-  packages must stay compatible with `package.json` `engines.node` (`>=20`). CI's
-  `test` matrix proves this by running the suites on Node 20/22/24/26; a feature
-  from a newer Node will fail the lower legs.
-- **Node version policy.** The runtime `test` matrix spans every supported Node
-  (20/22/24/26). Single-version jobs (the `quality` gates and the VS Code e2e
-  job) pin the **latest LTS — currently Node 24**; bump them to the next LTS
-  (Node 26) once it enters LTS. Keep the matrix's upper bound and the LTS pin
-  moving forward together as new Node lines ship.
+  packages must stay compatible with `package.json` `engines.node` (`>=20`); CI's
+  `test` matrix (Node 20/22/24/26) fails the lower legs if you use a newer API.
+  Single-version jobs (`quality`, `e2e`) pin the latest LTS (Node 24); bump to
+  the next LTS (26) when it lands, and add newer Node lines to the matrix as they
+  ship. The consumer-facing support statement lives in
+  [docs/node-support.md](docs/node-support.md) — keep it in sync.
 - **Every published package needs a `README.md`.** npm shows "no README data"
   for any package without one, and a README only reaches npm on the *next*
   publish — so a README added after a version shipped won't appear until the
@@ -126,4 +123,5 @@ binaries rather than `npx`; see [docs/package-manager.md](docs/package-manager.m
 
 - [docs/parsing-vs-linting.md](docs/parsing-vs-linting.md) — parsing vs. linting, and why some hosts can't run the validator.
 - [docs/package-manager.md](docs/package-manager.md) — pinned toolchain versions and the "use the repo's binary, not `npx`" rule.
+- [docs/node-support.md](docs/node-support.md) — supported Node versions and how the CI matrix proves compatibility.
 - [README.md](README.md) — user-facing usage, configuration, and per-integration setup.
