@@ -45,6 +45,9 @@ jobs:
   # Node we declare support for (engines.node ">=20"), not just the LTS the
   # quality gates use. Keep this list in sync with the supported range.
   test:
+    # Render matrix legs as "test (n20)" … "test (n26)" rather than bare
+    # "test (20)", so the Node version is unambiguous in the checks list.
+    name: test (n${{ matrix.node-version }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
