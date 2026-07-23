@@ -1,3 +1,9 @@
+// zora's per-test timeout defaults to 5s and is captured when the module is
+// first required, so it must be set before requiring zora. These e2e tests are
+// slow — real extension activation plus a deliberate "wait for no diagnostics"
+// pause — and exceed 5s on CI runners (mocha previously used timeout: 30000).
+process.env.ZORA_TIMEOUT = process.env.ZORA_TIMEOUT || '30000';
+
 const path = require('node:path');
 const { glob } = require('glob');
 const { hold, report, createTAPReporter } = require('zora');
