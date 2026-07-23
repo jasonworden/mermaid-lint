@@ -22,5 +22,8 @@
   },
   "dependencies": {
     "@mermaid-lint/core": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "catalog:"
   }
 }
