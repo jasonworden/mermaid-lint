@@ -53,12 +53,12 @@ jobs:
   # Node we declare support for (engines.node ">=20"), not just the LTS the
   # quality gates use. Keep this list in sync with the supported range.
   test-matrix:
-    # Render matrix legs as "test (n20)" … "test (n26)" rather than bare
-    # "test (20)", so the Node version is unambiguous in the checks list.
+    # Render matrix legs as "test (node-20)" … "test (node-26)" rather than
+    # bare "test (20)", so the Node version is unambiguous in the checks list.
     # The job id is test-matrix; the single required "test" check is the
     # aggregate gate job below (matrix check names change with the matrix, so
     # branch protection targets the stable gate instead of the legs).
-    name: test (n${{ matrix.node-version }})
+    name: test (node-${{ matrix.node-version }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
