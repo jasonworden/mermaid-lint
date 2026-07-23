@@ -35,7 +35,7 @@ jobs:
       # pnpm version comes from the "packageManager" field in package.json.
       - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
