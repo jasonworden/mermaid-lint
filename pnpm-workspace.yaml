@@ -18,10 +18,7 @@ overrides:
   # merge `<<`; quadratic-complexity DoS in merge-key handling). Reached via
   # markdownlint-cli2, which hard-pins the vulnerable 4.1.0; >=4.2.0 fixes it, so
   # the override is required until markdownlint-cli2 bumps. Removal tracked in
-  # https://github.com/jasonworden/mermaid-lint/issues/106.
-  # (The former js-yaml@3 pin was dropped — its only consumer,
-  # @istanbuljs/load-nyc-config, requires ^3.13.1, which already resolves to the
-  # patched 3.15.0 on its own, making the override redundant.)
+  # https://github.com/jasonworden/mermaid-lint/issues/116.
   js-yaml@4: ^4.2.0
 allowBuilds:
   '@biomejs/biome': true
