@@ -1,6 +1,7 @@
 const assert = require('node:assert');
 const path = require('node:path');
 const vscode = require('vscode');
+const { suite, test } = require('./harness.cjs');
 
 // Shared with the human-facing demo: packages/vscode/demo/.
 const DEMO_DIR = path.join(__dirname, '..', '..', 'demo');

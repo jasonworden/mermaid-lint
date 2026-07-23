@@ -1,15 +1,14 @@
 const path = require('node:path');
-const Mocha = require('mocha');
 const { glob } = require('glob');
+const harness = require('./harness.cjs');
+
+// Loaded by @vscode/test-electron inside the running extension host. Requiring
+// each *.etest.cjs registers its tests with the harness (see harness.cjs), then
+// run() executes them in-process and rejects if any fail.
 async function run() {
-  const mocha = new Mocha({ ui: 'tdd', color: true, timeout: 30000 });
   const root = __dirname;
   const files = await glob('**/*.etest.cjs', { cwd: root });
-  for (const f of files) mocha.addFile(path.resolve(root, f));
-  return new Promise((resolve, reject) => {
-    mocha.run((failures) =>
-      failures ? reject(new Error(`${failures} failing`)) : resolve(),
-    );
-  });
+  for (const f of files) require(path.resolve(root, f));
+  return harness.run();
 }
 module.exports = { run };
