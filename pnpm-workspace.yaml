@@ -16,6 +16,8 @@ overrides:
   # serialize-javascript <7.0.5 is a dev-only transitive of mocha (vscode tests).
   # Even the latest mocha pins 6.0.2, which is vulnerable to GHSA-5c6j-r48x-rmvq
   # (RCE via RegExp.flags, high) and GHSA-hxcc-f52p-wc94 (CPU-exhaustion DoS).
+  # Remove once mocha ships a patched pin — tracked in
+  # https://github.com/jasonworden/mermaid-lint/issues/106
   serialize-javascript: ^7.0.5
 allowBuilds:
   '@biomejs/biome': true
