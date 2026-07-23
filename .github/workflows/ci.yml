@@ -19,6 +19,9 @@ jobs:
   # AGENTS.md ("Node version policy") for why single-version jobs pin Node 24.
   quality:
     runs-on: ubuntu-latest
+    # Real runtime is ~1 min; this bound just fails a hung/stuck job fast
+    # instead of letting it ride GitHub's 6-hour default.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
 
@@ -60,6 +63,10 @@ jobs:
     # branch protection targets the stable gate instead of the legs).
     name: test (node-${{ matrix.node-version }})
     runs-on: ubuntu-latest
+    # A leg normally finishes in ~1 min; the vitest step has been seen to hang
+    # (test run completes but the process never exits), which without a bound
+    # would occupy a runner for GitHub's full 6-hour default. Fail fast instead.
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -97,6 +104,8 @@ jobs:
   test:
     name: test
     runs-on: ubuntu-latest
+    # Just evaluates upstream results; seconds in practice.
+    timeout-minutes: 5
     needs: [quality, test-matrix]
     if: always()
     steps:
@@ -115,6 +124,9 @@ jobs:
     # display); xvfb is preinstalled on ubuntu-latest runners. The extension
     # host bundles its own Electron/Node, so this stays on a single Node.
     runs-on: ubuntu-latest
+    # Electron-under-xvfb is the slowest job and can wedge on a stuck display or
+    # extension host; give it more headroom than the others but still cap it.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
 
