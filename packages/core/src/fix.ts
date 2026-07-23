@@ -41,8 +41,14 @@ function normalizeFlowchartArrows(body: string): string {
 // indent, from-participant, arrow, to-participant (no spaces), space, message
 // Participant names after the arrow have no spaces to avoid
 // greedy matching bleeding into the message text.
+//
+// The activation-marker group is `(?:[+-]\s*)?`, not `(?:[+-]?\s*)?`: the `+`/`-`
+// is required inside it so the group can never match bare whitespace already
+// consumed by the preceding `\s*`. Allowing both to match the same space run made
+// the target `\w+` fail with quadratic backtracking on arrows followed by long
+// space runs (js/polynomial-redos).
 const SEQ_MISSING_COLON_RE =
-  /^(\s*)([\w][\w ]*)((?:-->>|-->|->>|->|-x|--x)\s*(?:[+-]?\s*)?)(\w+)\s+([^:\s].*)$/;
+  /^(\s*)([\w][\w ]*)((?:-->>|-->|->>|->|-x|--x)\s*(?:[+-]\s*)?)(\w+)\s+([^:\s].*)$/;
 
 function fixSequenceColons(body: string): string {
   return body
