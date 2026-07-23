@@ -44,9 +44,12 @@ jobs:
   # Runtime test matrix. Proves the published packages actually run on every
   # Node we declare support for (engines.node ">=20"), not just the LTS the
   # quality gates use. Keep this list in sync with the supported range.
-  test:
+  test-matrix:
     # Render matrix legs as "test (n20)" … "test (n26)" rather than bare
     # "test (20)", so the Node version is unambiguous in the checks list.
+    # The job id is test-matrix; the single required "test" check is the
+    # aggregate gate job below (matrix check names change with the matrix, so
+    # branch protection targets the stable gate instead of the legs).
     name: test (n${{ matrix.node-version }})
     runs-on: ubuntu-latest
     strategy:
@@ -76,6 +79,27 @@ jobs:
 
       - name: Test (jest adapter)
         run: pnpm --filter @mermaid-lint/jest test
+
+  # Aggregate gate. The branch ruleset requires a single "test" status check;
+  # this job provides that stable context and passes only if the quality gate
+  # and every Node matrix leg succeeded. `needs.<job>.result` is "success" only
+  # when all of a matrix job's legs pass, so one check covers the whole matrix.
+  # if: always() ensures it runs (and can fail) even when a dependency fails,
+  # instead of being skipped.
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    needs: [quality, test-matrix]
+    if: always()
+    steps:
+      - name: Require quality and all Node legs to pass
+        env:
+          QUALITY_RESULT: ${{ needs.quality.result }}
+          TEST_MATRIX_RESULT: ${{ needs.test-matrix.result }}
+        run: |
+          echo "quality:     $QUALITY_RESULT"
+          echo "test-matrix: $TEST_MATRIX_RESULT"
+          [ "$QUALITY_RESULT" = "success" ] && [ "$TEST_MATRIX_RESULT" = "success" ]
 
   e2e:
     # Real VS Code Extension Host test for mermaid-lint-vscode. Runs the
