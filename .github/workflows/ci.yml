@@ -6,7 +6,10 @@ on:
   pull_request:
 
 jobs:
-  test:
+  # Version-independent quality gates. These don't depend on the Node runtime,
+  # so they run once on the latest LTS rather than once per matrix entry. See
+  # AGENTS.md ("Node version policy") for why single-version jobs pin Node 24.
+  quality:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -25,14 +28,9 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      # Also the typecheck gate, and a prerequisite for the docs build below.
       - name: Build
         run: pnpm -r build
-
-      - name: Test (vitest — core, cli, vitest adapter)
-        run: pnpm test --reporter=verbose
-
-      - name: Test (jest adapter)
-        run: pnpm --filter @mermaid-lint/jest test
 
       # Prove the @mermaid-lint/core API reference still builds. The docs.yml
       # workflow deploys this output to Cloudflare Pages on push to main.
@@ -43,10 +41,44 @@ jobs:
           pnpm --filter @mermaid-lint/core docs
           node scripts/check-docs-cloudflare-safe.mjs packages/core/docs
 
+  # Runtime test matrix. Proves the published packages actually run on every
+  # Node we declare support for (engines.node ">=20"), not just the LTS the
+  # quality gates use. Keep this list in sync with the supported range.
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ['20', '22', '24', '26']
+    steps:
+      - uses: actions/checkout@v7
+
+      # pnpm version comes from the "packageManager" field in package.json.
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      # Tests execute the built dist, so build is a per-Node prerequisite here.
+      - name: Build
+        run: pnpm -r build
+
+      - name: Test (vitest — core, cli, vitest adapter)
+        run: pnpm test --reporter=verbose
+
+      - name: Test (jest adapter)
+        run: pnpm --filter @mermaid-lint/jest test
+
   e2e:
     # Real VS Code Extension Host test for mermaid-lint-vscode. Runs the
     # @vscode/test-electron suite headlessly under xvfb (Electron needs a
-    # display); xvfb is preinstalled on ubuntu-latest runners.
+    # display); xvfb is preinstalled on ubuntu-latest runners. The extension
+    # host bundles its own Electron/Node, so this stays on a single Node.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
