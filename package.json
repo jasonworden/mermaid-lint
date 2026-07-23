@@ -17,7 +17,7 @@
     "prepare": "husky"
   },
   "lint-staged": {
-    "*.{js,ts,mjs,cjs}": "biome check --write"
+    "*.{js,mjs,cjs,jsx,ts,mts,cts,tsx,json,jsonc}": "biome check --write"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
