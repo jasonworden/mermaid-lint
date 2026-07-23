@@ -9,6 +9,14 @@ catalog:
   vite: ^6.4.3
   typescript: 6.0.3
   '@types/node': ^20.0.0
+# Force-resolve transitively-vulnerable phantoms. Unlike the catalog above, these
+# packages aren't referenced by any workspace manifest (the `catalog:` protocol
+# only reaches direct deps), so an override is the only lever that reaches them.
+overrides:
+  # serialize-javascript <7.0.5 is a dev-only transitive of mocha (vscode tests).
+  # Even the latest mocha pins 6.0.2, which is vulnerable to GHSA-5c6j-r48x-rmvq
+  # (RCE via RegExp.flags, high) and GHSA-hxcc-f52p-wc94 (CPU-exhaustion DoS).
+  serialize-javascript: ^7.0.5
 allowBuilds:
   '@biomejs/biome': true
   esbuild: true
