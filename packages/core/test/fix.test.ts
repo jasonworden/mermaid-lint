@@ -193,3 +193,34 @@ describe('fixBlockBody', () => {
     expect(fixBlockBody(body).split('\n')).toHaveLength(2);
   });
 });
+
+describe('SEQ_MISSING_COLON_RE (via fixBlockBody)', () => {
+  // Regression for the js/polynomial-redos alert: an arrow followed by a long
+  // run of spaces and no target used to trigger quadratic backtracking in the
+  // missing-colon matcher. A pathological line must still resolve near-instantly.
+  it('does not backtrack quadratically on an arrow with a long space run', () => {
+    const body = `sequenceDiagram\n0->${' '.repeat(50_000)}`;
+    const start = performance.now();
+    const out = fixBlockBody(body);
+    const elapsedMs = performance.now() - start;
+    expect(out).toBe(body); // no colon inserted — there is no message
+    expect(elapsedMs).toBeLessThan(500);
+  });
+
+  // The matcher supports sequence activation markers (`+`/`-`) between the arrow
+  // and the target; the ReDoS fix must preserve that.
+  it('inserts a colon when an activation marker follows the arrow', () => {
+    expect(fixBlockBody('sequenceDiagram\n  Alice->>+Bob hello')).toBe(
+      'sequenceDiagram\n  Alice->>+Bob: hello',
+    );
+    expect(fixBlockBody('sequenceDiagram\n  Alice->>-Bob bye')).toBe(
+      'sequenceDiagram\n  Alice->>-Bob: bye',
+    );
+  });
+
+  it('inserts a colon for an -x arrow missing its colon', () => {
+    expect(fixBlockBody('sequenceDiagram\n  Alice-xBob boom')).toBe(
+      'sequenceDiagram\n  Alice-xBob: boom',
+    );
+  });
+});
