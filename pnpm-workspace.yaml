@@ -14,12 +14,14 @@ catalog:
 # only reaches direct deps), so an override is the only lever that reaches them.
 # All are dev/build-only tooling, so none carry runtime risk.
 overrides:
-  # js-yaml patched-version pins — Dependabot #10/#16/#17 (prototype pollution in
-  # merge `<<`; quadratic-complexity DoS in merge-key handling). Removal tracked
-  # in https://github.com/jasonworden/mermaid-lint/issues/106.
-  #   @3 ← jest → babel-plugin-istanbul → @istanbuljs/load-nyc-config; 3.15.0 fixes.
-  #   @4 ← markdownlint-cli2 (pins 4.1.0); >=4.2.0 fixes it.
-  js-yaml@3: 3.15.0
+  # js-yaml patched-version pin — Dependabot #10/#16/#17 (prototype pollution in
+  # merge `<<`; quadratic-complexity DoS in merge-key handling). Reached via
+  # markdownlint-cli2, which hard-pins the vulnerable 4.1.0; >=4.2.0 fixes it, so
+  # the override is required until markdownlint-cli2 bumps. Removal tracked in
+  # https://github.com/jasonworden/mermaid-lint/issues/106.
+  # (The former js-yaml@3 pin was dropped — its only consumer,
+  # @istanbuljs/load-nyc-config, requires ^3.13.1, which already resolves to the
+  # patched 3.15.0 on its own, making the override redundant.)
   js-yaml@4: ^4.2.0
 allowBuilds:
   '@biomejs/biome': true

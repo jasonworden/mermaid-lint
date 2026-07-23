@@ -1,78 +1,40 @@
-// Minimal in-process test harness for the VS Code extension host.
+// Thin adapter around zora (zero-dependency, in-process) for the VS Code
+// extension-host e2e suite. zora replaces mocha, whose vulnerable dev-only
+// transitives (diff, serialize-javascript) triggered Dependabot #13.
 //
-// Replaces mocha, which was removed to drop its vulnerable dev-only transitives
-// (diff, serialize-javascript, js-yaml) — upstream mocha still pins the old
-// versions, so an override was the only alternative. The extension-host contract
-// is narrow enough that a full framework buys us little: tests must run in the
-// SAME process as the live `vscode` API (so a subprocess runner like `node
-// --test` can't reach it), and `index.cjs` must expose a `run()` that resolves
-// on success and rejects on any failure. This covers exactly that.
-//
-// Authoring API mirrors mocha's tdd UI (`suite`/`test`) so test files read the
-// same, but they import it explicitly instead of relying on injected globals.
+// The extension-host contract is narrow: tests must run in the SAME process as
+// the live `vscode` API (so a subprocess runner like `node --test` or vitest
+// can't reach it), and index.cjs must export a `run()` that resolves on success
+// and rejects on failure. zora fits — createHarness() gives an in-process
+// harness we drive manually, translating its result into that contract.
+const { createHarness, createTAPReporter, hold } = require('zora');
 
-const DEFAULT_TIMEOUT_MS = 30000;
+// zora's default global harness auto-reports at process exit; hold() suppresses
+// it so only our explicitly-driven harness produces output.
+hold();
 
-const suites = [];
-const rootTests = [];
-let current = null;
-
-function suite(name, fn) {
-  const s = { name, tests: [] };
-  suites.push(s);
-  const prev = current;
-  current = s;
-  try {
-    fn();
-  } finally {
-    current = prev;
-  }
-}
-
-function test(name, fn) {
-  (current ? current.tests : rootTests).push({ name, fn });
-}
-
-function withTimeout(fn, ms) {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(
-      () => reject(new Error(`timeout after ${ms}ms`)),
-      ms,
-    );
-    if (typeof timer.unref === 'function') timer.unref();
-    Promise.resolve()
-      .then(fn)
-      .then(resolve, reject)
-      .finally(() => clearTimeout(timer));
-  });
-}
+const harness = createHarness();
 
 async function run() {
-  const groups = [...suites];
-  if (rootTests.length) groups.push({ name: '', tests: rootTests });
-
-  let passed = 0;
-  const failures = [];
-  for (const s of groups) {
-    if (s.name) console.log(`\n  ${s.name}`);
-    for (const t of s.tests) {
-      try {
-        await withTimeout(t.fn, DEFAULT_TIMEOUT_MS);
-        passed++;
-        console.log(`    ✓ ${t.name}`);
-      } catch (err) {
-        failures.push({ name: `${s.name} ${t.name}`.trim(), err });
-        console.log(`    ✗ ${t.name}`);
-      }
-    }
-  }
-
-  console.log(`\n  ${passed} passing, ${failures.length} failing`);
-  for (const f of failures) {
-    console.log(`\n  ${f.name}:`);
-    console.log(String(f.err?.stack ?? f.err));
-  }
-  if (failures.length) throw new Error(`${failures.length} failing`);
+  // The harness exposes no aggregate pass/fail, so we read it off the message
+  // stream: tee every message to the TAP reporter (human-readable CI output)
+  // while watching for any failed assertion.
+  let anyFailure = false;
+  const tap = createTAPReporter();
+  await harness.report({
+    reporter: (stream) =>
+      tap(
+        (async function* () {
+          for await (const message of stream) {
+            if (message.type === 'ASSERTION' && message.data?.pass === false) {
+              anyFailure = true;
+            }
+            yield message;
+          }
+        })(),
+      ),
+  });
+  if (anyFailure) throw new Error('e2e tests failed');
 }
 
-module.exports = { suite, test, run };
+module.exports = { test: harness.test, run };

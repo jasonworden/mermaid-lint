@@ -75,6 +75,7 @@
     "@vscode/test-electron": "^3.0.0",
     "@vscode/vsce": "^3.9.2",
     "esbuild": "^0.28.1",
-    "glob": "^13.0.6"
+    "glob": "^13.0.6",
+    "zora": "^6.0.4"
   }
 }
