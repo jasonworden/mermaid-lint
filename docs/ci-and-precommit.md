@@ -1,8 +1,8 @@
 # CI & pre-commit
 
-mermaid-lint only requires Node.js ≥20 — it works in any project regardless of
-language. This page collects recipes for running it in CI and as a pre-commit
-hook.
+mermaid-lint only requires [Node.js ≥20](node-support.md) — it works in any
+project regardless of language. This page collects recipes for running it in CI
+and as a pre-commit hook.
 
 ## Non-JavaScript projects (Python / Go / Rust / …)
 
