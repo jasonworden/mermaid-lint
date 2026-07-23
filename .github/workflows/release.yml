@@ -149,6 +149,8 @@ jobs:
 
       - name: Publish public npm packages
         if: steps.release-state.outputs.publish_state == 'unpublished'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: pnpm -r publish --access public --no-git-checks
 
       - name: Create and push release tag
