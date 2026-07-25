@@ -187,3 +187,171 @@ export function parseFileDirectives(text: string): Directive[] {
   }
   return out;
 }
+
+/**
+ * Resolved suppression state for one block. Built once per
+ * `blockToDiagnostics` call and queried per finding.
+ *
+ * @public
+ */
+export interface SuppressionIndex {
+  /** Every directive parsed for this block, body then document scope. */
+  readonly directives: readonly Directive[];
+  /**
+   * Whether `ruleId` is suppressed at `line`.
+   *
+   * Querying marks the matching directive used, so `unused()` reflects what
+   * actually fired. Pass `undefined` for a finding with no line.
+   */
+  isSuppressed(ruleId: string, line: number | undefined): boolean;
+  /** Well-formed directives that never suppressed anything. */
+  unused(): Directive[];
+}
+
+/** Does this directive name `ruleId`? `all` excludes the syntax rule. */
+function names(directive: Directive, ruleId: string): boolean {
+  if (directive.rules === 'all') return ruleId !== SYNTAX_RULE_ID;
+  return directive.rules.includes(ruleId);
+}
+
+/** The next line a `next-line` directive targets, skipping further directives. */
+function nextTargetLine(lines: string[], directiveLine: number): number {
+  for (let i = directiveLine; i < lines.length; i++) {
+    const trimmed = lines[i].trimStart();
+    if (trimmed.startsWith('%%')) continue;
+    if (trimmed.length === 0) continue;
+    return i + 1;
+  }
+  return directiveLine + 1;
+}
+
+/**
+ * Match `range-start`/`range-end` directives, one rule id at a time.
+ *
+ * Ranges are scoped per rule id, not per directive: a `disable` covering
+ * several rules (explicitly, or via `all`) can be partially closed by an
+ * `enable` that only names some of them, leaving the range open for the
+ * rest. Within a single rule id, opens and closes pair up LIFO (innermost
+ * first) like nested brackets, so two stacked same-rule disables need two
+ * enables to fully close - the first enable only closes the inner one.
+ *
+ * Also flags, in place, any `range-end` directive that closed no range for
+ * any rule it names.
+ *
+ * @param body - Directives parsed from the diagram body (document-level
+ *   directives don't participate in ranges).
+ * @returns For each `range-start` directive, the exclusive end line per
+ *   rule id it names. A rule id mapped to `Infinity` (or a `range-start`
+ *   absent from the outer map) runs to the end of the body.
+ */
+function matchRanges(
+  body: readonly Directive[],
+): Map<Directive, Map<string, number>> {
+  const rangeDirectives = body.filter(
+    (d) => d.kind === 'range-start' || d.kind === 'range-end',
+  );
+
+  // The universe of rule ids ranges can be scoped to: every known semantic
+  // rule (so `all` has something concrete to expand to), plus any literal
+  // id - typo or not - a directive actually names, so two directives that
+  // happen to agree on the same unknown id still match each other.
+  const ruleUniverse = new Set<string>(ALL_RULE_IDS);
+  for (const d of rangeDirectives) {
+    if (d.rules === 'all') continue;
+    for (const r of d.rules) ruleUniverse.add(r);
+  }
+
+  const ends = new Map<Directive, Map<string, number>>();
+  const closedSomething = new Set<Directive>();
+  const setEnd = (opener: Directive, ruleId: string, line: number) => {
+    let perRule = ends.get(opener);
+    if (!perRule) {
+      perRule = new Map();
+      ends.set(opener, perRule);
+    }
+    perRule.set(ruleId, line);
+  };
+
+  for (const ruleId of ruleUniverse) {
+    const stack: Directive[] = [];
+    for (const d of rangeDirectives) {
+      if (!names(d, ruleId)) continue;
+      if (d.kind === 'range-start') {
+        stack.push(d);
+        continue;
+      }
+      const opener = stack.pop();
+      if (opener) {
+        setEnd(opener, ruleId, d.line);
+        closedSomething.add(d);
+      }
+    }
+    // Anything left on the stack never closed for this rule id.
+    for (const opener of stack)
+      setEnd(opener, ruleId, Number.POSITIVE_INFINITY);
+  }
+
+  for (const d of rangeDirectives) {
+    if (d.kind === 'range-end' && !closedSomething.has(d)) {
+      d.problems.push({ kind: 'unmatched-enable' });
+    }
+  }
+
+  return ends;
+}
+
+/**
+ * Build the suppression index for a diagram body plus any document-level
+ * directives attached to its block.
+ *
+ * @param bodyLines - Diagram body split on `\n`.
+ * @param fileDirectives - Document-level directives (see `parseFileDirectives`).
+ * @returns A queryable {@link SuppressionIndex}.
+ * @public
+ */
+export function buildSuppressionIndex(
+  bodyLines: string[],
+  fileDirectives: readonly Directive[] = [],
+): SuppressionIndex {
+  const body = parseBodyDirectives(bodyLines);
+  const directives = [...body, ...fileDirectives];
+  const used = new Set<Directive>();
+  const rangeEnds = matchRanges(body);
+
+  const isSuppressed = (ruleId: string, line: number | undefined): boolean => {
+    let hit = false;
+    for (const d of directives) {
+      if (d.problems.length > 0) continue;
+      if (!names(d, ruleId)) continue;
+
+      let matches = false;
+      if (d.kind === 'diagram' || d.kind === 'file') {
+        matches = true;
+      } else if (d.kind === 'next-line' && line !== undefined) {
+        matches = nextTargetLine(bodyLines, d.line) === line;
+      } else if (d.kind === 'range-start' && line !== undefined) {
+        const end = rangeEnds.get(d)?.get(ruleId) ?? Number.POSITIVE_INFINITY;
+        matches = line >= d.line && line < end;
+      }
+
+      if (matches) {
+        used.add(d);
+        hit = true;
+      }
+    }
+    return hit;
+  };
+
+  return {
+    directives,
+    isSuppressed,
+    unused: () =>
+      directives.filter(
+        (d) =>
+          d.kind !== 'range-end' &&
+          d.kind !== 'file' &&
+          d.problems.length === 0 &&
+          !used.has(d),
+      ),
+  };
+}

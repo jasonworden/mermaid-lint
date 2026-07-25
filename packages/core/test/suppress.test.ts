@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { parseBodyDirectives, parseFileDirectives } from '../src/suppress.js';
+import {
+  buildSuppressionIndex,
+  parseBodyDirectives,
+  parseFileDirectives,
+} from '../src/suppress.js';
 
 describe('parseBodyDirectives', () => {
   it('parses a next-line directive with one rule and a reason', () => {
@@ -158,5 +162,165 @@ describe('parseFileDirectives', () => {
     expect(
       parseFileDirectives('<!-- just a note, nothing to see here -->'),
     ).toEqual([]);
+  });
+});
+
+describe('buildSuppressionIndex', () => {
+  const idx = (body: string) => buildSuppressionIndex(body.split('\n'));
+
+  it('suppresses the line after a next-line directive', () => {
+    const i = idx(
+      'flowchart LR\n%% mermaid-lint-disable-next-line duplicate-ids: why\n  A[x] --> B',
+    );
+    expect(i.isSuppressed('duplicate-ids', 3)).toBe(true);
+    expect(i.isSuppressed('duplicate-ids', 4)).toBe(false);
+    expect(i.isSuppressed('no-self-loop', 3)).toBe(false);
+  });
+
+  it('skips over stacked directives to find the next real line', () => {
+    const i = idx(
+      '%% mermaid-lint-disable-next-line duplicate-ids: a\n%% mermaid-lint-disable-next-line no-self-loop: b\n  A --> A',
+    );
+    expect(i.isSuppressed('duplicate-ids', 3)).toBe(true);
+    expect(i.isSuppressed('no-self-loop', 3)).toBe(true);
+  });
+
+  it('suppresses a range until the matching enable', () => {
+    const i = idx(
+      'flowchart LR\n%% mermaid-lint-disable duplicate-ids: gen\n  A --> B\n%% mermaid-lint-enable duplicate-ids\n  C --> D',
+    );
+    expect(i.isSuppressed('duplicate-ids', 3)).toBe(true);
+    expect(i.isSuppressed('duplicate-ids', 5)).toBe(false);
+  });
+
+  it('runs an unterminated range to the end of the diagram', () => {
+    const i = idx(
+      'flowchart LR\n%% mermaid-lint-disable duplicate-ids: gen\n  A --> B',
+    );
+    expect(i.isSuppressed('duplicate-ids', 3)).toBe(true);
+    expect(i.isSuppressed('duplicate-ids', 999)).toBe(true);
+  });
+
+  it('suppresses everywhere for diagram scope, regardless of position', () => {
+    const i = idx(
+      'flowchart LR\n  A --> B\n%% mermaid-lint-disable-diagram duplicate-ids: legacy',
+    );
+    expect(i.isSuppressed('duplicate-ids', 1)).toBe(true);
+    expect(i.isSuppressed('duplicate-ids', undefined)).toBe(true);
+  });
+
+  it('treats `all` as every semantic rule but not the syntax rule', () => {
+    const i = idx('%% mermaid-lint-disable-diagram all: vendored');
+    expect(i.isSuppressed('duplicate-ids', 2)).toBe(true);
+    expect(i.isSuppressed('mermaid', 2)).toBe(false);
+  });
+
+  it('suppresses the syntax rule only when named at diagram scope', () => {
+    const ok = idx('%% mermaid-lint-disable-diagram mermaid: parser lags');
+    expect(ok.isSuppressed('mermaid', 2)).toBe(true);
+    const bad = idx('%% mermaid-lint-disable-next-line mermaid: parser lags');
+    expect(bad.isSuppressed('mermaid', 2)).toBe(false);
+  });
+
+  it('applies file directives to every line', () => {
+    const file = parseFileDirectives(
+      '<!-- mermaid-lint-disable-file duplicate-ids: docs -->',
+    );
+    const i = buildSuppressionIndex(
+      'flowchart LR\n  A --> B'.split('\n'),
+      file,
+    );
+    expect(i.isSuppressed('duplicate-ids', 2)).toBe(true);
+  });
+
+  it('reports directives that suppressed nothing', () => {
+    const i = idx(
+      'flowchart LR\n%% mermaid-lint-disable-next-line duplicate-ids: why\n  A --> B',
+    );
+    expect(i.unused().map((d) => d.line)).toEqual([2]);
+    i.isSuppressed('duplicate-ids', 3);
+    expect(i.unused()).toEqual([]);
+  });
+
+  it('flags an enable with no matching disable', () => {
+    const i = idx('flowchart LR\n%% mermaid-lint-enable duplicate-ids');
+    const enable = i.directives.find((d) => d.kind === 'range-end');
+    expect(enable?.problems).toContainEqual({ kind: 'unmatched-enable' });
+  });
+
+  it('does not count a malformed directive as unused', () => {
+    // A directive with problems is already reported by suppression-malformed;
+    // also flagging it unused would double-report the same mistake.
+    const i = idx('flowchart LR\n%% mermaid-lint-disable duplicate-ids');
+    expect(i.unused()).toEqual([]);
+  });
+
+  // --- Ranges are keyed per rule id, not per directive. ---
+  // The brief's draft matched an `enable` to the nearest `disable` whose
+  // rule set merely overlapped, treating a whole directive as one range.
+  // That's wrong once a `disable` names several rules (or `all`): an
+  // `enable` that only names some of them should close the range for those
+  // rules and leave the rest open. These cases aren't in the brief's test
+  // list; they pin down the corrected behavior.
+
+  it('closes a multi-rule range only for the rules the enable names', () => {
+    const i = idx(
+      [
+        'flowchart LR',
+        '%% mermaid-lint-disable all: gen',
+        '  A --> B',
+        '%% mermaid-lint-enable duplicate-ids',
+        '  C --> D',
+      ].join('\n'),
+    );
+    // duplicate-ids was closed by the enable at line 4.
+    expect(i.isSuppressed('duplicate-ids', 3)).toBe(true);
+    expect(i.isSuppressed('duplicate-ids', 5)).toBe(false);
+    // no-self-loop was never named by the enable, so it's still open.
+    expect(i.isSuppressed('no-self-loop', 3)).toBe(true);
+    expect(i.isSuppressed('no-self-loop', 5)).toBe(true);
+    const enable = i.directives.find((d) => d.kind === 'range-end');
+    expect(enable?.problems).toEqual([]);
+  });
+
+  it('does not let an enable for one rule close an open range for a different rule', () => {
+    const i = idx(
+      [
+        'flowchart LR',
+        '%% mermaid-lint-disable duplicate-ids: a',
+        '  A --> B',
+        '%% mermaid-lint-enable no-self-loop',
+        '  C --> D',
+      ].join('\n'),
+    );
+    // duplicate-ids' range was never closed by an enable naming a different
+    // rule, so it stays open to the end of the diagram.
+    expect(i.isSuppressed('duplicate-ids', 3)).toBe(true);
+    expect(i.isSuppressed('duplicate-ids', 5)).toBe(true);
+    // The enable closed nothing (no-self-loop was never opened), so it's
+    // flagged even though a disable for a different rule is in scope.
+    const enable = i.directives.find((d) => d.kind === 'range-end');
+    expect(enable?.problems).toContainEqual({ kind: 'unmatched-enable' });
+  });
+
+  it('matches stacked same-rule ranges LIFO, so one enable only closes the innermost', () => {
+    const i = idx(
+      [
+        'flowchart LR',
+        '%% mermaid-lint-disable duplicate-ids: outer',
+        '  A --> B',
+        '%% mermaid-lint-disable duplicate-ids: inner',
+        '  C --> D',
+        '%% mermaid-lint-enable duplicate-ids',
+        '  E --> F',
+      ].join('\n'),
+    );
+    // The inner range (lines 4-6) is closed.
+    expect(i.isSuppressed('duplicate-ids', 5)).toBe(true);
+    // The outer range is still open past the enable, since only the inner
+    // disable was closed.
+    expect(i.isSuppressed('duplicate-ids', 7)).toBe(true);
+    const enable = i.directives.find((d) => d.kind === 'range-end');
+    expect(enable?.problems).toEqual([]);
   });
 });
