@@ -138,6 +138,21 @@ describe('computeMermaidDiagnostics — rules config', () => {
   });
 });
 
+describe('computeMermaidDiagnostics — suppression directives', () => {
+  it('honors a -disable-diagram mermaid: <reason> directive on a syntax error', async () => {
+    const mmd =
+      '%% mermaid-lint-disable-diagram mermaid: pinned parser predates this syntax\nflowchart LR\n  A[Start] -->\n';
+    expect(await computeMermaidDiagnostics('d.mmd', mmd)).toEqual([]);
+  });
+
+  it('surfaces suppression-malformed for a directive with no reason', async () => {
+    const mmd =
+      '%% mermaid-lint-disable-next-line duplicate-ids\nflowchart LR\n  A --> B\n';
+    const diags = await computeMermaidDiagnostics('d.mmd', mmd);
+    expect(diags.some((d) => d.message.includes('needs a reason'))).toBe(true);
+  });
+});
+
 describe('computeFix', () => {
   it('returns null when there is nothing to fix', async () => {
     expect(await computeFix('test.md', VALID_MD)).toBeNull();
