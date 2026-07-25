@@ -95,13 +95,15 @@ docs/api.md:2:1: warning: prefer-flowchart: use `flowchart` instead of `graph`: 
 
 ## Suppressions
 
-Suppress one rule for a diagram with a Mermaid comment:
+Suppress a rule for the next line, a range, a diagram, or a whole file. Every
+directive requires a reason after `:`.
 
 ```mermaid
-%% mermaid-lint-disable duplicate-ids
+%% mermaid-lint-disable-next-line duplicate-ids: ids collide upstream
 flowchart LR
   A[Start] --> B[End]
 ```
 
-Use a bare `%% mermaid-lint-disable` to suppress all semantic rules in a
-diagram, or use `--no-semantic` to disable semantic checks for a run.
+See the [README directive table](../README.md#semantic-rules) for every form.
+Directives must sit below any YAML frontmatter. Use `--no-semantic` to disable
+semantic checks for a run.
