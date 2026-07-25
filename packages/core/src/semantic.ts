@@ -77,6 +77,13 @@ function extractLabel(m: RegExpExecArray): string {
  * a suppression comment above the header. Mermaid only honors frontmatter at
  * the very start of the body (its `frontMatterRegex` is `^`-anchored), so the
  * skip is only applied to a leading block.
+ *
+ * The frontmatter skip cannot fire through `extractMermaidBlocks` yet:
+ * `detectDiagramType` returns `'---'` for a body opening with frontmatter, so
+ * every rule's `appliesTo` rejects the block before a rule ever evaluates. It
+ * is written to be correct for when that is fixed — see
+ * https://github.com/jasonworden/mermaid-lint/issues/122 — and is exercised
+ * today only by unit tests that build a `Block` directly.
  */
 function locateHeader(lines: string[]): { line: number; text: string } {
   let i = 0;
