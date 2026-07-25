@@ -189,6 +189,65 @@ describe('mermaid-lint CLI', () => {
     expect(r.stderr).toContain('1 warning');
   });
 
+  // Under --strict a warning IS a failure, so --quiet's "only failures" contract
+  // must still surface it — otherwise CI goes red with no diagnostics at all.
+  it('--quiet --strict still reports the warning that fails the run', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(join(tmp, 'warn.md'), '```mermaid\ngraph LR\n  A-->B\n```\n');
+    const r = run(['--quiet', '--strict', join(tmp, 'warn.md')], tmp);
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain('warning:');
+    expect(r.stdout).toContain('prefer-flowchart');
+  });
+
+  it('--quiet --strict still counts the warning in the summary', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(join(tmp, 'warn.md'), '```mermaid\ngraph LR\n  A-->B\n```\n');
+    const r = run(['--quiet', '--strict', join(tmp, 'warn.md')], tmp);
+    expect(r.stderr).toContain('1 warning');
+  });
+
+  // strict also arrives via config, so the fix cannot key off the --strict flag.
+  it('--quiet with strict from config still reports the warning', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(join(tmp, 'warn.md'), '```mermaid\ngraph LR\n  A-->B\n```\n');
+    writeFileSync(
+      join(tmp, '.mermaidlintrc.json'),
+      JSON.stringify({ strict: true }),
+    );
+    const r = run(['--quiet', join(tmp, 'warn.md')], tmp);
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain('prefer-flowchart');
+  });
+
+  it('--quiet --strict still suppresses per-file progress', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(join(tmp, 'warn.md'), '```mermaid\ngraph LR\n  A-->B\n```\n');
+    const r = run(['--quiet', '--strict', join(tmp, 'warn.md')], tmp);
+    expect(r.stderr).not.toContain('scanning');
+  });
+
+  // "all valid" alongside exit 1 is a contradiction; strict warnings are failures.
+  it('does not report "all valid" when strict warnings fail the run', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(join(tmp, 'warn.md'), '```mermaid\ngraph LR\n  A-->B\n```\n');
+    const r = run(['--strict', join(tmp, 'warn.md')], tmp);
+    expect(r.status).toBe(1);
+    expect(r.stderr).not.toContain('all valid');
+    expect(r.stderr).toContain('1 warning');
+  });
+
+  it('still reports "all valid" under --strict when there are no warnings', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(
+      join(tmp, 'ok.md'),
+      '```mermaid\nflowchart LR\n  A-->B\n```\n',
+    );
+    const r = run(['--strict', join(tmp, 'ok.md')], tmp);
+    expect(r.status).toBe(0);
+    expect(r.stderr).toContain('all valid');
+  });
+
   it('--format json includes findings with severity for duplicate node IDs', () => {
     const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
     writeFileSync(
