@@ -290,6 +290,11 @@ const RULE_DESCRIPTIONS: Record<RuleId, string> = {
     'Mermaid: a C4 element style references an undefined id',
   'c4-undefined-relationship-style-endpoint':
     'Mermaid: a C4 relationship style references an undefined endpoint',
+  'suppression-unknown-rule':
+    'Suppression directive names a rule id that does not exist',
+  'suppression-unused': 'Suppression directive suppresses no finding',
+  'suppression-malformed':
+    'Suppression directive has invalid syntax or structure',
 };
 
 /**
