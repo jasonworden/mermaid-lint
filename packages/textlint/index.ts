@@ -4,6 +4,7 @@ import {
   blockToDiagnostics,
   detectDiagramType,
   fixBlockBody,
+  parseFileDirectives,
   resolveRules,
 } from '@mermaid-lint/core';
 import type {
@@ -48,6 +49,10 @@ const reporter: TextlintRuleReporter<Options> = (context, options = {}) => {
       const lang = (node as { lang?: string | null }).lang;
       if (lang !== 'mermaid') return;
       const body = (node as { value: string }).value;
+      // getSource() with no argument returns the whole document, so file-scope
+      // directives are computed once per block invocation (textlint has no
+      // document-level hook here) but scan the full document each time.
+      const fileDirectives = parseFileDirectives(getSource());
 
       const block: Block = {
         path: getFilePath() ?? '<text>',
@@ -55,6 +60,7 @@ const reporter: TextlintRuleReporter<Options> = (context, options = {}) => {
         col: node.loc.start.column,
         body,
         type: detectDiagramType(body),
+        fileDirectives,
       };
 
       // Returning the Promise makes textlint wait for async validation.

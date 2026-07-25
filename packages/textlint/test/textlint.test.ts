@@ -90,6 +90,25 @@ describe('@mermaid-lint/textlint', () => {
     });
     expect(silenced.messages).toHaveLength(0);
   });
+
+  it('honors an in-diagram suppression directive', async () => {
+    const md =
+      '```mermaid\nflowchart LR\n  A[x] --> B\n%% mermaid-lint-disable-next-line duplicate-ids: upstream\n  A[y] --> C\n```\n';
+    const { messages } = await lint(md, { strict: true });
+    expect(messages.map((m) => m.message).join('\n')).not.toContain(
+      'duplicate-ids',
+    );
+  });
+
+  it('honors a document-level suppression directive', async () => {
+    const md =
+      '<!-- mermaid-lint-disable-file duplicate-ids: vendored docs -->\n\n' +
+      '```mermaid\nflowchart LR\n  A[x] --> B\n  A[y] --> C\n```\n';
+    const { messages } = await lint(md, { strict: true });
+    expect(messages.map((m) => m.message).join('\n')).not.toContain(
+      'duplicate-ids',
+    );
+  });
 });
 
 describe('@mermaid-lint/textlint — autofix (--fix)', () => {
