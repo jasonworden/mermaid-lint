@@ -20,6 +20,19 @@ const DIAGRAMS: Record<string, string> = {
   timeline: 'timeline\n  title History\n  2002 : Item',
   'block-beta': 'block-beta\n  columns 1\n  A',
   'packet-beta': 'packet-beta\n  0-15: "Src"',
+  journey: 'journey\n  title My day\n  section Go\n    Wake: 5: Me',
+  gantt: 'gantt\n  title A\n  section S\n  Task :a1, 2014-01-01, 30d',
+  quadrantChart:
+    'quadrantChart\n  x-axis Low --> High\n  y-axis Low --> High\n  A: [0.3, 0.6]',
+  requirementDiagram:
+    'requirementDiagram\n  requirement test_req {\n  id: 1\n  text: the test\n  risk: high\n  verifymethod: test\n  }',
+  C4Context: 'C4Context\n  title X\n  Person(a, "A")',
+  'sankey-beta': 'sankey-beta\nA,B,10',
+  'xychart-beta':
+    'xychart-beta\n  x-axis [a, b]\n  y-axis "v" 0 --> 10\n  bar [1, 2]',
+  'architecture-beta': 'architecture-beta\n  group api(cloud)[API]',
+  kanban: 'kanban\n  Todo\n    task[A]',
+  'radar-beta': 'radar-beta\n  axis a, b\n  curve c{1, 2}',
 };
 
 const DIRECTIVE = '%% mermaid-lint-disable-next-line duplicate-ids: probe';
