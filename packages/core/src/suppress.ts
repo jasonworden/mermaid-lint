@@ -76,19 +76,29 @@ function parseDirective(
     rules = 'all';
   } else {
     const ids = rawRules.split(/[,\s]+/).filter((s) => s.length > 0);
-    rules = ids;
-    if (ids.length === 0) problems.push({ kind: 'empty-rules' });
-    for (const id of ids) {
-      if (!KNOWN_RULES.has(id))
-        problems.push({ kind: 'unknown-rule', rule: id });
-    }
-    // A parse failure is not reliably attributable to one line, so the syntax
-    // rule id is only honored at diagram/file scope.
-    if (
-      ids.includes(SYNTAX_RULE_ID) &&
-      (kind === 'next-line' || kind === 'range-start' || kind === 'range-end')
-    ) {
-      problems.push({ kind: 'syntax-rule-at-line-scope' });
+    if (ids.includes('all')) {
+      // The grammar doesn't define `all` mixed with named ids (e.g.
+      // `all duplicate-ids`). Treating the whole list as unknown-rule noise
+      // would be misleading, since `all` is a valid wildcard just written
+      // redundantly alongside other ids. The least surprising reading: `all`
+      // anywhere in the list means the wildcard, and the other named ids are
+      // redundant but harmless, so no problem is reported for them.
+      rules = 'all';
+    } else {
+      rules = ids;
+      if (ids.length === 0) problems.push({ kind: 'empty-rules' });
+      for (const id of ids) {
+        if (!KNOWN_RULES.has(id))
+          problems.push({ kind: 'unknown-rule', rule: id });
+      }
+      // A parse failure is not reliably attributable to one line, so the
+      // syntax rule id is only honored at diagram/file scope.
+      if (
+        ids.includes(SYNTAX_RULE_ID) &&
+        (kind === 'next-line' || kind === 'range-start' || kind === 'range-end')
+      ) {
+        problems.push({ kind: 'syntax-rule-at-line-scope' });
+      }
     }
   }
 
@@ -134,10 +144,21 @@ export function parseBodyDirectives(lines: string[]): Directive[] {
 
 const HTML_COMMENT_RE = /<!--([\s\S]*?)-->/g;
 
+// Keyword for file-scoped directives, pulled from KINDS so this stays in
+// sync if the keyword table ever changes.
+const FILE_DIRECTIVE_KEYWORD = KINDS.find(([, k]) => k === 'file')?.[0] ?? '';
+
 /**
  * Parse every `<!-- mermaid-lint-disable-file ... -->` directive in a Markdown
  * document. Document-level directives carry line `0` — they apply to every
  * block regardless of position.
+ *
+ * A single HTML comment may pack more than one directive (e.g. copy-pasted
+ * blocks or several independent suppressions). Each occurrence of the
+ * `mermaid-lint-disable-file` keyword starts its own directive; the text
+ * between consecutive occurrences (and from the last occurrence to the end
+ * of the comment) is that directive's rule list and reason. This avoids
+ * silently folding a second directive into the first one's `reason` string.
  *
  * @param text - Full document contents.
  * @returns Document-level directives in source order.
@@ -146,10 +167,23 @@ const HTML_COMMENT_RE = /<!--([\s\S]*?)-->/g;
 export function parseFileDirectives(text: string): Directive[] {
   const out: Directive[] = [];
   for (const m of text.matchAll(HTML_COMMENT_RE)) {
-    const inner = m[1].trim();
-    const matched = matchKind(inner, (k) => k === 'file');
-    if (!matched) continue;
-    out.push(parseDirective(matched.kind, matched.rest, 0));
+    const inner = m[1];
+    const starts: number[] = [];
+    let idx = inner.indexOf(FILE_DIRECTIVE_KEYWORD);
+    while (idx !== -1) {
+      starts.push(idx);
+      idx = inner.indexOf(
+        FILE_DIRECTIVE_KEYWORD,
+        idx + FILE_DIRECTIVE_KEYWORD.length,
+      );
+    }
+    for (let i = 0; i < starts.length; i++) {
+      const end = i + 1 < starts.length ? starts[i + 1] : inner.length;
+      const slice = inner.slice(starts[i], end).trim();
+      const matched = matchKind(slice, (k) => k === 'file');
+      if (!matched) continue;
+      out.push(parseDirective(matched.kind, matched.rest, 0));
+    }
   }
   return out;
 }

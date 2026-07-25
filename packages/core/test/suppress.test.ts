@@ -31,6 +31,14 @@ describe('parseBodyDirectives', () => {
     expect(d.rules).toBe('all');
   });
 
+  it('resolves `all` mixed with named rule ids to the wildcard, no problem', () => {
+    const [d] = parseBodyDirectives([
+      '%% mermaid-lint-disable-diagram all duplicate-ids: why',
+    ]);
+    expect(d.rules).toBe('all');
+    expect(d.problems).toEqual([]);
+  });
+
   it('parses range start and end', () => {
     const ds = parseBodyDirectives([
       'flowchart LR',
@@ -62,24 +70,23 @@ describe('parseBodyDirectives', () => {
 
   it('flags an empty rule list', () => {
     const [d] = parseBodyDirectives(['%% mermaid-lint-disable : why']);
-    expect(d.problems).toContainEqual({ kind: 'empty-rules' });
+    expect(d.problems).toEqual([{ kind: 'empty-rules' }]);
   });
 
   it('flags an unknown rule id', () => {
     const [d] = parseBodyDirectives([
       '%% mermaid-lint-disable-diagram duplicat-ids: typo',
     ]);
-    expect(d.problems).toContainEqual({
-      kind: 'unknown-rule',
-      rule: 'duplicat-ids',
-    });
+    expect(d.problems).toEqual([
+      { kind: 'unknown-rule', rule: 'duplicat-ids' },
+    ]);
   });
 
   it('flags `mermaid` named at line scope', () => {
     const [d] = parseBodyDirectives([
       '%% mermaid-lint-disable-next-line mermaid: bleeding edge',
     ]);
-    expect(d.problems).toContainEqual({ kind: 'syntax-rule-at-line-scope' });
+    expect(d.problems).toEqual([{ kind: 'syntax-rule-at-line-scope' }]);
   });
 
   it('accepts `mermaid` at diagram scope', () => {
@@ -120,5 +127,36 @@ describe('parseFileDirectives', () => {
   it('flags a missing reason at file scope', () => {
     const [d] = parseFileDirectives('<!-- mermaid-lint-disable-file all -->');
     expect(d.problems).toEqual([{ kind: 'missing-reason' }]);
+  });
+
+  it('parses two directives packed into one HTML comment', () => {
+    const ds = parseFileDirectives(
+      '<!-- mermaid-lint-disable-file duplicate-ids: first reason\n' +
+        'mermaid-lint-disable-file no-self-loop: second reason -->',
+    );
+    expect(ds).toHaveLength(2);
+    expect(ds[0].kind).toBe('file');
+    expect(ds[0].rules).toEqual(['duplicate-ids']);
+    expect(ds[0].reason).toBe('first reason');
+    expect(ds[0].problems).toEqual([]);
+    expect(ds[1].kind).toBe('file');
+    expect(ds[1].rules).toEqual(['no-self-loop']);
+    expect(ds[1].reason).toBe('second reason');
+    expect(ds[1].problems).toEqual([]);
+  });
+
+  it('parses a single directive in a comment unchanged', () => {
+    const ds = parseFileDirectives(
+      '<!-- mermaid-lint-disable-file duplicate-ids: vendored docs -->',
+    );
+    expect(ds).toHaveLength(1);
+    expect(ds[0].rules).toEqual(['duplicate-ids']);
+    expect(ds[0].reason).toBe('vendored docs');
+  });
+
+  it('yields no directives from a comment with none', () => {
+    expect(
+      parseFileDirectives('<!-- just a note, nothing to see here -->'),
+    ).toEqual([]);
   });
 });
