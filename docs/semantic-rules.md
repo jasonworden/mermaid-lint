@@ -99,9 +99,10 @@ Suppress a rule for the next line, a range, a diagram, or a whole file. Every
 directive requires a reason after `:`.
 
 ```mermaid
-%% mermaid-lint-disable-next-line duplicate-ids: ids collide upstream
 flowchart LR
   A[Start] --> B[End]
+%% mermaid-lint-disable-next-line duplicate-ids: ids collide upstream
+  A[Also Start] --> C[End]
 ```
 
 See the [README directive table](../README.md#semantic-rules) for every form.

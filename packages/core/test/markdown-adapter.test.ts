@@ -1,5 +1,9 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { blockToDiagnostics, lintMarkdown } from '../index.js';
+
+const repoRoot = resolve(import.meta.dirname, '../../..');
 
 describe('lintMarkdown', () => {
   it('returns no diagnostics for a valid mermaid block', async () => {
@@ -348,5 +352,28 @@ describe('suppression', () => {
     expect(finding?.message).toContain('%%');
     // The wrong-scope HTML comment doesn't suppress the duplicate id either.
     expect(diags.some((d) => d.ruleId === 'duplicate-ids')).toBe(true);
+  });
+});
+
+describe('dogfooding: this repo lints clean', () => {
+  it('README.md has no suppression-* diagnostics', async () => {
+    const text = readFileSync(resolve(repoRoot, 'README.md'), 'utf8');
+    const diags = await lintMarkdown('README.md', text);
+    const suppressionDiags = diags.filter((d) =>
+      d.ruleId.startsWith('suppression-'),
+    );
+    expect(suppressionDiags).toEqual([]);
+  });
+
+  it('docs/semantic-rules.md has no suppression-* diagnostics', async () => {
+    const text = readFileSync(
+      resolve(repoRoot, 'docs/semantic-rules.md'),
+      'utf8',
+    );
+    const diags = await lintMarkdown('docs/semantic-rules.md', text);
+    const suppressionDiags = diags.filter((d) =>
+      d.ruleId.startsWith('suppression-'),
+    );
+    expect(suppressionDiags).toEqual([]);
   });
 });

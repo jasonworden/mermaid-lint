@@ -17,19 +17,33 @@ npm install @mermaid-lint/core
 | Symbol | Signature | Description |
 | --- | --- | --- |
 | `extractMermaidBlocks` | `(path, text, options?) => Block[]` | Extract every Mermaid block from a Markdown document, or the whole file as one diagram when `path` ends in `.mmd`. |
-| `Block` | `interface` | An extracted diagram: `{ path, line, col, body, type }`. |
+| `Block` | `interface` | An extracted diagram: `{ path, line, col, body, type, fileDirectives? }`. |
 | `ExtractOptions` | `interface` | `{ fences?: FenceMarker[] }` — which fence markers to recognize. |
 
 ### Validation
 
 | Symbol | Signature | Description |
 | --- | --- | --- |
-| `validateBlock` | `(block, rules?) => Promise<ValidationResult>` | Validate a `Block` end to end: structural checks, semantic warnings (at the given per-rule severities), fast Rust parser with a mermaid.js fallback. |
+| `validateBlock` | `(block, rules?, index?) => Promise<ValidationResult>` | Validate a `Block` end to end: structural checks, semantic warnings (at the given per-rule severities), fast Rust parser with a mermaid.js fallback. `index` is an optional pre-built `SuppressionIndex` (built from `block` when omitted) so callers that already have one (e.g. `blockToDiagnostics`) don't rebuild it. |
 | `validateWithMermaidJS` | `(body) => Promise<{ ok: true } \| { ok: false; error: ValidationError }>` | Validate raw diagram source with the bundled mermaid.js parser (authoritative). |
 | `ValidationResult` | `type` | `{ ok: true; warnings } \| { ok: false; error; warnings }`. |
 | `ValidationError` | `interface` | `{ message, line?, col? }`. |
-| `checkSemantics` | `(block, rules?) => SemanticWarning[]` | Run the semantic rule set (self-loops, duplicate ids, orphan nodes, sequence/class checks, …) at the given per-rule severities; skips rules resolved to `off`. |
+| `checkSemantics` | `(block, rules?, index?) => SemanticWarning[]` | Run the semantic rule set (self-loops, duplicate ids, orphan nodes, sequence/class checks, …) at the given per-rule severities; skips rules resolved to `off`. Same optional pre-built `index` as `validateBlock`. |
 | `SemanticWarning` | `interface` | `{ rule, message, line?, severity }`. |
+
+### Suppression directives
+
+| Symbol | Signature | Description |
+| --- | --- | --- |
+| `parseBodyDirectives` | `(lines) => Directive[]` | Parse every `%%` suppression directive in a diagram body (next-line, range, diagram scope). |
+| `parseFileDirectives` | `(text) => Directive[]` | Parse every `<!-- mermaid-lint-disable-file ... -->` directive in a Markdown document, with real document line numbers. Ignores directive syntax shown inside a fenced code block or an inline code span (documentation examples), so it never mistakes prose for a live directive. |
+| `buildSuppressionIndex` | `(bodyLines, fileDirectives?) => SuppressionIndex` | Build the queryable suppression state for one diagram body plus any document-level directives attached to it. |
+| `SuppressionIndex` | `interface` | `{ directives, isSuppressed(ruleId, line?), unused() }`. |
+| `Directive` | `interface` | A parsed directive: `{ kind, rules, reason, line, problems }`. |
+| `DirectiveKind` | `type` | `'range-start' \| 'range-end' \| 'next-line' \| 'diagram' \| 'file'`. |
+| `DirectiveProblem` | `type` | A problem found while parsing a directive (missing reason, empty/unknown rules, an unmatched `enable`, `mermaid` named at line scope, or a keyword used at the wrong scope). |
+| `SYNTAX_RULE_ID` | `'mermaid'` | The rule id reserved for syntax errors from the parser; the only id a directive can name to suppress a syntax error. |
+| `RULE_IDS_EXCLUDED_FROM_ALL` | `ReadonlySet<string>` | Rule ids the `all` wildcard never covers: `SYNTAX_RULE_ID` and the three `suppression-*` meta-rules. Name them explicitly to suppress them. |
 
 ### Rules
 

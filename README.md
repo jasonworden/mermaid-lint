@@ -450,13 +450,11 @@ default severities, scopes, and example output.
 
 Suppress rules with directives. A reason after `:` is required.
 
-```
----
-title: My Diagram
----
-%% mermaid-lint-disable-next-line duplicate-ids: ids collide upstream
+```mermaid
 flowchart LR
   A[Start] --> B[End]
+%% mermaid-lint-disable-next-line duplicate-ids: ids collide upstream
+  A[Also Start] --> C[End]
 ```
 
 | Directive | Scope |
@@ -470,16 +468,36 @@ flowchart LR
 
 **Directives must sit below any YAML frontmatter.** Mermaid only recognizes
 frontmatter at the very start of a diagram, so a comment above it silently
-breaks rendering.
+breaks rendering:
 
-`all` covers semantic rules only. Suppressing a syntax error requires naming
-`mermaid` explicitly, and only at diagram or file scope:
+```
+---
+title: My Diagram
+---
+%% mermaid-lint-disable-next-line duplicate-ids: ids collide upstream
+flowchart LR
+  A[Start] --> B[End]
+```
+
+(This snippet illustrates *placement* only, not suppression behavior:
+mermaid-lint currently mis-detects the diagram type when frontmatter is
+present, so no semantic rule fires inside a frontmatter-prefixed diagram yet
+— see [#122](https://github.com/jasonworden/mermaid-lint/issues/122).)
+
+`all` covers semantic rules only, and never the three suppression meta-rules
+below — `suppression-unknown-rule`, `suppression-unused`, and
+`suppression-malformed` stay on even under `-disable-diagram all`; name one
+explicitly to quiet it. Suppressing a syntax error requires naming `mermaid`
+explicitly too, and only at diagram or file scope:
 `%% mermaid-lint-disable-diagram mermaid: uses syntax our pinned parser predates`.
 
-Malformed, unknown, and stale directives are themselves reported — see
-`suppression-malformed`, `suppression-unknown-rule`, and `suppression-unused`
-in [docs/semantic-rules.md](docs/semantic-rules.md). Disable everything for a
-run with `--no-semantic`.
+Malformed and unknown directives are themselves reported, and so is a
+body-scope directive (`-disable-next-line`/`-disable`/`-disable-diagram`)
+that suppressed nothing — see `suppression-malformed`,
+`suppression-unknown-rule`, and `suppression-unused` in
+[docs/semantic-rules.md](docs/semantic-rules.md). A stale file-scope
+(`<!-- -->`) directive is the one exception: it is not currently reported as
+unused. Disable everything for a run with `--no-semantic`.
 
 ## Diagram types
 
