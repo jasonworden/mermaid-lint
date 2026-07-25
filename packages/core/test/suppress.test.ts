@@ -77,6 +77,27 @@ describe('parseBodyDirectives', () => {
     expect(d.problems).toEqual([{ kind: 'empty-rules' }]);
   });
 
+  it('flags a bare directive (no rules, no reason) as a single empty-directive problem', () => {
+    // The most likely typo migrating from the old grammar. Must not report
+    // both missing-reason and empty-rules for the same one mistake.
+    const [d] = parseBodyDirectives(['%% mermaid-lint-disable']);
+    expect(d.problems).toEqual([{ kind: 'empty-directive' }]);
+  });
+
+  it('reports `-disable-file` used as a `%%` body comment as wrong-scope', () => {
+    const [d] = parseBodyDirectives([
+      '%% mermaid-lint-disable-file duplicate-ids: reason',
+    ]);
+    expect(d.kind).toBe('file');
+    expect(d.problems).toEqual([
+      {
+        kind: 'wrong-scope',
+        keyword: 'mermaid-lint-disable-file',
+        expected: 'file',
+      },
+    ]);
+  });
+
   it('flags an unknown rule id', () => {
     const [d] = parseBodyDirectives([
       '%% mermaid-lint-disable-diagram duplicat-ids: typo',
@@ -169,6 +190,49 @@ describe('parseFileDirectives', () => {
     expect(
       parseFileDirectives('<!-- just a note, nothing to see here -->'),
     ).toEqual([]);
+  });
+
+  it('reports a line/diagram-scope keyword used as an HTML comment as wrong-scope', () => {
+    const [d] = parseFileDirectives(
+      '<!-- mermaid-lint-disable-next-line duplicate-ids: reason -->',
+    );
+    expect(d.kind).toBe('next-line');
+    expect(d.problems).toEqual([
+      {
+        kind: 'wrong-scope',
+        keyword: 'mermaid-lint-disable-next-line',
+        expected: 'body',
+      },
+    ]);
+  });
+
+  it('does not treat a file directive inside a fenced code block as live', () => {
+    const text =
+      '# Doc\n\n' +
+      '```markdown\n<!-- mermaid-lint-disable-file duplicate-ids: example -->\n```\n';
+    expect(parseFileDirectives(text)).toEqual([]);
+  });
+
+  it('does not treat a file directive inside a tilde fence as live', () => {
+    const text =
+      '~~~\n<!-- mermaid-lint-disable-file duplicate-ids: example -->\n~~~\n';
+    expect(parseFileDirectives(text)).toEqual([]);
+  });
+
+  it('does not treat a file directive inside an inline code span as live', () => {
+    const text =
+      '| `<!-- mermaid-lint-disable-file <rules>: <reason> -->` | every diagram |\n';
+    expect(parseFileDirectives(text)).toEqual([]);
+  });
+
+  it('still parses a real file directive outside any fence or code span', () => {
+    const text =
+      '```markdown\n<!-- mermaid-lint-disable-file example -->\n```\n\n' +
+      '<!-- mermaid-lint-disable-file duplicate-ids: real one -->\n';
+    const ds = parseFileDirectives(text);
+    expect(ds).toHaveLength(1);
+    expect(ds[0].reason).toBe('real one');
+    expect(ds[0].line).toBe(5);
   });
 });
 
@@ -412,11 +476,32 @@ describe('buildSuppressionIndex', () => {
     expect(i.isSuppressed('duplicate-ids', 2)).toBe(true);
   });
 
-  it('reports an unclosed range-start as unused when it never suppressed anything', () => {
-    const i = idx(
-      'flowchart LR\n%% mermaid-lint-disable duplicate-ids: gen\n  A --> B\n%% mermaid-lint-enable duplicate-ids',
-    );
+  it('reports a closed range-start as unused when nothing queried a line inside its range', () => {
+    // The fixture's `enable` closes the range, so this is not testing an
+    // *unclosed* range - it's testing that `unused()` tracks whether a
+    // directive ever actually suppressed something, independent of whether
+    // its range closed. A query that misses (wrong rule id, here) must leave
+    // the range-start unused.
+    const body =
+      'flowchart LR\n%% mermaid-lint-disable duplicate-ids: gen\n  A --> B\n%% mermaid-lint-enable duplicate-ids';
+    const i = idx(body);
     const rangeStart = i.directives.find((d) => d.kind === 'range-start');
+    expect(rangeStart).toBeDefined();
+    expect(i.isSuppressed('no-self-loop', 3)).toBe(false);
     expect(i.unused()).toContainEqual(rangeStart);
+  });
+
+  it('does not report a range-start as unused once a query inside its range hits', () => {
+    // Negative control for the test above: the only difference is querying
+    // the rule id and line the range-start actually names, which must mark
+    // it used and remove it from `unused()` - proving the prior test's
+    // "unused" result comes from the query missing, not from `unused()`
+    // being unable to see range-start directives at all.
+    const body =
+      'flowchart LR\n%% mermaid-lint-disable duplicate-ids: gen\n  A --> B\n%% mermaid-lint-enable duplicate-ids';
+    const i = idx(body);
+    expect(i.isSuppressed('duplicate-ids', 3)).toBe(true);
+    const rangeStart = i.directives.find((d) => d.kind === 'range-start');
+    expect(i.unused()).not.toContainEqual(rangeStart);
   });
 });

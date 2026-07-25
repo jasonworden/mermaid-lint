@@ -1,3 +1,9 @@
+import {
+  ALL_FENCE_MARKERS,
+  type FenceMarker,
+  makeFenceCloseRe,
+  makeGenericFenceOpenRe,
+} from './fences.js';
 import { ALL_RULE_IDS } from './rules.js';
 
 /**
@@ -21,9 +27,23 @@ export type DirectiveKind =
 export type DirectiveProblem =
   | { kind: 'missing-reason' }
   | { kind: 'empty-rules' }
+  /**
+   * Both a reason and rule ids are absent (e.g. a bare `%% mermaid-lint-disable`).
+   * Reported as one diagnostic instead of both `missing-reason` and
+   * `empty-rules` — see {@link parseDirective}.
+   */
+  | { kind: 'empty-directive' }
   | { kind: 'unmatched-enable' }
   | { kind: 'syntax-rule-at-line-scope' }
-  | { kind: 'unknown-rule'; rule: string };
+  | { kind: 'unknown-rule'; rule: string }
+  /**
+   * The keyword only makes sense at the other scope: a `-disable-file`
+   * written as a `%%` diagram comment (`expected: 'file'`), or a line/range/
+   * diagram-scope keyword written as an `<!-- -->` HTML comment
+   * (`expected: 'body'`). `keyword` is the full matched keyword, e.g.
+   * `mermaid-lint-disable-file`.
+   */
+  | { kind: 'wrong-scope'; keyword: string; expected: 'body' | 'file' };
 
 /** A parsed suppression directive. @public */
 export interface Directive {
@@ -93,11 +113,14 @@ function parseDirective(
   const problems: DirectiveProblem[] = [];
 
   // `enable` ends a suppression rather than creating one, so it needs no reason.
-  if (kind !== 'range-end' && reason.length === 0) {
-    problems.push({ kind: 'missing-reason' });
-  }
+  const missingReason = kind !== 'range-end' && reason.length === 0;
 
   let rules: readonly string[] | 'all';
+  let emptyRules = false;
+  // `unknown-rule`/`syntax-rule-at-line-scope` problems, held back until after
+  // the missing-reason/empty-rules problem(s) below so message order stays
+  // stable regardless of which branch fires.
+  const laterProblems: DirectiveProblem[] = [];
   if (rawRules === 'all') {
     rules = 'all';
   } else {
@@ -112,10 +135,10 @@ function parseDirective(
       rules = 'all';
     } else {
       rules = ids;
-      if (ids.length === 0) problems.push({ kind: 'empty-rules' });
+      emptyRules = ids.length === 0;
       for (const id of ids) {
         if (!KNOWN_RULES.has(id))
-          problems.push({ kind: 'unknown-rule', rule: id });
+          laterProblems.push({ kind: 'unknown-rule', rule: id });
       }
       // A parse failure is not reliably attributable to one line, so the
       // syntax rule id is only honored at diagram/file scope.
@@ -123,27 +146,76 @@ function parseDirective(
         ids.includes(SYNTAX_RULE_ID) &&
         (kind === 'next-line' || kind === 'range-start' || kind === 'range-end')
       ) {
-        problems.push({ kind: 'syntax-rule-at-line-scope' });
+        laterProblems.push({ kind: 'syntax-rule-at-line-scope' });
       }
     }
   }
 
+  // A bare `%% mermaid-lint-disable` — no rules, no reason — is the single
+  // most likely typo when migrating from the old grammar (see the module
+  // doc's link to the pre-directive grammar). Reporting `missing-reason` and
+  // `empty-rules` as two separate diagnostics on the same line would be the
+  // noisiest possible landing for exactly that mistake, so collapse them into
+  // one `empty-directive` problem when both apply.
+  if (missingReason && emptyRules) {
+    problems.push({ kind: 'empty-directive' });
+  } else {
+    if (missingReason) problems.push({ kind: 'missing-reason' });
+    if (emptyRules) problems.push({ kind: 'empty-rules' });
+  }
+  problems.push(...laterProblems);
+
   return { kind, rules, reason, line, problems };
 }
 
+/**
+ * Match `text` against every known directive keyword. Unlike a plain
+ * yes/no match, this also reports a keyword match that isn't `allowed` in the
+ * current context (e.g. `-disable-file` found in a `%%` body comment) — the
+ * caller turns that into a `wrong-scope` problem instead of silently
+ * dropping it. Returns `null` only when no keyword matches at all (i.e. this
+ * genuinely isn't a directive).
+ */
 function matchKind(
   text: string,
   allowed: (k: DirectiveKind) => boolean,
-): { kind: DirectiveKind; rest: string } | null {
+): {
+  keyword: string;
+  kind: DirectiveKind;
+  rest: string;
+  allowed: boolean;
+} | null {
   for (const [keyword, kind] of KINDS) {
     if (!text.startsWith(keyword)) continue;
-    if (!allowed(kind)) return null;
     const rest = text.slice(keyword.length);
     // Guard against `mermaid-lint-disablefoo` matching `mermaid-lint-disable`.
+    // Checked before the `allowed` test so a wrong-scope report is only
+    // produced for a genuine keyword boundary match.
     if (rest.length > 0 && !/^[\s:]/.test(rest)) continue;
-    return { kind, rest };
+    return { keyword, kind, rest, allowed: allowed(kind) };
   }
   return null;
+}
+
+/**
+ * Build the inert `Directive` for a keyword matched in the wrong context
+ * (e.g. `-disable-file` inside a `%%` body comment). Carries no rules/reason
+ * — the keyword boundary matched, but the directive can never apply — and a
+ * single `wrong-scope` problem naming where it does belong.
+ */
+function wrongScopeDirective(
+  keyword: string,
+  kind: DirectiveKind,
+  expected: 'body' | 'file',
+  line: number,
+): Directive {
+  return {
+    kind,
+    rules: [],
+    reason: '',
+    line,
+    problems: [{ kind: 'wrong-scope', keyword, expected }],
+  };
 }
 
 /**
@@ -163,6 +235,14 @@ export function parseBodyDirectives(lines: string[]): Directive[] {
     if (body.startsWith('{')) continue;
     const matched = matchKind(body, (k) => k !== 'file');
     if (!matched) continue;
+    if (!matched.allowed) {
+      // Only `-disable-file` is disallowed here (it's HTML-comment-only) —
+      // report where it actually belongs instead of silently dropping it.
+      out.push(
+        wrongScopeDirective(matched.keyword, matched.kind, 'file', i + 1),
+      );
+      continue;
+    }
     out.push(parseDirective(matched.kind, matched.rest, i + 1));
   }
   return out;
@@ -170,9 +250,11 @@ export function parseBodyDirectives(lines: string[]): Directive[] {
 
 const HTML_COMMENT_RE = /<!--([\s\S]*?)-->/g;
 
-// Keyword for file-scoped directives, pulled from KINDS so this stays in
-// sync if the keyword table ever changes.
-const FILE_DIRECTIVE_KEYWORD = KINDS.find(([, k]) => k === 'file')?.[0] ?? '';
+// Every directive keyword, longest-first (inherited from KINDS). Scanning for
+// all of them — not just `-disable-file` — is what lets a keyword used at the
+// wrong scope (e.g. `-disable-next-line` in an HTML comment) be recognized
+// and reported instead of silently ignored (see `wrong-scope`).
+const ALL_KEYWORDS: readonly string[] = KINDS.map(([keyword]) => keyword);
 
 /** 1-indexed line containing character `offset` in `text`. */
 function lineAt(text: string, offset: number): number {
@@ -184,17 +266,113 @@ function lineAt(text: string, offset: number): number {
 }
 
 /**
+ * Half-open `[start, end)` character-offset ranges in `text` for CommonMark
+ * inline code spans (`` `...` ``) on a single line. Spans are matched by
+ * equal-length backtick runs, per CommonMark; a run with no matching close on
+ * the same line is not a span and is ignored (good enough for documentation
+ * prose — inline spans essentially never intentionally cross lines).
+ */
+function inlineCodeSpanRanges(line: string): Array<[number, number]> {
+  const runs: Array<{ start: number; end: number }> = [];
+  for (const m of line.matchAll(/`+/g)) {
+    runs.push({ start: m.index, end: m.index + m[0].length });
+  }
+  const ranges: Array<[number, number]> = [];
+  let i = 0;
+  while (i < runs.length) {
+    const open = runs[i];
+    const openLen = open.end - open.start;
+    let j = i + 1;
+    while (j < runs.length && runs[j].end - runs[j].start !== openLen) j++;
+    if (j < runs.length) {
+      ranges.push([open.start, runs[j].end]);
+      i = j + 1;
+    } else {
+      i++;
+    }
+  }
+  return ranges;
+}
+
+/**
+ * Half-open `[start, end)` character-offset ranges in `text` that fall inside
+ * a fenced code block (any language — reuses {@link makeGenericFenceOpenRe},
+ * not the mermaid-only fence matcher) or an inline code span. `parseFileDirectives`
+ * ignores an `<!-- -->` comment that starts inside one of these ranges, so a
+ * directive shown as a *documentation example* — inside a fenced block or an
+ * inline code span — is never mistaken for a live one.
+ *
+ * Reuses the same fence-open/close regex construction as
+ * {@link extractMermaidBlocks} (via `fences.ts`) so fence recognition — variable-
+ * length fences, backtick vs. tilde, indentation — never drifts between the
+ * two scanners.
+ */
+function codeRanges(
+  text: string,
+  fences: readonly FenceMarker[],
+): Array<[number, number]> {
+  const openRe = makeGenericFenceOpenRe(fences);
+  if (!openRe) return [];
+
+  const lines = text.split('\n');
+  const lineStarts: number[] = [0];
+  for (const line of lines) {
+    lineStarts.push(lineStarts[lineStarts.length - 1] + line.length + 1);
+  }
+
+  const ranges: Array<[number, number]> = [];
+  let i = 0;
+  while (i < lines.length) {
+    const m = openRe.exec(lines[i]);
+    if (!m) {
+      for (const [s, e] of inlineCodeSpanRanges(lines[i])) {
+        ranges.push([lineStarts[i] + s, lineStarts[i] + e]);
+      }
+      i++;
+      continue;
+    }
+    const indent = m[1];
+    const marker = m[2];
+    const closeRe = makeFenceCloseRe(indent, marker);
+    const start = lineStarts[i];
+    i++;
+    while (i < lines.length && !closeRe.test(lines[i])) i++;
+    // Unclosed fence: everything to end of document is inside it.
+    const end =
+      i < lines.length ? lineStarts[i] + lines[i].length : text.length;
+    ranges.push([start, end]);
+    i++;
+  }
+  return ranges;
+}
+
+function isInRange(
+  offset: number,
+  ranges: readonly [number, number][],
+): boolean {
+  return ranges.some(([start, end]) => offset >= start && offset < end);
+}
+
+/**
  * Parse every `<!-- mermaid-lint-disable-file ... -->` directive in a Markdown
  * document. Document-level directives carry the real 1-indexed document line
  * the directive keyword starts on (not the line of any particular Mermaid
  * block) — they apply to every block regardless of position.
  *
+ * An HTML comment whose opening `<!--` falls inside a fenced code block or an
+ * inline code span is skipped entirely — see {@link codeRanges}. That is what
+ * keeps documentation *showing* the directive syntax (e.g. this project's own
+ * README) from being parsed as a live directive.
+ *
  * A single HTML comment may pack more than one directive (e.g. copy-pasted
- * blocks or several independent suppressions). Each occurrence of the
- * `mermaid-lint-disable-file` keyword starts its own directive; the text
- * between consecutive occurrences (and from the last occurrence to the end
- * of the comment) is that directive's rule list and reason. This avoids
- * silently folding a second directive into the first one's `reason` string.
+ * blocks or several independent suppressions). Each occurrence of any
+ * directive keyword starts its own directive; the text between consecutive
+ * occurrences (and from the last occurrence to the end of the comment) is
+ * that directive's rule list and reason. This avoids silently folding a
+ * second directive into the first one's `reason` string. Keywords other than
+ * `-disable-file` are also scanned for here (not skipped) so a keyword used
+ * at the wrong scope — e.g. `<!-- mermaid-lint-disable-next-line ... -->` —
+ * is reported via `wrong-scope` instead of silently doing nothing.
  *
  * @param text - Full document contents.
  * @returns Document-level directives in source order.
@@ -202,26 +380,35 @@ function lineAt(text: string, offset: number): number {
  */
 export function parseFileDirectives(text: string): Directive[] {
   const out: Directive[] = [];
+  const ranges = codeRanges(text, ALL_FENCE_MARKERS);
   for (const m of text.matchAll(HTML_COMMENT_RE)) {
+    if (isInRange(m.index ?? 0, ranges)) continue;
     const inner = m[1];
     // Absolute offset of `inner[0]` in `text`: the match start plus the
     // length of the opening `<!--`.
     const innerOffset = (m.index ?? 0) + 4;
-    const starts: number[] = [];
-    let idx = inner.indexOf(FILE_DIRECTIVE_KEYWORD);
-    while (idx !== -1) {
-      starts.push(idx);
-      idx = inner.indexOf(
-        FILE_DIRECTIVE_KEYWORD,
-        idx + FILE_DIRECTIVE_KEYWORD.length,
-      );
+    const starts = new Set<number>();
+    for (const keyword of ALL_KEYWORDS) {
+      let idx = inner.indexOf(keyword);
+      while (idx !== -1) {
+        starts.add(idx);
+        idx = inner.indexOf(keyword, idx + keyword.length);
+      }
     }
-    for (let i = 0; i < starts.length; i++) {
-      const end = i + 1 < starts.length ? starts[i + 1] : inner.length;
-      const slice = inner.slice(starts[i], end).trim();
+    const sortedStarts = [...starts].sort((a, b) => a - b);
+    for (let i = 0; i < sortedStarts.length; i++) {
+      const end =
+        i + 1 < sortedStarts.length ? sortedStarts[i + 1] : inner.length;
+      const slice = inner.slice(sortedStarts[i], end).trim();
       const matched = matchKind(slice, (k) => k === 'file');
       if (!matched) continue;
-      const line = lineAt(text, innerOffset + starts[i]);
+      const line = lineAt(text, innerOffset + sortedStarts[i]);
+      if (!matched.allowed) {
+        out.push(
+          wrongScopeDirective(matched.keyword, matched.kind, 'body', line),
+        );
+        continue;
+      }
       out.push(parseDirective(matched.kind, matched.rest, line));
     }
   }
@@ -437,6 +624,19 @@ export function buildSuppressionIndex(
           // openers/scoped directives are queried by isSuppressed - so they
           // are excluded categorically here rather than by checking `used`.
           d.kind !== 'range-end' &&
+          // File-scope directives are excluded too, but for a different
+          // reason: the same `fileDirectives` array is attached to every
+          // block in the document (see extract.ts), and `blockToDiagnostics`
+          // runs once per block. If `unused` counted them, a single stale
+          // `-disable-file` would be reported once per block instead of once
+          // for the document. There is no per-document index built anywhere
+          // that queries file-scope directives across every block before
+          // asking `unused()` - `lintMarkdown` builds a document-scoped index
+          // too (see markdown-adapter.ts), but that index's `unused()` hits
+          // this same exclusion and is always `[]`. Net effect: a stale
+          // `-disable-file` is never reported as unused, from any entry
+          // point - see suppress.ts's `README.md` overclaim note, since the
+          // README previously (wrongly) documented this as covered.
           d.kind !== 'file' &&
           d.problems.length === 0 &&
           !used.has(d),

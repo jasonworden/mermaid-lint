@@ -150,7 +150,7 @@ function parseCsvCells(raw: string): string[] | null {
 const preferFlowchart: Rule = {
   id: 'prefer-flowchart',
   appliesTo: (block) => block.type === 'graph',
-  evaluate: ({ block, headerLine }) => [
+  evaluate: ({ headerLine }) => [
     {
       message:
         'use `flowchart` instead of `graph`: `graph` is legacy Mermaid syntax. `flowchart` is the current keyword and enables per-subgraph `direction` control.',

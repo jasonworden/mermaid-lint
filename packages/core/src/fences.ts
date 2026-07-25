@@ -36,6 +36,11 @@ export function isFenceMarker(value: unknown): value is FenceMarker {
   return value === 'backtick' || value === 'tilde';
 }
 
+/** Fence-run alternation shared by {@link makeFenceOpenRe} and {@link makeGenericFenceOpenRe}. */
+function fenceRunAlternation(fences: readonly FenceMarker[]): string[] {
+  return fences.map((f) => `${escapeRe(FENCE_CHAR[f])}{3,}`);
+}
+
 /**
  * Build the opening-fence regex for a `mermaid` block. A CommonMark fence is a
  * run of at least three backticks or tildes; the run's char and length matter
@@ -50,11 +55,33 @@ export function isFenceMarker(value: unknown): value is FenceMarker {
  * @internal
  */
 export function makeFenceOpenRe(fences: readonly FenceMarker[]): RegExp | null {
-  const alts = fences.map((f) => `${escapeRe(FENCE_CHAR[f])}{3,}`);
+  const alts = fenceRunAlternation(fences);
   if (alts.length === 0) return null;
   return new RegExp(
     `^([ \\t]*)(${alts.join('|')})mermaid([ \\t][^\\n]*)?\\s*$`,
   );
+}
+
+/**
+ * Build the opening-fence regex for a fenced code block of *any* language
+ * (unlike {@link makeFenceOpenRe}, which requires the `mermaid` info string).
+ * Shares fence-run construction with `makeFenceOpenRe` so the two never
+ * disagree on what counts as a fence marker; pair with
+ * {@link makeFenceCloseRe} exactly as `makeFenceOpenRe` callers do.
+ *
+ * Used to recognize fenced code blocks that merely *show* directive syntax as
+ * a documentation example, so that text isn't mistaken for a live directive.
+ *
+ * Capture groups: 1 = leading indent, 2 = the full fence run.
+ *
+ * @internal
+ */
+export function makeGenericFenceOpenRe(
+  fences: readonly FenceMarker[],
+): RegExp | null {
+  const alts = fenceRunAlternation(fences);
+  if (alts.length === 0) return null;
+  return new RegExp(`^([ \\t]*)(${alts.join('|')})[^\\n]*$`);
 }
 
 /**

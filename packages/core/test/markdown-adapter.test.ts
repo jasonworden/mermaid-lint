@@ -282,4 +282,71 @@ describe('suppression', () => {
     const diags = await lintMarkdown('a.md', text);
     expect(diags.some((d) => d.ruleId === 'mermaid')).toBe(false);
   });
+
+  it('does not treat a file directive inside a fenced code block as live', async () => {
+    // Documentation showing the directive syntax, e.g. this project's own
+    // README, must not become a live suppression.
+    const text =
+      '# Doc\n\n' +
+      '```markdown\n<!-- mermaid-lint-disable-file duplicate-ids: example -->\n```\n\n' +
+      '```mermaid\nflowchart LR\n  A[x] --> B\n  A[y] --> C\n```\n';
+    const diags = await lintMarkdown('a.md', text);
+    expect(diags.some((d) => d.ruleId === 'duplicate-ids')).toBe(true);
+    expect(diags.some((d) => d.ruleId?.startsWith('suppression-'))).toBe(false);
+  });
+
+  it('does not treat a file directive inside an inline code span as live', async () => {
+    const text =
+      '# Doc\n\n' +
+      '| Directive | Scope |\n' +
+      '|---|---|\n' +
+      '| `<!-- mermaid-lint-disable-file <rules>: <reason> -->` | every diagram |\n\n' +
+      '```mermaid\nflowchart LR\n  A[x] --> B\n  A[y] --> C\n```\n';
+    const diags = await lintMarkdown('a.md', text);
+    expect(diags.some((d) => d.ruleId === 'duplicate-ids')).toBe(true);
+    expect(diags.some((d) => d.ruleId?.startsWith('suppression-'))).toBe(false);
+  });
+
+  it('still honors a real file directive outside any fence or code span', async () => {
+    const text =
+      '# Doc\n\n' +
+      '<!-- mermaid-lint-disable-file duplicate-ids: vendored -->\n\n' +
+      '```mermaid\nflowchart LR\n  A[x] --> B\n  A[y] --> C\n```\n';
+    const diags = await lintMarkdown('a.md', text);
+    expect(diags.some((d) => d.ruleId === 'duplicate-ids')).toBe(false);
+  });
+
+  it('reports a bare `%% mermaid-lint-disable` as one suppression-malformed diagnostic, not two', async () => {
+    const diags = await lintMarkdown(
+      'a.md',
+      md('%% mermaid-lint-disable\nflowchart LR\n  A --> B'),
+    );
+    const malformed = diags.filter((d) => d.ruleId === 'suppression-malformed');
+    expect(malformed).toHaveLength(1);
+  });
+
+  it('reports `-disable-file` used as a %% body comment as wrong-scope, not silently ignored', async () => {
+    const diags = await lintMarkdown(
+      'a.md',
+      md(
+        '%% mermaid-lint-disable-file duplicate-ids: reason\nflowchart LR\n  A --> B',
+      ),
+    );
+    const finding = diags.find((d) => d.ruleId === 'suppression-malformed');
+    expect(finding?.message).toContain('mermaid-lint-disable-file');
+    expect(finding?.message).toContain('HTML comment');
+  });
+
+  it('reports a line-scope keyword used as an HTML comment as wrong-scope, not silently ignored', async () => {
+    const text =
+      '# Doc\n\n' +
+      '<!-- mermaid-lint-disable-next-line duplicate-ids: reason -->\n\n' +
+      '```mermaid\nflowchart LR\n  A[x] --> B\n  A[y] --> C\n```\n';
+    const diags = await lintMarkdown('a.md', text);
+    const finding = diags.find((d) => d.ruleId === 'suppression-malformed');
+    expect(finding?.message).toContain('mermaid-lint-disable-next-line');
+    expect(finding?.message).toContain('%%');
+    // The wrong-scope HTML comment doesn't suppress the duplicate id either.
+    expect(diags.some((d) => d.ruleId === 'duplicate-ids')).toBe(true);
+  });
 });

@@ -129,6 +129,22 @@ function directiveDiagnostics(
             'suppression directive names no rules; list rule ids or use `all`',
           );
           break;
+        case 'empty-directive':
+          push(
+            'suppression-malformed',
+            d.line,
+            'suppression directive has no rule ids and no reason, e.g. `%% mermaid-lint-disable-next-line duplicate-ids: ids collide upstream`',
+          );
+          break;
+        case 'wrong-scope':
+          push(
+            'suppression-malformed',
+            d.line,
+            p.expected === 'file'
+              ? `\`${p.keyword}\` only works as a Markdown HTML comment (\`<!-- ${p.keyword} <rules>: <reason> -->\`), not inside a \`%%\` diagram comment`
+              : `\`${p.keyword}\` only works as a \`%%\` diagram comment (\`%% ${p.keyword} <rules>: <reason>\`), not inside an HTML comment`,
+          );
+          break;
         case 'unmatched-enable':
           push(
             'suppression-malformed',
@@ -233,7 +249,17 @@ export async function blockToDiagnostics(
   // directives, so a file-scope directive naming a meta-rule can suppress a
   // body-scope directive problem, matching how file scope applies everywhere
   // else.
-  const bodyDirectives = index.directives.filter((d) => d.kind !== 'file');
+  //
+  // Filtered by identity against `block.fileDirectives`, not by
+  // `d.kind !== 'file'`: a `%% mermaid-lint-disable-file ...` written in the
+  // diagram body (wrong scope) parses to a *body*-sourced `Directive` whose
+  // `kind` is still `'file'` (see `wrongScopeDirective` in suppress.ts) - a
+  // kind-based filter would silently drop it here, and it isn't in
+  // `block.fileDirectives` either, so it would never be reported anywhere.
+  const realFileDirectives = new Set(block.fileDirectives ?? []);
+  const bodyDirectives = index.directives.filter(
+    (d) => !realFileDirectives.has(d),
+  );
   diagnostics.push(
     ...directiveDiagnostics(
       bodyDirectives,
@@ -283,8 +309,16 @@ export async function lintMarkdown(
   // so `<!-- -->` file directives are not meaningful for it (extract.ts
   // always attaches `fileDirectives: []` for `.mmd`).
   if (!path.endsWith('.mmd')) {
-    const normalized = text.replace(/\r\n/g, '\n');
-    const fileDirectives = parseFileDirectives(normalized);
+    // Reuse the array `extractMermaidBlocks` already parsed and attached to
+    // every block, rather than re-running `parseFileDirectives` over the
+    // same text a second time. Only falls back to parsing directly when the
+    // document has no Mermaid blocks at all (so nothing to reuse it from) —
+    // a document can still carry a file directive with no diagrams to apply
+    // it to, and that directive's own problems (e.g. unknown-rule) should
+    // still be reported.
+    const fileDirectives =
+      blocks[0]?.fileDirectives ??
+      parseFileDirectives(text.replace(/\r\n/g, '\n'));
     // File directives carry no body, only the document; an empty body list
     // is fine because `isSuppressed`'s `file`/`diagram` branch never
     // consults `line` or body content.
