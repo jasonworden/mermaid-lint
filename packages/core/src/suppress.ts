@@ -32,7 +32,11 @@ export interface Directive {
   rules: readonly string[] | 'all';
   /** Free text after the first `:`. Empty when absent. */
   reason: string;
-  /** 1-indexed body line (`0` for document-level directives). */
+  /**
+   * 1-indexed line where the directive starts: a body line for `%%`
+   * directives, or the real 1-indexed document line for a `<!-- -->`
+   * file-scope directive (see {@link parseFileDirectives}).
+   */
   line: number;
   /** Anything wrong with the directive; empty when well-formed. */
   problems: DirectiveProblem[];
@@ -170,10 +174,20 @@ const HTML_COMMENT_RE = /<!--([\s\S]*?)-->/g;
 // sync if the keyword table ever changes.
 const FILE_DIRECTIVE_KEYWORD = KINDS.find(([, k]) => k === 'file')?.[0] ?? '';
 
+/** 1-indexed line containing character `offset` in `text`. */
+function lineAt(text: string, offset: number): number {
+  let line = 1;
+  for (let i = 0; i < offset; i++) {
+    if (text.charCodeAt(i) === 10 /* '\n' */) line++;
+  }
+  return line;
+}
+
 /**
  * Parse every `<!-- mermaid-lint-disable-file ... -->` directive in a Markdown
- * document. Document-level directives carry line `0` — they apply to every
- * block regardless of position.
+ * document. Document-level directives carry the real 1-indexed document line
+ * the directive keyword starts on (not the line of any particular Mermaid
+ * block) — they apply to every block regardless of position.
  *
  * A single HTML comment may pack more than one directive (e.g. copy-pasted
  * blocks or several independent suppressions). Each occurrence of the
@@ -190,6 +204,9 @@ export function parseFileDirectives(text: string): Directive[] {
   const out: Directive[] = [];
   for (const m of text.matchAll(HTML_COMMENT_RE)) {
     const inner = m[1];
+    // Absolute offset of `inner[0]` in `text`: the match start plus the
+    // length of the opening `<!--`.
+    const innerOffset = (m.index ?? 0) + 4;
     const starts: number[] = [];
     let idx = inner.indexOf(FILE_DIRECTIVE_KEYWORD);
     while (idx !== -1) {
@@ -204,7 +221,8 @@ export function parseFileDirectives(text: string): Directive[] {
       const slice = inner.slice(starts[i], end).trim();
       const matched = matchKind(slice, (k) => k === 'file');
       if (!matched) continue;
-      out.push(parseDirective(matched.kind, matched.rest, 0));
+      const line = lineAt(text, innerOffset + starts[i]);
+      out.push(parseDirective(matched.kind, matched.rest, line));
     }
   }
   return out;
@@ -383,6 +401,12 @@ export function buildSuppressionIndex(
 
       let matches = false;
       if (d.kind === 'diagram' || d.kind === 'file') {
+        // Matches unconditionally, including `line === undefined`. A
+        // structural error (unclosed fence, empty block) carries no line for
+        // exactly that reason, so a file- or diagram-scope directive naming
+        // `mermaid` also quiets those - a document-wide "quiet mermaid
+        // errors" is intended to cover them too, not just parse errors that
+        // happen to have a location.
         matches = true;
       } else if (d.kind === 'next-line' && line !== undefined) {
         matches = nextTargetLine(bodyLines, d.line) === line;

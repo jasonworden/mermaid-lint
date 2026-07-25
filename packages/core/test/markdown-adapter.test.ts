@@ -134,7 +134,12 @@ describe('suppression', () => {
         '%% mermaid-lint-disable-diagram all: vendored\ngraph LR\n  A[x] --> B\n  A[y] --> C',
       ),
     );
-    expect(diags.filter((d) => d.severity === 'warning')).toEqual([]);
+    // Asserting on the full list (not just `warning`-severity diagnostics)
+    // matters here: `graph LR` triggers the warn-severity `prefer-flowchart`,
+    // but the duplicate `A` id triggers the *error*-severity `duplicate-ids`.
+    // A filter that only looked at warnings could pass even if `all` failed
+    // to suppress error-severity findings.
+    expect(diags).toEqual([]);
   });
 
   it('does not suppress syntax errors via `all`', async () => {
@@ -207,5 +212,74 @@ describe('suppression', () => {
     const finding = diags.find((d) => d.ruleId === 'suppression-unknown-rule');
     // Fence opener is line 3, so body line 2 is document line 5.
     expect(finding?.line).toBe(5);
+  });
+
+  it('reports a broken file directive once for the whole document, at the HTML comment line', async () => {
+    const text =
+      '# Doc\n\n' +
+      '<!-- mermaid-lint-disable-file duplicat-ids: typo -->\n\n' +
+      '```mermaid\nflowchart LR\n  A --> B\n```\n\n' +
+      '```mermaid\nflowchart LR\n  C --> D\n```\n\n' +
+      '```mermaid\nflowchart LR\n  E --> F\n```\n\n' +
+      '```mermaid\nflowchart LR\n  G --> H\n```\n';
+    const diags = await lintMarkdown('a.md', text);
+    const findings = diags.filter(
+      (d) => d.ruleId === 'suppression-unknown-rule',
+    );
+    expect(findings).toHaveLength(1);
+    // `# Doc` is line 1, a blank line 2, so the HTML comment is line 3 - not
+    // any block's fence-opener line.
+    expect(findings[0].line).toBe(3);
+  });
+
+  it('lets a meta-rule directive suppress another directive naming an unknown rule, without becoming unused itself', async () => {
+    const diags = await lintMarkdown(
+      'a.md',
+      md(
+        '%% mermaid-lint-disable-diagram suppression-unknown-rule: shush\n' +
+          'flowchart LR\n' +
+          '%% mermaid-lint-disable-diagram duplicat-ids: typo\n' +
+          '  A --> B',
+      ),
+    );
+    expect(diags.some((d) => d.ruleId === 'suppression-unknown-rule')).toBe(
+      false,
+    );
+    // Naming the meta-rule and having it actually fire must not itself be
+    // flagged as a suppression directive that suppressed nothing.
+    expect(diags.some((d) => d.ruleId === 'suppression-unused')).toBe(false);
+  });
+
+  it('does not let a malformed directive suppress the diagnostic reporting its own malformedness', async () => {
+    // This directive both is malformed (no reason) and names the very
+    // meta-rule that would report that. It must still be reported: a
+    // problem-carrying directive is inert to `isSuppressed`.
+    const diags = await lintMarkdown(
+      'a.md',
+      md(
+        '%% mermaid-lint-disable-diagram suppression-malformed\nflowchart LR\n  A --> B',
+      ),
+    );
+    expect(diags.some((d) => d.ruleId === 'suppression-malformed')).toBe(true);
+  });
+
+  it('a file-scope `mermaid` directive also suppresses structural errors (unclosed fence)', async () => {
+    // Intentional side effect of file scope matching unconditionally: a
+    // structural error (unclosed fence, empty block) carries no line, and
+    // file/diagram-scope directives match regardless of line - see
+    // suppress.ts's `isSuppressed` comment on the `file`/`diagram` branch.
+    const text =
+      '<!-- mermaid-lint-disable-file mermaid: quiet parser noise -->\n\n' +
+      '```mermaid\nflowchart LR\n  A --> B\n';
+    const diags = await lintMarkdown('a.md', text);
+    expect(diags.some((d) => d.ruleId === 'mermaid')).toBe(false);
+  });
+
+  it('a file-scope `mermaid` directive also suppresses an empty mermaid block', async () => {
+    const text =
+      '<!-- mermaid-lint-disable-file mermaid: quiet parser noise -->\n\n' +
+      '```mermaid\n```\n';
+    const diags = await lintMarkdown('a.md', text);
+    expect(diags.some((d) => d.ruleId === 'mermaid')).toBe(false);
   });
 });

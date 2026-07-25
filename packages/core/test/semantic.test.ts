@@ -71,14 +71,14 @@ describe('checkSemantics', () => {
       expect(only(b, 'duplicate-ids')).toEqual([]);
     });
 
-    it('returns [] when %% mermaid-lint-disable is present', () => {
+    it('returns [] when %% mermaid-lint-disable-diagram all is present', () => {
       const b = block(
         'flowchart LR\n  %% mermaid-lint-disable-diagram all: legacy suppression test\n  A[Start] --> B\n  A[Begin] --> C',
       );
       expect(only(b, 'duplicate-ids')).toEqual([]);
     });
 
-    it('returns [] when %% mermaid-lint-disable duplicate-ids is present', () => {
+    it('returns [] when %% mermaid-lint-disable-diagram duplicate-ids is present', () => {
       const b = block(
         'flowchart LR\n  %% mermaid-lint-disable-diagram duplicate-ids: legacy suppression test\n  A[Start] --> B\n  A[Begin] --> C',
       );
@@ -195,7 +195,7 @@ describe('checkSemantics', () => {
       expect(only(b, 'prefer-flowchart')).toEqual([]);
     });
 
-    it('is suppressed by %% mermaid-lint-disable prefer-flowchart', () => {
+    it('is suppressed by %% mermaid-lint-disable-diagram prefer-flowchart', () => {
       const b = block(
         'graph LR\n  %% mermaid-lint-disable-diagram prefer-flowchart: legacy suppression test\n  A --> B',
         'graph',
@@ -239,7 +239,7 @@ describe('checkSemantics', () => {
       expect(only(b, 'require-direction')).toEqual([]);
     });
 
-    it('is suppressed by %% mermaid-lint-disable require-direction', () => {
+    it('is suppressed by %% mermaid-lint-disable-diagram require-direction', () => {
       const b = block(
         'flowchart\n  %% mermaid-lint-disable-diagram require-direction: legacy suppression test\n  A --> B',
         'flowchart',
@@ -262,7 +262,7 @@ describe('checkSemantics', () => {
       expect(only(b, 'no-experimental')).toEqual([]);
     });
 
-    it('is suppressed by %% mermaid-lint-disable no-experimental', () => {
+    it('is suppressed by %% mermaid-lint-disable-diagram no-experimental', () => {
       const b = block(
         'sankey-beta\n%% mermaid-lint-disable-diagram no-experimental: legacy suppression test\nA,B,1',
         'sankey-beta',
@@ -478,7 +478,7 @@ describe('checkSemantics', () => {
       expect(only(b, 'no-duplicate-edges')).toEqual([]);
     });
 
-    it('is suppressed by %% mermaid-lint-disable no-duplicate-edges', () => {
+    it('is suppressed by %% mermaid-lint-disable-diagram no-duplicate-edges', () => {
       const b = block(
         'flowchart LR\n  %% mermaid-lint-disable-diagram no-duplicate-edges: legacy suppression test\n  A --> B\n  A --> B',
       );
@@ -511,7 +511,7 @@ describe('checkSemantics', () => {
       expect(only(b, 'no-self-loop')).toEqual([]);
     });
 
-    it('is suppressed by %% mermaid-lint-disable no-self-loop', () => {
+    it('is suppressed by %% mermaid-lint-disable-diagram no-self-loop', () => {
       const b = block(
         'flowchart LR\n  %% mermaid-lint-disable-diagram no-self-loop: legacy suppression test\n  A --> A',
       );
@@ -548,7 +548,7 @@ describe('checkSemantics', () => {
       expect(only(b, 'no-empty-labels')).toEqual([]);
     });
 
-    it('is suppressed by %% mermaid-lint-disable no-empty-labels', () => {
+    it('is suppressed by %% mermaid-lint-disable-diagram no-empty-labels', () => {
       const b = block(
         'flowchart LR\n  %% mermaid-lint-disable-diagram no-empty-labels: legacy suppression test\n  A[ ] --> B',
       );
@@ -603,7 +603,7 @@ describe('checkSemantics', () => {
       expect(only(b, 'no-orphan-nodes', rules)).toEqual([]);
     });
 
-    it('is suppressed by %% mermaid-lint-disable no-orphan-nodes', () => {
+    it('is suppressed by %% mermaid-lint-disable-diagram no-orphan-nodes', () => {
       const b = block(
         'flowchart LR\n  %% mermaid-lint-disable-diagram no-orphan-nodes: legacy suppression test\n  A --> B\n  C[Lonely]',
       );
@@ -677,7 +677,7 @@ describe('checkSemantics', () => {
       expect(only(b, 'no-activate-without-deactivate')).toEqual([]);
     });
 
-    it('is suppressed by %% mermaid-lint-disable no-activate-without-deactivate', () => {
+    it('is suppressed by %% mermaid-lint-disable-diagram no-activate-without-deactivate', () => {
       const b = seqBlock(
         'sequenceDiagram\n  %% mermaid-lint-disable-diagram no-activate-without-deactivate: legacy suppression test\n  activate Bob\n  Alice->>Bob: Hello',
       );
@@ -754,7 +754,7 @@ describe('checkSemantics', () => {
       expect(warnings).toHaveLength(2);
     });
 
-    it('is suppressed by %% mermaid-lint-disable prefer-explicit-participants', () => {
+    it('is suppressed by %% mermaid-lint-disable-diagram prefer-explicit-participants', () => {
       const b = seqBlock(
         'sequenceDiagram\n  %% mermaid-lint-disable-diagram prefer-explicit-participants: legacy suppression test\n  Alice->>Bob: Hello',
       );
@@ -846,7 +846,7 @@ describe('checkSemantics', () => {
       expect(only(b, 'no-duplicate-methods')).toEqual([]);
     });
 
-    it('is suppressed by %% mermaid-lint-disable no-duplicate-methods', () => {
+    it('is suppressed by %% mermaid-lint-disable-diagram no-duplicate-methods', () => {
       const b = classBlock(
         'classDiagram\n  %% mermaid-lint-disable-diagram no-duplicate-methods: legacy suppression test\n  class Foo {\n    +bar()\n    +bar()\n  }',
       );
@@ -933,7 +933,7 @@ describe('checkSemantics', () => {
       expect(only(b, 'pie-duplicate-label')).toEqual([]);
     });
 
-    it('is suppressed by %% mermaid-lint-disable pie-duplicate-label', () => {
+    it('is suppressed by %% mermaid-lint-disable-diagram pie-duplicate-label', () => {
       const b = pieBlock(
         'pie\n  %% mermaid-lint-disable-diagram pie-duplicate-label: legacy suppression test\n  "Dogs" : 10\n  "Dogs" : 3',
       );
@@ -1067,7 +1067,7 @@ describe('checkSemantics', () => {
       expect(only(b, 'state-duplicate-transition')).toEqual([]);
     });
 
-    it('is suppressed by %% mermaid-lint-disable', () => {
+    it('is suppressed by %% mermaid-lint-disable-diagram state-duplicate-transition', () => {
       const b = stateBlock(
         'stateDiagram-v2\n  %% mermaid-lint-disable-diagram state-duplicate-transition: legacy suppression test\n  A --> B\n  A --> B',
       );
@@ -1253,7 +1253,7 @@ describe('checkSemantics', () => {
       expect(only(b, 'er-duplicate-attribute')).toEqual([]);
     });
 
-    it('is suppressed by %% mermaid-lint-disable', () => {
+    it('is suppressed by %% mermaid-lint-disable-diagram er-duplicate-attribute', () => {
       const b = erBlock(
         'erDiagram\n  %% mermaid-lint-disable-diagram er-duplicate-attribute: legacy suppression test\n  CUSTOMER {\n    string name\n    int name\n  }',
       );

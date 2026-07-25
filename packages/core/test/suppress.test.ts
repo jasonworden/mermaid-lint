@@ -122,6 +122,9 @@ describe('parseFileDirectives', () => {
     expect(d.kind).toBe('file');
     expect(d.rules).toEqual(['duplicate-ids']);
     expect(d.reason).toBe('vendored docs');
+    // `# Doc` is line 1, a blank line 2, so the comment is line 3 - the real
+    // document line, not `0`.
+    expect(d.line).toBe(3);
   });
 
   it('ignores unrelated HTML comments', () => {
@@ -143,10 +146,13 @@ describe('parseFileDirectives', () => {
     expect(ds[0].rules).toEqual(['duplicate-ids']);
     expect(ds[0].reason).toBe('first reason');
     expect(ds[0].problems).toEqual([]);
+    expect(ds[0].line).toBe(1);
     expect(ds[1].kind).toBe('file');
     expect(ds[1].rules).toEqual(['no-self-loop']);
     expect(ds[1].reason).toBe('second reason');
     expect(ds[1].problems).toEqual([]);
+    // The second directive starts on the comment's second line.
+    expect(ds[1].line).toBe(2);
   });
 
   it('parses a single directive in a comment unchanged', () => {
@@ -156,6 +162,7 @@ describe('parseFileDirectives', () => {
     expect(ds).toHaveLength(1);
     expect(ds[0].rules).toEqual(['duplicate-ids']);
     expect(ds[0].reason).toBe('vendored docs');
+    expect(ds[0].line).toBe(1);
   });
 
   it('yields no directives from a comment with none', () => {
