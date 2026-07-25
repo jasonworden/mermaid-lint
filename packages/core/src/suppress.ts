@@ -49,9 +49,10 @@ export const SYNTAX_RULE_ID = 'mermaid';
  * silence the diagnostics that report broken directives - they stay
  * suppressible only by naming them explicitly, or via the `rules` config.
  *
- * These three ids don't exist in {@link ALL_RULE_IDS} yet (a later task adds
- * them as real diagnostics), so they're listed here as string literals
- * rather than imported rule ids.
+ * Listed as string literals rather than derived from {@link ALL_RULE_IDS}:
+ * these ids are members of it, so deriving the exclusion from it would be
+ * circular. Naming them explicitly in a directive still works — only the
+ * `all` wildcard skips them.
  *
  * @public
  */
