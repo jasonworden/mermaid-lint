@@ -114,22 +114,46 @@ describe('@mermaid-lint/remark', () => {
   });
 
   it('honors an in-diagram suppression directive', async () => {
+    // Control: without the directive, the duplicate id is flagged.
+    const control =
+      '```mermaid\nflowchart LR\n  A[x] --> B\n  A[y] --> C\n```\n';
+    const controlFile = await remark()
+      .use(remarkLintMermaid, { strict: true })
+      .process(control);
+    expect(controlFile.messages.length).toBeGreaterThan(0);
+    expect(controlFile.messages.map(String).join('\n')).toContain(
+      'declared with label',
+    );
+
+    // Same diagram, but the finding is suppressed via directive.
     const md =
       '```mermaid\nflowchart LR\n  A[x] --> B\n%% mermaid-lint-disable-next-line duplicate-ids: upstream\n  A[y] --> C\n```\n';
     const file = await remark()
       .use(remarkLintMermaid, { strict: true })
       .process(md);
-    expect(file.messages.map(String).join('\n')).not.toContain('duplicate-ids');
+    expect(file.messages).toHaveLength(0);
   });
 
   it('honors a document-level suppression directive', async () => {
+    // Control: without the directive, the duplicate id is flagged.
+    const control =
+      '```mermaid\nflowchart LR\n  A[x] --> B\n  A[y] --> C\n```\n';
+    const controlFile = await remark()
+      .use(remarkLintMermaid, { strict: true })
+      .process(control);
+    expect(controlFile.messages.length).toBeGreaterThan(0);
+    expect(controlFile.messages.map(String).join('\n')).toContain(
+      'declared with label',
+    );
+
+    // Same diagram, but a file-level directive suppresses it document-wide.
     const md =
       '<!-- mermaid-lint-disable-file duplicate-ids: vendored docs -->\n\n' +
       '```mermaid\nflowchart LR\n  A[x] --> B\n  A[y] --> C\n```\n';
     const file = await remark()
       .use(remarkLintMermaid, { strict: true })
       .process(md);
-    expect(file.messages.map(String).join('\n')).not.toContain('duplicate-ids');
+    expect(file.messages).toHaveLength(0);
   });
 
   it('handles multiple mermaid blocks in one document', async () => {

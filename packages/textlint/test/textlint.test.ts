@@ -92,22 +92,42 @@ describe('@mermaid-lint/textlint', () => {
   });
 
   it('honors an in-diagram suppression directive', async () => {
+    // Control: without the directive, the duplicate id is flagged.
+    const control =
+      '```mermaid\nflowchart LR\n  A[x] --> B\n  A[y] --> C\n```\n';
+    const { messages: controlMessages } = await lint(control, {
+      strict: true,
+    });
+    expect(controlMessages.length).toBeGreaterThan(0);
+    expect(controlMessages.map((m) => m.message).join('\n')).toContain(
+      'declared with label',
+    );
+
+    // Same diagram, but the finding is suppressed via directive.
     const md =
       '```mermaid\nflowchart LR\n  A[x] --> B\n%% mermaid-lint-disable-next-line duplicate-ids: upstream\n  A[y] --> C\n```\n';
     const { messages } = await lint(md, { strict: true });
-    expect(messages.map((m) => m.message).join('\n')).not.toContain(
-      'duplicate-ids',
-    );
+    expect(messages).toHaveLength(0);
   });
 
   it('honors a document-level suppression directive', async () => {
+    // Control: without the directive, the duplicate id is flagged.
+    const control =
+      '```mermaid\nflowchart LR\n  A[x] --> B\n  A[y] --> C\n```\n';
+    const { messages: controlMessages } = await lint(control, {
+      strict: true,
+    });
+    expect(controlMessages.length).toBeGreaterThan(0);
+    expect(controlMessages.map((m) => m.message).join('\n')).toContain(
+      'declared with label',
+    );
+
+    // Same diagram, but a file-level directive suppresses it document-wide.
     const md =
       '<!-- mermaid-lint-disable-file duplicate-ids: vendored docs -->\n\n' +
       '```mermaid\nflowchart LR\n  A[x] --> B\n  A[y] --> C\n```\n';
     const { messages } = await lint(md, { strict: true });
-    expect(messages.map((m) => m.message).join('\n')).not.toContain(
-      'duplicate-ids',
-    );
+    expect(messages).toHaveLength(0);
   });
 });
 
