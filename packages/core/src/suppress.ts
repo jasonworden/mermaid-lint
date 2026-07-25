@@ -41,6 +41,27 @@ export interface Directive {
 /** Rule id reserved for syntax errors from the parser. @public */
 export const SYNTAX_RULE_ID = 'mermaid';
 
+/**
+ * Rule ids excluded from the `all` wildcard, alongside {@link SYNTAX_RULE_ID}:
+ * the meta-rules that police the suppression-directive layer itself
+ * (`suppression-unknown-rule`, `suppression-unused`, `suppression-malformed`).
+ * A blanket "disable all rules for this diagram" should not be able to
+ * silence the diagnostics that report broken directives - they stay
+ * suppressible only by naming them explicitly, or via the `rules` config.
+ *
+ * These three ids don't exist in {@link ALL_RULE_IDS} yet (a later task adds
+ * them as real diagnostics), so they're listed here as string literals
+ * rather than imported rule ids.
+ *
+ * @public
+ */
+export const RULE_IDS_EXCLUDED_FROM_ALL: ReadonlySet<string> = new Set([
+  SYNTAX_RULE_ID,
+  'suppression-unknown-rule',
+  'suppression-unused',
+  'suppression-malformed',
+]);
+
 const KINDS: ReadonlyArray<[string, DirectiveKind]> = [
   // Longest first: `-disable-next-line` must win over `-disable`.
   ['mermaid-lint-disable-next-line', 'next-line'],
@@ -208,9 +229,12 @@ export interface SuppressionIndex {
   unused(): Directive[];
 }
 
-/** Does this directive name `ruleId`? `all` excludes the syntax rule. */
+/**
+ * Does this directive name `ruleId`? `all` excludes the syntax rule and the
+ * suppression meta-rules (see {@link RULE_IDS_EXCLUDED_FROM_ALL}).
+ */
 function names(directive: Directive, ruleId: string): boolean {
-  if (directive.rules === 'all') return ruleId !== SYNTAX_RULE_ID;
+  if (directive.rules === 'all') return !RULE_IDS_EXCLUDED_FROM_ALL.has(ruleId);
   return directive.rules.includes(ruleId);
 }
 
@@ -231,12 +255,31 @@ function nextTargetLine(lines: string[], directiveLine: number): number {
  * Ranges are scoped per rule id, not per directive: a `disable` covering
  * several rules (explicitly, or via `all`) can be partially closed by an
  * `enable` that only names some of them, leaving the range open for the
- * rest. Within a single rule id, opens and closes pair up LIFO (innermost
- * first) like nested brackets, so two stacked same-rule disables need two
- * enables to fully close - the first enable only closes the inner one.
+ * rest. Within a single rule id, an `enable` drains every currently-open
+ * `disable` for that rule at once - not just the innermost - so two stacked
+ * same-rule disables are both closed by one enable. This matters because the
+ * rule id a user names most explicitly (a repeated or nested disable for it)
+ * is the one that must not silently stay suppressed when they ask to
+ * re-enable it.
  *
- * Also flags, in place, any `range-end` directive that closed no range for
- * any rule it names.
+ * A `range-start` that carries problems (e.g. a missing reason) is inert,
+ * same as {@link SuppressionIndex.isSuppressed} treats it: it's skipped
+ * entirely here so it can never be "closed" by an enable in place of a
+ * well-formed one.
+ *
+ * Also flags, in place, any well-formed `range-end` directive that closed no
+ * range for any rule it names. A `range-end` that already carries a problem
+ * (its rule list failed to parse) is skipped here too - it cannot have
+ * matched anything, and it's already reported once; piling on
+ * `unmatched-enable` would double-report the same mistake. Note this check
+ * is per-directive, not per-rule: an enable naming two rules where only one
+ * of them actually closes something is still considered matched and reports
+ * nothing, by design.
+ *
+ * MUTATES `d.problems` on affected `range-end` directives in place (in
+ * addition to returning the end-line map). Safe only because
+ * {@link buildSuppressionIndex} re-parses fresh `Directive` objects on every
+ * call - nothing here is cached or shared across calls.
  *
  * @param body - Directives parsed from the diagram body (document-level
  *   directives don't participate in ranges).
@@ -277,12 +320,17 @@ function matchRanges(
     for (const d of rangeDirectives) {
       if (!names(d, ruleId)) continue;
       if (d.kind === 'range-start') {
+        // A problem-carrying opener is inert (see isSuppressed), so it must
+        // never occupy the stack in place of a well-formed one.
+        if (d.problems.length > 0) continue;
         stack.push(d);
         continue;
       }
-      const opener = stack.pop();
-      if (opener) {
-        setEnd(opener, ruleId, d.line);
+      // Drain every currently-open disable for this rule id, not just the
+      // innermost - see the drain-all rationale in the function doc above.
+      if (stack.length > 0) {
+        for (const opener of stack) setEnd(opener, ruleId, d.line);
+        stack.length = 0;
         closedSomething.add(d);
       }
     }
@@ -292,7 +340,12 @@ function matchRanges(
   }
 
   for (const d of rangeDirectives) {
-    if (d.kind === 'range-end' && !closedSomething.has(d)) {
+    // Skip enables that already carry a problem - see the function doc.
+    if (
+      d.kind === 'range-end' &&
+      d.problems.length === 0 &&
+      !closedSomething.has(d)
+    ) {
       d.problems.push({ kind: 'unmatched-enable' });
     }
   }
@@ -316,6 +369,9 @@ export function buildSuppressionIndex(
   const body = parseBodyDirectives(bodyLines);
   const directives = [...body, ...fileDirectives];
   const used = new Set<Directive>();
+  // matchRanges also mutates problems onto `body`'s range-end directives in
+  // place (see its doc comment). That's safe here only because `body` is
+  // freshly parsed above on every call - never cached or reused.
   const rangeEnds = matchRanges(body);
 
   const isSuppressed = (ruleId: string, line: number | undefined): boolean => {
@@ -334,6 +390,10 @@ export function buildSuppressionIndex(
         matches = line >= d.line && line < end;
       }
 
+      // Deliberately no early `break`/`return` on the first hit: every
+      // matching directive gets marked used, so `unused()` depends only on
+      // the set of queries that ever ran, never on directive order. Do not
+      // "optimize" this into an early return.
       if (matches) {
         used.add(d);
         hit = true;
@@ -348,6 +408,9 @@ export function buildSuppressionIndex(
     unused: () =>
       directives.filter(
         (d) =>
+          // range-end (enable) directives are never added to `used` - only
+          // openers/scoped directives are queried by isSuppressed - so they
+          // are excluded categorically here rather than by checking `used`.
           d.kind !== 'range-end' &&
           d.kind !== 'file' &&
           d.problems.length === 0 &&
