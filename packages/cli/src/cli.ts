@@ -173,6 +173,7 @@ function printHelp(): void {
                      merges with config "extensions"). Files named directly are
                      always linted regardless of extension.
   --quiet            Suppress per-file progress and warnings; only failures + summary.
+                     With --strict, warnings fail the run and are still shown.
   --strict           Exit 1 if any warnings are present (in addition to errors).
   --no-semantic      Disable all semantic rule checks (e.g. duplicate node IDs).
                      Per-rule severity is configurable via the "rules" config key
@@ -210,6 +211,11 @@ async function runTextMode(
   let warningCount = 0;
   const typeCounts: Record<string, number> = {};
 
+  // Under --strict a warning fails the run, which makes it a failure for
+  // reporting too — `--quiet` promises "only failures + summary", so silencing
+  // it would exit 1 with nothing to act on.
+  const showWarnings = !quiet || strict;
+
   const processContent = async (filePath: string, text: string) => {
     const blocks = extractMermaidBlocks(filePath, text, { fences });
     for (const block of blocks) {
@@ -237,7 +243,7 @@ async function runTextMode(
           );
         } else {
           warningCount++;
-          if (!quiet) {
+          if (showWarnings) {
             process.stdout.write(
               `${chalk.bold(block.path)}:${absLine}:${block.col}: ${chalk.yellow('warning:')} ${w.rule}: ${w.message}\n`,
             );
@@ -269,20 +275,25 @@ async function runTextMode(
     await processContent(file, text);
   }
 
+  // Strict warnings make the run fail, so the summary must not call it valid.
+  const strictFailure = strict && warningCount > 0;
   const resultStr =
-    failures === 0
-      ? chalk.green('all valid')
-      : chalk.red(`${failures} failure${failures !== 1 ? 's' : ''}`);
+    failures > 0
+      ? chalk.red(`${failures} failure${failures !== 1 ? 's' : ''}`)
+      : strictFailure
+        ? ''
+        : chalk.green('all valid');
   const warnStr =
-    !quiet && warningCount > 0
-      ? `, ${chalk.yellow(`${warningCount} warning${warningCount !== 1 ? 's' : ''}`)}`
+    showWarnings && warningCount > 0
+      ? chalk.yellow(`${warningCount} warning${warningCount !== 1 ? 's' : ''}`)
       : '';
+  const summaryStr = [resultStr, warnStr].filter(Boolean).join(', ');
   const totalFiles = files.length + (stdinEntry ? 1 : 0);
   process.stderr.write(
-    `checked ${blockCount} diagram${blockCount !== 1 ? 's' : ''} in ${totalFiles} file${totalFiles !== 1 ? 's' : ''} — ${resultStr}${warnStr}\n`,
+    `checked ${blockCount} diagram${blockCount !== 1 ? 's' : ''} in ${totalFiles} file${totalFiles !== 1 ? 's' : ''} — ${summaryStr}\n`,
   );
   printTypeDistribution(typeCounts);
-  return failures > 0 || (strict && warningCount > 0) ? 1 : 0;
+  return failures > 0 || strictFailure ? 1 : 0;
 }
 
 async function runJsonMode(
