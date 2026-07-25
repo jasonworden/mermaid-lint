@@ -32,6 +32,8 @@ export interface SemanticWarning {
 interface RuleContext {
   block: Block;
   lines: string[];
+  /** 1-indexed body line of the diagram header (see `locateHeader`). */
+  headerLine: number;
 }
 
 interface RuleFinding {
@@ -65,14 +67,35 @@ function extractLabel(m: RegExpExecArray): string {
   return '';
 }
 
+/**
+ * Locate the diagram's header (the first non-blank, non-comment,
+ * non-frontmatter line) and return both its 1-indexed body line and its
+ * trimmed text.
+ *
+ * Skipping frontmatter and directives matters: findings anchor to
+ * `line`, so a rule must not shift its own reported location when a user adds
+ * a suppression comment above the header. Mermaid only honors frontmatter at
+ * the very start of the body (its `frontMatterRegex` is `^`-anchored), so the
+ * skip is only applied to a leading block.
+ */
+function locateHeader(lines: string[]): { line: number; text: string } {
+  let i = 0;
+  // A frontmatter block is only frontmatter when it opens the body.
+  if (lines[0]?.trim() === '---') {
+    const close = lines.findIndex((l, idx) => idx > 0 && l.trim() === '---');
+    if (close > 0) i = close + 1;
+  }
+  for (; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    if (trimmed.length === 0 || trimmed.startsWith('%%')) continue;
+    return { line: i + 1, text: trimmed };
+  }
+  return { text: '', line: 1 };
+}
+
 /** First non-blank, non-comment line of a diagram body, or `''`. */
 function firstKeywordLine(lines: string[]): string {
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (trimmed.length === 0 || trimmed.startsWith('%%')) continue;
-    return trimmed;
-  }
-  return '';
+  return locateHeader(lines).text;
 }
 
 function isFlowchartOrGraph(block: Block): boolean {
@@ -144,11 +167,11 @@ function parseSuppression(lines: string[]): Suppression {
 const preferFlowchart: Rule = {
   id: 'prefer-flowchart',
   appliesTo: (block) => block.type === 'graph',
-  evaluate: ({ block }) => [
+  evaluate: ({ block, headerLine }) => [
     {
       message:
         'use `flowchart` instead of `graph`: `graph` is legacy Mermaid syntax. `flowchart` is the current keyword and enables per-subgraph `direction` control.',
-      line: 1,
+      line: headerLine,
     },
   ],
 };
@@ -156,12 +179,12 @@ const preferFlowchart: Rule = {
 const requireDirection: Rule = {
   id: 'require-direction',
   appliesTo: isFlowchartOrGraph,
-  evaluate: ({ block, lines }) => {
+  evaluate: ({ block, lines, headerLine }) => {
     if (DIRECTION_RE.test(firstKeywordLine(lines))) return [];
     return [
       {
         message: `\`${block.type}\` has no direction and defaults to \`TD\`. Prefer an explicit direction, e.g. \`${block.type} TD\`, to make layout intent clear.`,
-        line: 1,
+        line: headerLine,
       },
     ];
   },
@@ -170,10 +193,10 @@ const requireDirection: Rule = {
 const noExperimental: Rule = {
   id: 'no-experimental',
   appliesTo: (block) => block.type.endsWith('-beta'),
-  evaluate: ({ block }) => [
+  evaluate: ({ block, headerLine }) => [
     {
       message: `\`${block.type}\` is an experimental Mermaid diagram type. Its syntax is unstable and may break on a Mermaid upgrade; prefer a stable diagram type where possible.`,
-      line: 1,
+      line: headerLine,
     },
   ],
 };
@@ -249,14 +272,14 @@ function parseXychart(lines: string[]): ParsedXychart {
 const xychartMissingXAxis: Rule = {
   id: 'xychart-missing-x-axis',
   appliesTo: isXychart,
-  evaluate: ({ lines }) => {
+  evaluate: ({ lines, headerLine }) => {
     const chart = parseXychart(lines);
     if (chart.series.length === 0 || chart.hasXAxis) return [];
     return [
       {
         message:
           'xychart-beta has data series but no `x-axis`; add an explicit axis so the horizontal scale and labels are clear.',
-        line: 1,
+        line: headerLine,
       },
     ];
   },
@@ -265,14 +288,14 @@ const xychartMissingXAxis: Rule = {
 const xychartMissingYAxis: Rule = {
   id: 'xychart-missing-y-axis',
   appliesTo: isXychart,
-  evaluate: ({ lines }) => {
+  evaluate: ({ lines, headerLine }) => {
     const chart = parseXychart(lines);
     if (chart.series.length === 0 || chart.hasYAxis) return [];
     return [
       {
         message:
           'xychart-beta has data series but no `y-axis`; add an explicit axis so the vertical scale and units are clear.',
-        line: 1,
+        line: headerLine,
       },
     ];
   },
@@ -281,13 +304,13 @@ const xychartMissingYAxis: Rule = {
 const xychartNoSeries: Rule = {
   id: 'xychart-no-series',
   appliesTo: isXychart,
-  evaluate: ({ lines }) => {
+  evaluate: ({ lines, headerLine }) => {
     if (parseXychart(lines).series.length > 0) return [];
     return [
       {
         message:
           'xychart-beta has no data series and renders no data; add at least one `line [...]` or `bar [...]` series.',
-        line: 1,
+        line: headerLine,
       },
     ];
   },
@@ -435,7 +458,7 @@ function collectPacketFields(lines: string[]): PacketField[] {
 const blockNoBlocks: Rule = {
   id: 'block-no-blocks',
   appliesTo: (block) => block.type === 'block-beta',
-  evaluate: ({ lines }) => {
+  evaluate: ({ lines, headerLine }) => {
     if (
       lines.some((line) => {
         const trimmed = line.trim();
@@ -448,7 +471,7 @@ const blockNoBlocks: Rule = {
       {
         message:
           'block-beta has no blocks and renders empty; add at least one block declaration.',
-        line: 1,
+        line: headerLine,
       },
     ];
   },
@@ -457,13 +480,13 @@ const blockNoBlocks: Rule = {
 const packetNoFields: Rule = {
   id: 'packet-no-fields',
   appliesTo: isPacket,
-  evaluate: ({ lines }) => {
+  evaluate: ({ lines, headerLine }) => {
     if (collectPacketFields(lines).length > 0) return [];
     return [
       {
         message:
           'packet-beta has no field rows (no fields); it parses but renders as an empty packet.',
-        line: 1,
+        line: headerLine,
       },
     ];
   },
@@ -1224,13 +1247,13 @@ const pieZeroValue: Rule = {
 const pieNoData: Rule = {
   id: 'pie-no-data',
   appliesTo: isPie,
-  evaluate: ({ lines }) => {
+  evaluate: ({ lines, headerLine }) => {
     if (parsePieSlices(lines).length > 0) return [];
     return [
       {
         message:
           'pie chart has no data slices and renders empty; add at least one `"label" : value` row.',
-        line: 1,
+        line: headerLine,
       },
     ];
   },
@@ -1887,13 +1910,13 @@ const journeyTaskWithoutActor: Rule = {
 const journeyNoTasks: Rule = {
   id: 'journey-no-tasks',
   appliesTo: isJourney,
-  evaluate: ({ lines }) => {
+  evaluate: ({ lines, headerLine }) => {
     if (parseJourneyTasks(lines).length > 0) return [];
     return [
       {
         message:
           'journey has no tasks; it parses but renders as an empty diagram.',
-        line: 1,
+        line: headerLine,
       },
     ];
   },
@@ -2029,13 +2052,13 @@ const mindmapDuplicateSibling: Rule = {
 const mindmapNoNodes: Rule = {
   id: 'mindmap-no-nodes',
   appliesTo: isMindmap,
-  evaluate: ({ lines }) => {
+  evaluate: ({ lines, headerLine }) => {
     if (parseMindmapNodes(lines).length > 0) return [];
     return [
       {
         message:
           'mindmap has no nodes; it parses but renders as an empty diagram.',
-        line: 1,
+        line: headerLine,
       },
     ];
   },
@@ -2154,7 +2177,7 @@ const timelineEmptyEvent: Rule = {
 const timelineNoEntries: Rule = {
   id: 'timeline-no-entries',
   appliesTo: isTimeline,
-  evaluate: ({ lines }) => {
+  evaluate: ({ lines, headerLine }) => {
     let hasSection = false;
     let hasEntry = false;
     for (const line of lines) {
@@ -2167,7 +2190,7 @@ const timelineNoEntries: Rule = {
       {
         message:
           'timeline has no sections or time periods; it parses but renders as an empty diagram.',
-        line: 1,
+        line: headerLine,
       },
     ];
   },
@@ -2252,14 +2275,14 @@ const gitgraphDuplicateTag: Rule = {
 const gitgraphNoCommits: Rule = {
   id: 'gitgraph-no-commits',
   appliesTo: isGitGraph,
-  evaluate: ({ lines }) => {
+  evaluate: ({ lines, headerLine }) => {
     const hasCommit = lines.some((l) => /^commit\b/.test(l.trim()));
     if (hasCommit) return [];
     return [
       {
         message:
           'gitGraph has no commits; it parses but renders as an empty diagram.',
-        line: 1,
+        line: headerLine,
       },
     ];
   },
@@ -2337,13 +2360,13 @@ function formatArchitectureEdge(edge: ArchitectureEdge): string {
 const architectureNoElements: Rule = {
   id: 'architecture-no-elements',
   appliesTo: isArchitecture,
-  evaluate: ({ lines }) => {
+  evaluate: ({ lines, headerLine }) => {
     if (collectArchitectureDeclarations(lines).length > 0) return [];
     return [
       {
         message:
           'architecture-beta has no elements (no declared elements), groups, or junctions; it parses but renders empty.',
-        line: 1,
+        line: headerLine,
       },
     ];
   },
@@ -2352,14 +2375,14 @@ const architectureNoElements: Rule = {
 const architectureNoEdges: Rule = {
   id: 'architecture-no-edges',
   appliesTo: isArchitecture,
-  evaluate: ({ lines }) => {
+  evaluate: ({ lines, headerLine }) => {
     if (collectArchitectureDeclarations(lines).length === 0) return [];
     if (collectArchitectureEdges(lines).length > 0) return [];
     return [
       {
         message:
           'architecture-beta declares elements but has no edges; it renders as disconnected symbols and is usually incomplete.',
-        line: 1,
+        line: headerLine,
       },
     ];
   },
@@ -2472,13 +2495,13 @@ const quadrantDuplicatePoint: Rule = {
 const quadrantNoPoints: Rule = {
   id: 'quadrant-no-points',
   appliesTo: isQuadrantChart,
-  evaluate: ({ lines }) => {
+  evaluate: ({ lines, headerLine }) => {
     if (lines.some((l) => isQuadrantPointLine(l.trim()))) return [];
     return [
       {
         message:
           'quadrantChart has no data points; it parses but renders an empty plot.',
-        line: 1,
+        line: headerLine,
       },
     ];
   },
@@ -2487,7 +2510,7 @@ const quadrantNoPoints: Rule = {
 const quadrantMissingXAxis: Rule = {
   id: 'quadrant-missing-x-axis',
   appliesTo: isQuadrantChart,
-  evaluate: ({ lines }) => {
+  evaluate: ({ lines, headerLine }) => {
     const hasPoint = lines.some((l) => isQuadrantPointLine(l.trim()));
     if (!hasPoint) return [];
     const hasAxis = lines.some((l) => QUADRANT_X_AXIS_RE.test(l.trim()));
@@ -2496,7 +2519,7 @@ const quadrantMissingXAxis: Rule = {
       {
         message:
           'quadrantChart has data points but no `x-axis` label; Mermaid renders default axis text, which hides the chart intent.',
-        line: 1,
+        line: headerLine,
       },
     ];
   },
@@ -2505,7 +2528,7 @@ const quadrantMissingXAxis: Rule = {
 const quadrantMissingYAxis: Rule = {
   id: 'quadrant-missing-y-axis',
   appliesTo: isQuadrantChart,
-  evaluate: ({ lines }) => {
+  evaluate: ({ lines, headerLine }) => {
     const hasPoint = lines.some((l) => isQuadrantPointLine(l.trim()));
     if (!hasPoint) return [];
     const hasAxis = lines.some((l) => QUADRANT_Y_AXIS_RE.test(l.trim()));
@@ -2514,7 +2537,7 @@ const quadrantMissingYAxis: Rule = {
       {
         message:
           'quadrantChart has data points but no `y-axis` label; Mermaid renders default axis text, which hides the chart intent.',
-        line: 1,
+        line: headerLine,
       },
     ];
   },
@@ -2793,7 +2816,11 @@ export function checkSemantics(
 ): SemanticWarning[] {
   const lines = block.body.split('\n');
   const suppression = parseSuppression(lines);
-  const ctx: RuleContext = { block, lines };
+  const ctx: RuleContext = {
+    block,
+    lines,
+    headerLine: locateHeader(lines).line,
+  };
   const out: SemanticWarning[] = [];
 
   for (const rule of RULES) {

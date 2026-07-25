@@ -2492,3 +2492,34 @@ describe('checkSemantics', () => {
     });
   });
 });
+
+// The file's own `block(body, type)` helper (defined above) already covers
+// what the brief's illustrative `block()` does — pick the type explicitly
+// rather than inferring it via `detectDiagramType`, and reuse `only()` to
+// collect a single rule's findings.
+describe('header-line anchoring', () => {
+  it('anchors prefer-flowchart to the header, not body line 1', () => {
+    const b = block('%% a note\ngraph LR\n  A --> B', 'graph');
+    expect(only(b, 'prefer-flowchart')[0]?.line).toBe(2);
+  });
+
+  it('anchors require-direction to the header after a comment', () => {
+    const b = block('%% a note\nflowchart\n  A --> B', 'flowchart');
+    expect(only(b, 'require-direction')[0]?.line).toBe(2);
+  });
+
+  it('anchors absence rules to the header line', () => {
+    const b = block('%% a note\npie', 'pie');
+    expect(only(b, 'pie-no-data')[0]?.line).toBe(2);
+  });
+
+  it('skips leading blank lines when locating the header', () => {
+    const b = block('\n\ngraph LR\n  A --> B', 'graph');
+    expect(only(b, 'prefer-flowchart')[0]?.line).toBe(3);
+  });
+
+  it('still reports line 1 when the header is on line 1', () => {
+    const b = block('graph LR\n  A --> B', 'graph');
+    expect(only(b, 'prefer-flowchart')[0]?.line).toBe(1);
+  });
+});
