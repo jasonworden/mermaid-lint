@@ -248,7 +248,32 @@ export function parseBodyDirectives(lines: string[]): Directive[] {
   return out;
 }
 
-const HTML_COMMENT_RE = /<!--([\s\S]*?)-->/g;
+/**
+ * Every HTML comment in `text`, as `{ index, inner }` where `index` is the
+ * offset of the opening `<!--` and `inner` is the text between the delimiters.
+ *
+ * Scanned with `indexOf` rather than a regex. The obvious
+ * `/<!--([\s\S]*?)-->/g` backtracks polynomially on input like
+ * `<!--a<!--a<!--a…` that never closes: the lazy body re-scans from every
+ * `<!--` position. This runs over arbitrary user documents, so that is a real
+ * denial-of-service vector rather than a theoretical one. Linear scanning has
+ * no such cliff and matches the regex's semantics exactly — first `<!--` to the
+ * next `-->`, then resume after it.
+ */
+function htmlComments(text: string): Array<{ index: number; inner: string }> {
+  const out: Array<{ index: number; inner: string }> = [];
+  let from = 0;
+  for (;;) {
+    const open = text.indexOf('<!--', from);
+    if (open === -1) break;
+    const close = text.indexOf('-->', open + 4);
+    // An unterminated comment ends the scan: nothing after it can close.
+    if (close === -1) break;
+    out.push({ index: open, inner: text.slice(open + 4, close) });
+    from = close + 3;
+  }
+  return out;
+}
 
 // Every directive keyword, longest-first (inherited from KINDS). Scanning for
 // all of them — not just `-disable-file` — is what lets a keyword used at the
@@ -381,12 +406,12 @@ function isInRange(
 export function parseFileDirectives(text: string): Directive[] {
   const out: Directive[] = [];
   const ranges = codeRanges(text, ALL_FENCE_MARKERS);
-  for (const m of text.matchAll(HTML_COMMENT_RE)) {
-    if (isInRange(m.index ?? 0, ranges)) continue;
-    const inner = m[1];
+  for (const m of htmlComments(text)) {
+    if (isInRange(m.index, ranges)) continue;
+    const inner = m.inner;
     // Absolute offset of `inner[0]` in `text`: the match start plus the
     // length of the opening `<!--`.
-    const innerOffset = (m.index ?? 0) + 4;
+    const innerOffset = m.index + 4;
     const starts = new Set<number>();
     for (const keyword of ALL_KEYWORDS) {
       let idx = inner.indexOf(keyword);

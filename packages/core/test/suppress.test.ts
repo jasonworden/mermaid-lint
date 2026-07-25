@@ -234,6 +234,29 @@ describe('parseFileDirectives', () => {
     expect(ds[0].reason).toBe('real one');
     expect(ds[0].line).toBe(5);
   });
+
+  it('scans unterminated HTML comments in linear time (ReDoS regression)', () => {
+    // The obvious `/<!--([\s\S]*?)-->/g` backtracks polynomially here: the
+    // lazy body re-scans to end-of-input from every `<!--`. Since documents
+    // come from users, that is a real denial-of-service vector. Doubling the
+    // input must roughly double the time, not quadruple it — so compare the
+    // two rather than asserting a wall-clock threshold, which would be flaky
+    // on loaded CI runners.
+    const pathological = (n: number) => '<!--a'.repeat(n);
+    const timed = (text: string) => {
+      const start = performance.now();
+      parseFileDirectives(text);
+      return performance.now() - start;
+    };
+
+    expect(parseFileDirectives(pathological(20_000))).toEqual([]);
+
+    const single = timed(pathological(20_000));
+    const double = timed(pathological(40_000));
+    // Linear would be ~2x. Quadratic would be ~4x. Allow generous headroom
+    // for timer noise while still failing loudly on a return to backtracking.
+    expect(double).toBeLessThan(Math.max(single, 1) * 3);
+  });
 });
 
 describe('buildSuppressionIndex', () => {
