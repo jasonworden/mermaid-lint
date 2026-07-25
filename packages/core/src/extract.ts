@@ -4,6 +4,7 @@ import {
   makeFenceCloseRe,
   makeFenceOpenRe,
 } from './fences.js';
+import { type Directive, parseFileDirectives } from './suppress.js';
 import { detectDiagramType } from './type-detect.js';
 
 /**
@@ -27,6 +28,14 @@ export interface Block {
   body: string;
   /** Detected diagram type (e.g. `'flowchart'`, `'sequenceDiagram'`, `'unknown'`). */
   type: string;
+  /**
+   * Document-level suppression directives (`<!-- mermaid-lint-disable-file -->`)
+   * found anywhere in the source document. Attached at extraction so every
+   * integration that uses this extractor gets file scope without threading the
+   * document text separately. Hand-built blocks (remark, textlint) populate
+   * this themselves; omitting it just means file scope does not apply.
+   */
+  fileDirectives?: readonly Directive[];
 }
 
 /**
@@ -63,8 +72,19 @@ export function extractMermaidBlocks(
 
   if (path.endsWith('.mmd')) {
     const body = normalized.replace(/\n+$/, '');
-    return [{ path, line: 1, col: 1, body, type: detectDiagramType(body) }];
+    return [
+      {
+        path,
+        line: 1,
+        col: 1,
+        body,
+        type: detectDiagramType(body),
+        fileDirectives: [],
+      },
+    ];
   }
+
+  const fileDirectives = parseFileDirectives(normalized);
 
   const openRe = makeFenceOpenRe(options.fences ?? ALL_FENCE_MARKERS);
   if (!openRe) return [];
@@ -101,6 +121,7 @@ export function extractMermaidBlocks(
       col,
       body,
       type: detectDiagramType(body),
+      fileDirectives,
     });
     i++;
   }

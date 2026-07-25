@@ -6,6 +6,7 @@ import {
   type ResolvedRules,
   type RuleId,
 } from './rules.js';
+import { type SuppressionIndex, buildSuppressionIndex } from './suppress.js';
 
 /**
  * A semantic finding raised by {@link checkSemantics} — a diagram that parses
@@ -140,31 +141,6 @@ function parseCsvCells(raw: string): string[] | null {
   if (inQuotes) return null;
   cells.push(current);
   return cells;
-}
-
-// ---------------------------------------------------------------------------
-// Suppression (computed once per checkSemantics call)
-// ---------------------------------------------------------------------------
-
-interface Suppression {
-  all: boolean;
-  ids: Set<RuleId>;
-}
-
-function parseSuppression(lines: string[]): Suppression {
-  const ids = new Set<RuleId>();
-  let all = false;
-  for (const line of lines) {
-    const trimmed = line.trimStart();
-    if (!trimmed.startsWith('%%')) continue;
-    const directive = trimmed.slice(2).trim();
-    if (directive === 'mermaid-lint-disable') {
-      all = true;
-    } else if (directive.startsWith('mermaid-lint-disable ')) {
-      ids.add(directive.slice('mermaid-lint-disable '.length) as RuleId);
-    }
-  }
-  return { all, ids };
 }
 
 // ---------------------------------------------------------------------------
@@ -2809,20 +2785,25 @@ const RULES: Rule[] = [
 /**
  * Run every semantic rule over a parsed {@link Block} and return all findings.
  * Each rule decides its own applicability (by diagram type), reads its severity
- * from `rules` (skipping when `off`), and honors an in-diagram
- * `%% mermaid-lint-disable [rule]` directive.
+ * from `rules` (skipping when `off`), and honors suppression directives via the
+ * supplied (or freshly built) {@link SuppressionIndex}.
  *
  * @param block - The block to inspect.
  * @param rules - Resolved per-rule severities. Defaults to {@link RULE_DEFAULTS}.
+ * @param index - Suppression index to consult. Callers that already built one
+ *   (`blockToDiagnostics`) pass it in so directives are parsed once; direct
+ *   callers get one built here.
  * @returns Any {@link SemanticWarning}s found (empty when none apply).
  * @public
  */
 export function checkSemantics(
   block: Block,
   rules: ResolvedRules = RULE_DEFAULTS,
+  index?: SuppressionIndex,
 ): SemanticWarning[] {
   const lines = block.body.split('\n');
-  const suppression = parseSuppression(lines);
+  const suppression =
+    index ?? buildSuppressionIndex(lines, block.fileDirectives);
   const ctx: RuleContext = {
     block,
     lines,
@@ -2833,9 +2814,9 @@ export function checkSemantics(
   for (const rule of RULES) {
     const severity = rules[rule.id];
     if (severity === 'off') continue;
-    if (suppression.all || suppression.ids.has(rule.id)) continue;
     if (!rule.appliesTo(block)) continue;
     for (const f of rule.evaluate(ctx)) {
+      if (suppression.isSuppressed(rule.id, f.line)) continue;
       out.push({ rule: rule.id, severity, message: f.message, line: f.line });
     }
   }

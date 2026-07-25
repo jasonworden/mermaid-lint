@@ -2,6 +2,7 @@ import type { Block } from './extract.js';
 import { validateWithMerman } from './merman.js';
 import { RULE_DEFAULTS, type ResolvedRules } from './rules.js';
 import { type SemanticWarning, checkSemantics } from './semantic.js';
+import type { SuppressionIndex } from './suppress.js';
 
 export type { SemanticWarning };
 
@@ -113,12 +114,15 @@ export async function validateWithMermaidJS(
  * @param block - The block to validate.
  * @param rules - Resolved per-rule severities for the semantic pass. Defaults
  *   to {@link RULE_DEFAULTS}.
+ * @param index - Suppression index to consult for semantic findings. Forwarded
+ *   to {@link checkSemantics}.
  * @returns A {@link ValidationResult} carrying the verdict and any warnings.
  * @public
  */
 export async function validateBlock(
   block: Block,
   rules: ResolvedRules = RULE_DEFAULTS,
+  index?: SuppressionIndex,
 ): Promise<ValidationResult> {
   const { body } = block;
 
@@ -137,7 +141,7 @@ export async function validateBlock(
     };
   }
 
-  const warnings = checkSemantics(block, rules);
+  const warnings = checkSemantics(block, rules, index);
 
   const mermanResult = await validateWithMerman(body);
 

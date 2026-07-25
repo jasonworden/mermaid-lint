@@ -3,7 +3,12 @@ import {
   type ExtractOptions,
   extractMermaidBlocks,
 } from './extract.js';
-import { RULE_DEFAULTS, type ResolvedRules } from './rules.js';
+import { RULE_DEFAULTS, type ResolvedRules, type RuleId } from './rules.js';
+import {
+  type Directive,
+  SYNTAX_RULE_ID,
+  buildSuppressionIndex,
+} from './suppress.js';
 import { validateBlock } from './validate.js';
 
 /**
@@ -52,12 +57,81 @@ function toAbsLine(block: Block, relLine: number | undefined): number {
   return bodyOffset + relLine;
 }
 
+/** One message per directive problem, reported at the directive's own line. */
+function directiveDiagnostics(
+  block: Block,
+  directives: readonly Directive[],
+  unused: readonly Directive[],
+  rules: ResolvedRules,
+): Diagnostic[] {
+  const out: Diagnostic[] = [];
+  const push = (ruleId: RuleId, line: number, message: string) => {
+    const severity = rules[ruleId];
+    if (severity === 'off') return;
+    out.push({
+      line: toAbsLine(block, line),
+      column: block.col,
+      message,
+      ruleId,
+      severity: severity === 'error' ? 'error' : 'warning',
+    });
+  };
+
+  for (const d of directives) {
+    for (const p of d.problems) {
+      if (p.kind === 'unknown-rule') {
+        push(
+          'suppression-unknown-rule',
+          d.line,
+          `unknown rule "${p.rule}" in suppression directive; it suppresses nothing`,
+        );
+      } else if (p.kind === 'missing-reason') {
+        push(
+          'suppression-malformed',
+          d.line,
+          'suppression directive needs a reason, e.g. `%% mermaid-lint-disable-next-line duplicate-ids: ids collide upstream`',
+        );
+      } else if (p.kind === 'empty-rules') {
+        push(
+          'suppression-malformed',
+          d.line,
+          'suppression directive names no rules; list rule ids or use `all`',
+        );
+      } else if (p.kind === 'unmatched-enable') {
+        push(
+          'suppression-malformed',
+          d.line,
+          '`mermaid-lint-enable` has no matching `mermaid-lint-disable`',
+        );
+      } else {
+        push(
+          'suppression-malformed',
+          d.line,
+          `\`${SYNTAX_RULE_ID}\` can only be suppressed with -disable-diagram or -disable-file, not at line scope`,
+        );
+      }
+    }
+  }
+
+  for (const d of unused) {
+    push(
+      'suppression-unused',
+      d.line,
+      'suppression directive suppressed nothing; remove it or fix the rule ids',
+    );
+  }
+
+  return out;
+}
+
 /**
  * Validate a single extracted block and return its diagnostics with absolute
  * coordinates. Both syntax errors (severity `error`) and semantic warnings
  * (severity `warning`) are returned; consumers filter by severity as needed
  * (e.g. markdownlint surfaces only errors; remark/textlint add warnings in
- * strict mode).
+ * strict mode). Suppression directives are honored — filtered in body-relative
+ * coordinates before conversion — and broken directives are reported via the
+ * `suppression-*` meta-rules.
  *
  * @param block - The block to validate.
  * @param rules - Resolved per-rule severities for the semantic pass. Defaults
@@ -69,15 +143,20 @@ export async function blockToDiagnostics(
   block: Block,
   rules: ResolvedRules = RULE_DEFAULTS,
 ): Promise<Diagnostic[]> {
-  const result = await validateBlock(block, rules);
+  const bodyLines = block.body.split('\n');
+  const index = buildSuppressionIndex(bodyLines, block.fileDirectives);
+  const result = await validateBlock(block, rules, index);
   const diagnostics: Diagnostic[] = [];
 
-  if (!result.ok) {
+  // Filter on body-relative lines — the same space directives are parsed in —
+  // then convert. Doing it after toAbsLine would compare document lines against
+  // body lines.
+  if (!result.ok && !index.isSuppressed(SYNTAX_RULE_ID, result.error.line)) {
     diagnostics.push({
       line: toAbsLine(block, result.error.line),
       column: result.error.col ?? 1,
       message: result.error.message,
-      ruleId: 'mermaid',
+      ruleId: SYNTAX_RULE_ID,
       severity: 'error',
     });
   }
@@ -93,6 +172,10 @@ export async function blockToDiagnostics(
       severity: w.severity === 'error' ? 'error' : 'warning',
     });
   }
+
+  diagnostics.push(
+    ...directiveDiagnostics(block, index.directives, index.unused(), rules),
+  );
 
   return diagnostics;
 }

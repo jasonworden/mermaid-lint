@@ -43,3 +43,15 @@ export { loadConfig } from './src/config.js';
 export type { MermaidLintConfig } from './src/config.js';
 export { fixBlockBody, fixText } from './src/fix.js';
 export type { FixOptions } from './src/fix.js';
+export {
+  SYNTAX_RULE_ID,
+  buildSuppressionIndex,
+  parseBodyDirectives,
+  parseFileDirectives,
+} from './src/suppress.js';
+export type {
+  Directive,
+  DirectiveKind,
+  DirectiveProblem,
+  SuppressionIndex,
+} from './src/suppress.js';
