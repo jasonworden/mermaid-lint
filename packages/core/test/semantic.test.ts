@@ -2853,6 +2853,26 @@ describe('wardley-undefined-component rule', () => {
     expect(only(b, 'wardley-undefined-component')).toEqual([]);
   });
 
+  // Mermaid's `LINK_ARROW`/`ARROW` terminals admit exactly these four spellings.
+  // `WARDLEY_LINK_SEP_RE` folds `->` and `-->` into one `-{1,2}>` alternative,
+  // so both dash counts need a case; `-.->` and bare `>` are separate branches.
+  it('splits on every arrow spelling mermaid accepts', () => {
+    for (const arrow of ['->', '-->', '-.->', '>']) {
+      const b = block(
+        [
+          'wardley-beta',
+          '  component User [0.9, 0.5]',
+          `  User ${arrow} Ghost`,
+        ].join('\n'),
+        'wardley-beta',
+      );
+      const warnings = only(b, 'wardley-undefined-component');
+      expect(warnings, arrow).toHaveLength(1);
+      // The target resolved to exactly `Ghost` — no arrow debris clinging to it.
+      expect(warnings[0].message, arrow).toContain('`Ghost`');
+    }
+  });
+
   // `fromPort` and `arrow` are independently optional in mermaid's grammar,
   // so a source port with no arrow token immediately after it (`A+<> -> B`)
   // is valid. The naive separator match eats only the port, leaving the

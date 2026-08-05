@@ -582,8 +582,15 @@ const WARDLEY_KEYWORD_RE =
 // `execOutsideWardleyString` has cleared as being outside a quoted name.
 /** Mermaid's `SINGLE_LINE_COMMENT` opener. */
 const WARDLEY_COMMENT_RE = /%%/y;
-/** Longest-first, so `-->` never matches as `->` and `+'x'>` never as `>`. */
-const WARDLEY_LINK_SEP_RE = /\+'[^']*'(?:<>|<|>)|-\.->|-->|->|\+(?:<>|<|>)|>/y;
+/**
+ * Longest-first, so a dashed arrow never matches as `->` and `+'x'>` never as
+ * `>`. Mermaid's `LINK_ARROW` admits exactly one or two leading dashes, so the
+ * two are folded into `-{1,2}>` — greedy, hence still longest-first. Spelling
+ * them as a quantifier rather than a literal also matches how `edges.ts` writes
+ * flowchart arrows (`-{2,}>`), which keeps CodeQL's `js/bad-tag-filter` from
+ * reading a Mermaid arrow as an HTML comment terminator.
+ */
+const WARDLEY_LINK_SEP_RE = /\+'[^']*'(?:<>|<|>)|-\.->|-{1,2}>|\+(?:<>|<|>)|>/y;
 /** A `;`-prefixed link annotation runs to end of line. */
 const WARDLEY_LINK_LABEL_RE = /;/y;
 /** A port may trail the target: `A -> B+<`. */
@@ -599,7 +606,7 @@ const WARDLEY_TRAILING_PORT_RE = /\+(?:<>|<|>)$/;
  * An ordinary `A -> B` never has one here — its separator already consumed
  * the arrow — so this never mis-fires on the common case.
  */
-const WARDLEY_LEADING_ARROW_RE = /^\s*(?:-\.->|-->|->|>)\s*/;
+const WARDLEY_LEADING_ARROW_RE = /^\s*(?:-\.->|-{1,2}>|>)\s*/;
 
 function isWardley(block: Block): boolean {
   return stripHeaderColon(block.type) === 'wardley-beta';
