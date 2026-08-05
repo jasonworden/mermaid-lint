@@ -2971,6 +2971,32 @@ describe('wardley-orphan-component rule', () => {
   });
 });
 
+describe('wardley-no-components rule', () => {
+  it('flags a map with no components or anchors', () => {
+    const b = block('wardley-beta\n  title Empty Map', 'wardley-beta');
+    const warnings = only(b, 'wardley-no-components');
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].severity).toBe('warn');
+    expect(warnings[0].line).toBe(1);
+  });
+
+  it('treats an anchor-only map as non-empty', () => {
+    const b = block(
+      'wardley-beta\n  anchor Business [0.95, 0.63]',
+      'wardley-beta',
+    );
+    expect(only(b, 'wardley-no-components')).toEqual([]);
+  });
+
+  it('stays silent on a map that declares a component', () => {
+    const b = block(
+      'wardley-beta\n  component User [0.9, 0.5]',
+      'wardley-beta',
+    );
+    expect(only(b, 'wardley-no-components')).toEqual([]);
+  });
+});
+
 describe('parseWardley', () => {
   it('collects the coordinate value from every construct, discarding the annotation index and any trailing label', () => {
     const parsed = parseWardley([

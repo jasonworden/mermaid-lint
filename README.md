@@ -559,7 +559,7 @@ measure of how much analysis a given type gets beyond "does it parse".
 | Treemap | `treemap-beta` | ✅ | `no-experimental` | Experimental; no dedicated semantic rules yet |
 | Venn | `venn-beta` | ✅ | `no-experimental` | Experimental; no dedicated semantic rules yet |
 | Ishikawa | `ishikawa-beta` | ✅ | `no-experimental` | Experimental; no dedicated semantic rules yet |
-| Wardley map | `wardley-beta` | ✅ | `no-experimental`, `wardley-undefined-component`, `wardley-orphan-component` | Experimental; not covered by the Rust fast path — always falls back to mermaid.js |
+| Wardley map | `wardley-beta` | ✅ | `no-experimental`, `wardley-undefined-component`, `wardley-orphan-component`, `wardley-no-components` | Experimental; not covered by the Rust fast path — always falls back to mermaid.js |
 | Tree view | `treeView-beta` | ✅ | `no-experimental` | Experimental; no dedicated semantic rules yet |
 | ZenUML | `zenuml` | ❌ | - | Requires separate [`@mermaid-js/mermaid-zenuml`](https://github.com/mermaid-js/zenuml-core) package; not bundled in mermaid v11 |
 

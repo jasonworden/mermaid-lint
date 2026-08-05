@@ -299,6 +299,7 @@ const RULE_DESCRIPTIONS: Record<RuleId, string> = {
     'Mermaid: a Wardley link or evolve names an undeclared component',
   'wardley-orphan-component':
     'Mermaid: a Wardley component is never referenced',
+  'wardley-no-components': 'Mermaid: a Wardley map has no components',
   'frontmatter-must-be-first':
     'Mermaid: something precedes the YAML frontmatter, so the diagram will not render',
   'suppression-unknown-rule':

@@ -104,6 +104,7 @@ export type RuleId =
   | 'c4-undefined-relationship-style-endpoint'
   | 'wardley-undefined-component'
   | 'wardley-orphan-component'
+  | 'wardley-no-components'
   | 'frontmatter-must-be-first'
   | 'suppression-unknown-rule'
   | 'suppression-unused'
@@ -336,6 +337,11 @@ export interface RuleMetadata {
  * `no-orphan-nodes`: an isolated component is a legitimate thing to put on a
  * Wardley map. Anchors are excluded — they are user-need markers that stand
  * alone by design.
+ *
+ * `wardley-no-components` (`warn`) is the analogue of `radar-no-curves`: a map
+ * with neither a `component` nor an `anchor` renders as an empty grid. Notes
+ * and accelerators do not count — components and anchors are the two rows that
+ * become nodes.
  *
  * `frontmatter-must-be-first` is `error`, joining `duplicate-ids` as the only
  * non-advisory rules: a diagram whose frontmatter is preceded by anything does
@@ -703,6 +709,11 @@ export const RULE_METADATA = {
   },
   'wardley-orphan-component': {
     defaultSeverity: 'off',
+    docsScope: 'wardley-beta',
+    readmeDiagramKeywords: ['wardley-beta'],
+  },
+  'wardley-no-components': {
+    defaultSeverity: 'warn',
     docsScope: 'wardley-beta',
     readmeDiagramKeywords: ['wardley-beta'],
   },

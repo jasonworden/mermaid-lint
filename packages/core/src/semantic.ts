@@ -818,6 +818,24 @@ const wardleyOrphanComponent: Rule = {
   },
 };
 
+const wardleyNoComponents: Rule = {
+  id: 'wardley-no-components',
+  appliesTo: isWardley,
+  evaluate: ({ lines, headerLine }) => {
+    const parsed = parseWardley(lines);
+    // Components and anchors are the only rows mermaid turns into nodes; a
+    // pipeline cannot exist without a parent component, so this covers it too.
+    if (parsed.components.length > 0 || parsed.anchors.length > 0) return [];
+    return [
+      {
+        message:
+          'wardley-beta declares no components or anchors and renders an empty map; add at least one `component name [visibility, evolution]`.',
+        line: headerLine,
+      },
+    ];
+  },
+};
+
 interface SankeyLink {
   source: string;
   target: string;
@@ -3272,6 +3290,7 @@ const RULES: Rule[] = [
   c4UndefinedRelationshipStyleEndpoint,
   wardleyUndefinedComponent,
   wardleyOrphanComponent,
+  wardleyNoComponents,
 ];
 
 // ---------------------------------------------------------------------------
