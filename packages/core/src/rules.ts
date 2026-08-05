@@ -103,6 +103,7 @@ export type RuleId =
   | 'c4-undefined-element-style'
   | 'c4-undefined-relationship-style-endpoint'
   | 'wardley-undefined-component'
+  | 'wardley-orphan-component'
   | 'frontmatter-must-be-first'
   | 'suppression-unknown-rule'
   | 'suppression-unused'
@@ -329,6 +330,12 @@ export interface RuleMetadata {
  * silently, the renderer filtering links whose endpoints have no position and
  * populateDb skipping an unresolvable `evolve`. It deliberately ignores the
  * `pipeline <parent>` reference, which mermaid validates itself.
+ *
+ * `wardley-orphan-component` (`off`) reports a component no link, `evolve`, or
+ * pipeline reaches. It defaults to `off` for the same reason as
+ * `no-orphan-nodes`: an isolated component is a legitimate thing to put on a
+ * Wardley map. Anchors are excluded — they are user-need markers that stand
+ * alone by design.
  *
  * `frontmatter-must-be-first` is `error`, joining `duplicate-ids` as the only
  * non-advisory rules: a diagram whose frontmatter is preceded by anything does
@@ -691,6 +698,11 @@ export const RULE_METADATA = {
   },
   'wardley-undefined-component': {
     defaultSeverity: 'warn',
+    docsScope: 'wardley-beta',
+    readmeDiagramKeywords: ['wardley-beta'],
+  },
+  'wardley-orphan-component': {
+    defaultSeverity: 'off',
     docsScope: 'wardley-beta',
     readmeDiagramKeywords: ['wardley-beta'],
   },

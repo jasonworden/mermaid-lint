@@ -2908,6 +2908,69 @@ describe('wardley-undefined-component rule', () => {
   });
 });
 
+describe('wardley-orphan-component rule', () => {
+  const enabled: ResolvedRules = {
+    ...RULE_DEFAULTS,
+    'wardley-orphan-component': 'warn',
+  };
+
+  it('returns [] by default (off)', () => {
+    const b = block(
+      'wardley-beta\n  component Lonely [0.3, 0.3]',
+      'wardley-beta',
+    );
+    expect(only(b, 'wardley-orphan-component')).toEqual([]);
+  });
+
+  it('fires on a component nothing references when enabled (warn)', () => {
+    const b = block(
+      [
+        'wardley-beta',
+        '  component User [0.9, 0.5]',
+        '  component Lonely [0.3, 0.3]',
+        '  component Kettle [0.5, 0.6]',
+        '  User -> Kettle',
+      ].join('\n'),
+      'wardley-beta',
+    );
+    const warnings = only(b, 'wardley-orphan-component', enabled);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].severity).toBe('warn');
+    expect(warnings[0].message).toContain('`Lonely`');
+    expect(warnings[0].line).toBe(3);
+  });
+
+  it('counts evolve targets and pipeline membership as references', () => {
+    const b = block(
+      [
+        'wardley-beta',
+        '  component Evolving [0.9, 0.5]',
+        '  component Kettle [0.5, 0.6]',
+        '  evolve Evolving 0.8',
+        '  pipeline Kettle {',
+        '    component Electric [0.63]',
+        '  }',
+      ].join('\n'),
+      'wardley-beta',
+    );
+    expect(only(b, 'wardley-orphan-component', enabled)).toEqual([]);
+  });
+
+  it('does not treat an unlinked anchor as an orphan', () => {
+    const b = block(
+      [
+        'wardley-beta',
+        '  anchor Business [0.95, 0.63]',
+        '  component Kettle [0.5, 0.6]',
+        '  component User [0.9, 0.5]',
+        '  User -> Kettle',
+      ].join('\n'),
+      'wardley-beta',
+    );
+    expect(only(b, 'wardley-orphan-component', enabled)).toEqual([]);
+  });
+});
+
 describe('parseWardley', () => {
   it('collects the coordinate value from every construct, discarding the annotation index and any trailing label', () => {
     const parsed = parseWardley([

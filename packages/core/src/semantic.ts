@@ -800,6 +800,24 @@ const wardleyUndefinedComponent: Rule = {
   },
 };
 
+// Anchors are not candidates: a user-need marker with no dependency drawn from
+// it is normal, so including them would fire on correct maps. Pipeline members
+// are excluded too — `parseWardley` marks them referenced, since they are
+// structurally attached to their parent.
+const wardleyOrphanComponent: Rule = {
+  id: 'wardley-orphan-component',
+  appliesTo: isWardley,
+  evaluate: ({ lines }) => {
+    const parsed = parseWardley(lines);
+    return parsed.components
+      .filter((component) => !parsed.referenced.has(component.name))
+      .map((component) => ({
+        message: `wardley-beta component \`${component.name}\` is declared but never linked, evolved, or placed in a pipeline; it renders as an isolated dot with no relationship to the rest of the map.`,
+        line: component.line,
+      }));
+  },
+};
+
 interface SankeyLink {
   source: string;
   target: string;
@@ -3253,6 +3271,7 @@ const RULES: Rule[] = [
   c4UndefinedElementStyle,
   c4UndefinedRelationshipStyleEndpoint,
   wardleyUndefinedComponent,
+  wardleyOrphanComponent,
 ];
 
 // ---------------------------------------------------------------------------
