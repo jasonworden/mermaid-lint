@@ -86,12 +86,13 @@ describe('mermaid behavior contracts', () => {
     }
   }, 30_000);
 
-  it('mis-detects the diagram type when YAML frontmatter is present', async () => {
-    // Known bug, tracked in
-    // https://github.com/jasonworden/mermaid-lint/issues/122. Pinned here so
-    // the fix flips this assertion deliberately rather than silently.
+  it('detects the diagram type past YAML frontmatter', () => {
+    // Regression pin for
+    // https://github.com/jasonworden/mermaid-lint/issues/122: this returned
+    // '---' before the frontmatter skip landed, which made every semantic
+    // rule's `appliesTo` reject the block.
     const withFm = '---\ntitle: T\n---\nflowchart LR\n  A --> B';
-    expect(detectDiagramType(withFm)).toBe('---');
+    expect(detectDiagramType(withFm)).toBe('flowchart');
     expect(detectDiagramType('flowchart LR\n  A --> B')).toBe('flowchart');
   });
 

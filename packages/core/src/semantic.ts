@@ -1,5 +1,6 @@
 import { extractEdges } from './edges.js';
 import type { Block } from './extract.js';
+import { locateHeader } from './header.js';
 import {
   type EmittedSeverity,
   RULE_DEFAULTS,
@@ -68,39 +69,6 @@ function extractLabel(m: RegExpExecArray): string {
     if (m[i] !== undefined) return m[i].trim();
   }
   return '';
-}
-
-/**
- * Locate the diagram's header (the first non-blank, non-comment,
- * non-frontmatter line) and return both its 1-indexed body line and its
- * trimmed text.
- *
- * Skipping frontmatter and directives matters: findings anchor to
- * `line`, so a rule must not shift its own reported location when a user adds
- * a suppression comment above the header. Mermaid only honors frontmatter at
- * the very start of the body (its `frontMatterRegex` is `^`-anchored), so the
- * skip is only applied to a leading block.
- *
- * The frontmatter skip cannot fire through `extractMermaidBlocks` yet:
- * `detectDiagramType` returns `'---'` for a body opening with frontmatter, so
- * every rule's `appliesTo` rejects the block before a rule ever evaluates. It
- * is written to be correct for when that is fixed — see
- * https://github.com/jasonworden/mermaid-lint/issues/122 — and is exercised
- * today only by unit tests that build a `Block` directly.
- */
-function locateHeader(lines: string[]): { line: number; text: string } {
-  let i = 0;
-  // A frontmatter block is only frontmatter when it opens the body.
-  if (lines[0]?.trim() === '---') {
-    const close = lines.findIndex((l, idx) => idx > 0 && l.trim() === '---');
-    if (close > 0) i = close + 1;
-  }
-  for (; i < lines.length; i++) {
-    const trimmed = lines[i].trim();
-    if (trimmed.length === 0 || trimmed.startsWith('%%')) continue;
-    return { line: i + 1, text: trimmed };
-  }
-  return { text: '', line: 1 };
 }
 
 function isFlowchartOrGraph(block: Block): boolean {
