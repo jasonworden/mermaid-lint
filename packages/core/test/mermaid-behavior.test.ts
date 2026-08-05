@@ -33,11 +33,29 @@ const DIAGRAMS: Record<string, string> = {
   'architecture-beta': 'architecture-beta\n  group api(cloud)[API]',
   kanban: 'kanban\n  Todo\n    task[A]',
   'radar-beta': 'radar-beta\n  axis a, b\n  curve c{1, 2}',
+  eventmodeling: 'eventmodeling\n  tf 1\n  ui Screen ->> 1',
+  'treemap-beta': 'treemap-beta\n"A"\n  "B": 10',
+  'venn-beta': 'venn-beta\n  set A\n  set B',
+  'ishikawa-beta': 'ishikawa-beta\n  Problem\n    Cause A\n      Sub cause',
+  'wardley-beta': 'wardley-beta\n  title Map\n  component User [0.9, 0.5]',
+  'treeView-beta': 'treeView-beta\n  "root"\n    "child"',
 };
 
 const DIRECTIVE = '%% mermaid-lint-disable-next-line duplicate-ids: probe';
 
 describe('mermaid behavior contracts', () => {
+  it('parses every diagram type the README claims support for', async () => {
+    // The README's "27 diagram types" table is only true as long as the
+    // bundled mermaid still recognizes each keyword. Pinned here so a mermaid
+    // bump that drops or renames a type fails CI instead of quietly making the
+    // docs wrong.
+    for (const [type, body] of Object.entries(DIAGRAMS)) {
+      const result = await validateWithMermaidJS(body);
+      expect(result.ok, `${type}: ${JSON.stringify(result)}`).toBe(true);
+      expect(detectDiagramType(body)).toBe(type);
+    }
+  }, 30_000);
+
   it('accepts own-line %% comments in every supported diagram type', async () => {
     for (const [type, body] of Object.entries(DIAGRAMS)) {
       const leading = await validateWithMermaidJS(`${DIRECTIVE}\n${body}`);

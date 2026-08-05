@@ -161,16 +161,22 @@ export type ReadmeDiagramKeyword =
   | 'gantt'
   | 'gitGraph'
   | 'graph'
+  | 'ishikawa-beta'
   | 'journey'
   | 'mindmap'
   | 'packet-beta'
   | 'pie'
   | 'quadrantChart'
+  | 'radar-beta'
   | 'requirementDiagram'
   | 'sankey-beta'
   | 'sequenceDiagram'
   | 'stateDiagram-v2'
   | 'timeline'
+  | 'treemap-beta'
+  | 'treeView-beta'
+  | 'venn-beta'
+  | 'wardley-beta'
   | 'xychart-beta';
 
 /**
@@ -326,6 +332,12 @@ export const RULE_METADATA = {
       'block-beta',
       'packet-beta',
       'architecture-beta',
+      'radar-beta',
+      'treemap-beta',
+      'venn-beta',
+      'ishikawa-beta',
+      'wardley-beta',
+      'treeView-beta',
     ],
   },
   'xychart-missing-x-axis': {

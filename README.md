@@ -39,7 +39,7 @@ The exit code is non-zero on failure, so it drops straight into CI or a pre-comm
 
 mermaid-lint gives you actual Mermaid validation anywhere you write diagrams:
 
-- 💥 Catches Mermaid **syntax errors** across all **19 diagram types**
+- 💥 Catches Mermaid **syntax errors** across all **27 diagram types**
 - 📍 Reports the precise **line and column** of the error
 - 🧠 Adds opt-in **semantic** warnings like duplicate node IDs
 - 🔧 **Auto-fixes** mechanical issues with `--fix`
@@ -508,7 +508,12 @@ unused. Disable everything for a run with `--no-semantic`.
 
 ## Diagram types
 
-mermaid-lint validates all 19 Mermaid diagram types using the official `mermaid.parse()` API. Some alternative linters (e.g. [`maid`](https://github.com/egoist/maid)) only validate 5 types and silently pass all input for the other 14 (gantt, erDiagram, journey, mindmap, gitGraph, etc.). Every type in the table below is actively validated — none are pass-through.
+mermaid-lint validates all 27 Mermaid diagram types using the official `mermaid.parse()` API. Some alternative linters (e.g. [`maid`](https://github.com/egoist/maid)) only validate 5 types and silently pass all input for the other 22 (gantt, erDiagram, journey, mindmap, gitGraph, etc.). Every type in the table below is actively validated — none are pass-through.
+
+Syntax validation is inherited from the bundled parser, so newly released
+diagram types work as soon as the mermaid dependency carries them. Semantic
+rules are hand-written per type, so the **Related rules** column is the honest
+measure of how much analysis a given type gets beyond "does it parse".
 
 | Type | Keyword | Supported | Related rules | Notes |
 |---|---|---|---|---|
@@ -531,7 +536,19 @@ mermaid-lint validates all 19 Mermaid diagram types using the official `mermaid.
 | Block | `block-beta` | ✅ | `no-experimental`, `block-no-blocks` | Experimental |
 | Packet | `packet-beta` | ✅ | `no-experimental`, `packet-no-fields`, `packet-empty-labels` | Experimental |
 | Architecture | `architecture-beta` | ✅ | `no-experimental`, `architecture-no-elements`, `architecture-no-edges`, `architecture-duplicate-edge` | Experimental |
+| Kanban | `kanban` | ✅ | - | No dedicated semantic rules yet |
+| Event modeling | `eventmodeling` | ✅ | - | No dedicated semantic rules yet |
+| Radar | `radar-beta` | ✅ | `no-experimental` | Experimental; no dedicated semantic rules yet |
+| Treemap | `treemap-beta` | ✅ | `no-experimental` | Experimental; no dedicated semantic rules yet |
+| Venn | `venn-beta` | ✅ | `no-experimental` | Experimental; no dedicated semantic rules yet |
+| Ishikawa | `ishikawa-beta` | ✅ | `no-experimental` | Experimental; no dedicated semantic rules yet |
+| Wardley map | `wardley-beta` | ✅ | `no-experimental` | Experimental; no dedicated semantic rules yet. Not covered by the Rust fast path — always falls back to mermaid.js |
+| Tree view | `treeView-beta` | ✅ | `no-experimental` | Experimental; no dedicated semantic rules yet |
 | ZenUML | `zenuml` | ❌ | - | Requires separate [`@mermaid-js/mermaid-zenuml`](https://github.com/mermaid-js/zenuml-core) package; not bundled in mermaid v11 |
+
+The last eight rows ship in mermaid 11.15.0, which is what this package's
+`mermaid` dependency currently resolves to. `no-experimental` picks up every
+`*-beta` type automatically, so those warn without any per-type wiring.
 
 ## Performance
 
