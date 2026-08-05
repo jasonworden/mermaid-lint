@@ -390,10 +390,12 @@ describe('mermaid behavior contracts', () => {
 
   it('accepts eventmodeling defects the three new rules exist to catch', async () => {
     // eventmodeling parses through langium but runs neither validation nor
-    // cross-reference linking at parse time, so all three of these are silent
-    // no-ops rather than errors: the renderer just omits the arrow, drops the
-    // second `tf 1`, or draws the disallowed flow anyway. If a mermaid bump
-    // starts rejecting any of these, the matching rule
+    // cross-reference linking at parse time, so all three of these are accepted
+    // rather than reported. What the renderer then does with each differs, and
+    // only the first is a plain no-op: it omits the arrow; it renders *both*
+    // frames sharing an id and draws one arrow per frame the `->>` matches; and
+    // it leaves the disallowed flow unchecked. If a mermaid bump starts
+    // rejecting any of these, the matching rule
     // (eventmodeling-undefined-frame / -duplicate-frame-id / -invalid-flow)
     // becomes redundant and this is where that surfaces.
     expect(

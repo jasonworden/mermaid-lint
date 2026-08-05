@@ -1531,6 +1531,13 @@ const eventmodelingUndefinedFrame: Rule = {
 // `tf` and `rf` declare into one shared id namespace — `tf 1` followed by
 // `rf 1` parses — so a mixed pair collides just as two `tf`s would, and the
 // rule keys on the id alone rather than on the id and kind together.
+//
+// Mermaid neither drops the second declaration nor picks one to resolve
+// against: it renders every frame with the id, and dispatches one relation per
+// frame whose name matches a `->>`. So `tf 1 ui A` / `tf 1 ui B` / `tf 2 cmd C
+// ->> 1` draws two boxes and two arrows where one of each was meant (render
+// probe, mermaid 11.15.0: two relation `<path>`s against one for the
+// distinct-id control).
 const eventmodelingDuplicateFrameId: Rule = {
   id: 'eventmodeling-duplicate-frame-id',
   appliesTo: isEventModeling,
@@ -1548,7 +1555,7 @@ const eventmodelingDuplicateFrameId: Rule = {
         continue;
       }
       findings.push({
-        message: `eventmodeling frame id \`${frame.id}\` is declared by more than one \`tf\` or \`rf\` frame (first on line ${fileLine(first)}); Mermaid accepts both without reporting the clash, so a later \`->> ${frame.id}\` no longer says which frame it means.`,
+        message: `eventmodeling frame id \`${frame.id}\` is declared by more than one \`tf\` or \`rf\` frame (first on line ${fileLine(first)}); Mermaid renders them all and matches a later \`->> ${frame.id}\` against every one of them, drawing a duplicate arrow per matching frame instead of the single one intended.`,
         line: frame.line,
       });
     }
@@ -1557,36 +1564,71 @@ const eventmodelingDuplicateFrameId: Rule = {
   },
 };
 
+// A `->>` resolves against *every* frame carrying the id, not against one of
+// them, so the flow check runs over all of them: mermaid dispatches one
+// relation per matching frame, and a first-wins check would miss a violation
+// that is genuinely drawn. `tf 1 ui A` / `tf 1 evt B` / `tf 2 cmd C ->> 1`
+// draws two relations, and the second is the illegal `cmd` ← `evt` one.
+//
+// The finding is still one per reference rather than one per matching frame:
+// the author wrote a single arrow, and three findings for it would be noise.
+//
+// Nothing here claims the bad relation renders. An `rf` frame's `->>` draws no
+// relation at all — `decidePositionRelation` bails on a reset frame, measured
+// as zero relation `<path>`s against one for the same diagram with `tf` — yet
+// the rule fires on `rf` all the same, because mermaid registers this check for
+// `EmResetFrame` too. What every case does share is that the check never runs,
+// so that is all the message asserts.
 const eventmodelingInvalidFlow: Rule = {
   id: 'eventmodeling-invalid-flow',
   appliesTo: isEventModeling,
   evaluate: ({ lines, headerLine }) => {
     const { frames, references } = parseEventModeling(lines, headerLine);
 
-    // First declaration wins, matching langium's scope lookup. That an id was
-    // declared twice at all is `eventmodeling-duplicate-frame-id`'s finding.
-    const declaredTypes = new Map<string, EventModelingEntityType>();
+    const framesById = new Map<string, EventModelingFrame[]>();
     for (const frame of frames) {
-      if (!declaredTypes.has(frame.id)) declaredTypes.set(frame.id, frame.type);
+      const group = framesById.get(frame.id);
+      if (group === undefined) framesById.set(frame.id, [frame]);
+      else group.push(frame);
     }
 
     const findings: RuleFinding[] = [];
 
     for (const ref of references) {
-      const sourceType = declaredTypes.get(ref.sourceId);
+      const matches = framesById.get(ref.sourceId);
       // An undeclared source is `eventmodeling-undefined-frame`'s finding, and
       // there is no type to judge the flow against anyway.
-      if (sourceType === undefined) continue;
+      if (matches === undefined) continue;
 
       const allowed = EVENTMODELING_ALLOWED_SOURCES[ref.frameType];
-      if (allowed.includes(sourceType)) continue;
+      // Distinct types only, in declaration order: two illegal frames of the
+      // same type are one thing to say, not two.
+      const illegal = [
+        ...new Set(
+          matches
+            .map((frame) => frame.type)
+            .filter((type) => !allowed.includes(type)),
+        ),
+      ];
+      if (illegal.length === 0) continue;
 
       const target = EVENTMODELING_TYPE_LABELS[ref.frameType];
+      const sources = illegal
+        .map((type) => EVENTMODELING_TYPE_LABELS[type])
+        .join(' and ');
       const legal = allowed
         .map((type) => EVENTMODELING_TYPE_LABELS[type])
         .join(' or ');
+      // Only the illegal types are named above, so a duplicated id needs the
+      // extra sentence to explain why a legal frame of the same id does not
+      // make the finding wrong.
+      const ambiguity =
+        matches.length > 1
+          ? ` Frame id \`${ref.sourceId}\` is declared more than once and Mermaid matches all of them, so this source is reached regardless of the others.`
+          : '';
+
       findings.push({
-        message: `eventmodeling frame \`${ref.frameId}\` (${target}) is sourced from frame \`${ref.sourceId}\` (${EVENTMODELING_TYPE_LABELS[sourceType]}), but ${target} may only be sourced from ${legal}; Mermaid's own validator forbids this flow and never runs, so the relation renders unchecked.`,
+        message: `eventmodeling frame \`${ref.frameId}\` (${target}) is sourced from frame \`${ref.sourceId}\` (${sources}), but ${target} may only be sourced from ${legal}; Mermaid ships a validator that forbids this flow, but never runs it, so nothing reports it.${ambiguity}`,
         line: ref.line,
       });
     }
