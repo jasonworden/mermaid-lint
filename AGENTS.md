@@ -59,7 +59,7 @@ pnpm lint                                       # biome check . (lint + format)
 
 CI (`.github/workflows/ci.yml`) has three jobs: a run-once `quality` job (lint →
 build → typedoc API-docs + Cloudflare safety check), a `test` job across a Node
-matrix (20/22/24/26), and a single-Node VS Code e2e job — see
+matrix (22/24/26), and a single-Node VS Code e2e job — see
 [docs/node-support.md](docs/node-support.md) for why it's split this way. Run
 these locally before pushing. **Lint/format is [Biome](https://biomejs.dev), not
 ESLint** — and run the repo's pinned binaries rather than `npx`; see
@@ -79,8 +79,8 @@ ESLint** — and run the repo's pinned binaries rather than `npx`; see
   subdirectory, follow the nearest guide before this root one; `packages/vscode/AGENTS.md`
   is especially important for extension work.
 - **Keep published packages on the declared runtime floor.** Code in published
-  packages must stay compatible with `package.json` `engines.node` (`>=20`); CI's
-  `test` matrix (Node 20/22/24/26) fails the lower legs if you use a newer API.
+  packages must stay compatible with `package.json` `engines.node` (`>=22`); CI's
+  `test` matrix (Node 22/24/26) fails the lower legs if you use a newer API.
   Single-version jobs (`quality`, `e2e`) pin the latest LTS (Node 24); bump to
   the next LTS (26) when it lands, and add newer Node lines to the matrix as they
   ship. The consumer-facing support statement lives in

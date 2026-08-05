@@ -2,7 +2,7 @@
 
 Core extraction, validation, and discovery utilities for [mermaid-lint](https://github.com/jasonworden/mermaid-lint) — the engine that finds Mermaid diagrams in Markdown (and `.mmd`) files, validates them, and reports diagnostics.
 
-ESM-only. Requires **Node >= 20**.
+ESM-only. Requires **Node >= 22**.
 
 ## Install
 

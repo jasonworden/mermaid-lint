@@ -85,7 +85,7 @@ For a selective project arc instead of a full changelog, see
 
 ### Beyond JavaScript projects
 
-mermaid-lint only requires Node.js ≥20 and runs via `npx`, so it works in any
+mermaid-lint only requires Node.js ≥22 and runs via `npx`, so it works in any
 project regardless of language. See [docs/ci-and-precommit.md](docs/ci-and-precommit.md)
 for Python/Go/Rust recipes, pre-commit hooks (`pre-commit`, husky + lint-staged),
 and CI usage.
