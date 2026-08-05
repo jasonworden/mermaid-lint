@@ -24,7 +24,7 @@
     "@mermaid-lint/core": "workspace:*"
   },
   "devDependencies": {
-    "markdownlint": "^0.38.0",
-    "markdownlint-cli2": "^0.18.0"
+    "markdownlint": "^0.41.0",
+    "markdownlint-cli2": "^0.23.0"
   }
 }
