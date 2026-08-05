@@ -546,9 +546,16 @@ measure of how much analysis a given type gets beyond "does it parse".
 | Tree view | `treeView-beta` | ✅ | `no-experimental` | Experimental; no dedicated semantic rules yet |
 | ZenUML | `zenuml` | ❌ | - | Requires separate [`@mermaid-js/mermaid-zenuml`](https://github.com/mermaid-js/zenuml-core) package; not bundled in mermaid v11 |
 
-The last eight rows ship in mermaid 11.15.0, which is what this package's
-`mermaid` dependency currently resolves to. `no-experimental` picks up every
-`*-beta` type automatically, so those warn without any per-type wiring.
+The last eight rows need mermaid 11.15.0, so `@mermaid-lint/core` pins that
+version exactly rather than accepting a range. Five of them — `venn-beta`,
+`ishikawa-beta`, `wardley-beta`, `treeView-beta`, and `eventmodeling` — do not
+exist in earlier 11.x releases, where mermaid rejects them with "No diagram
+type detected". Under a floating range a consumer could resolve an older
+mermaid and see valid diagrams reported as errors, so the pin is what makes the
+table above a guarantee instead of an observation.
+
+`no-experimental` picks up every `*-beta` type automatically, so those warn
+without any per-type wiring.
 
 ## Performance
 
