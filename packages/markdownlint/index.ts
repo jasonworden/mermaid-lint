@@ -214,6 +214,12 @@ const RULE_DESCRIPTIONS: Record<RuleId, string> = {
     'Mermaid: a radar curve has a different value count than the axes',
   'radar-duplicate-axis':
     'Mermaid: a radar chart declares the same axis label twice',
+  'treemap-zero-value': 'Mermaid: a treemap leaf has a value of 0',
+  'treemap-no-leaves': 'Mermaid: a treemap has no leaf values',
+  'treemap-duplicate-sibling':
+    'Mermaid: a treemap node duplicates a sibling label',
+  'treemap-branch-with-value':
+    'Mermaid: a treemap node has both a value and indented rows',
   'sankey-non-positive-value':
     'Mermaid: a sankey link has a non-positive value',
   'sankey-duplicate-link': 'Mermaid: a sankey link is defined more than once',

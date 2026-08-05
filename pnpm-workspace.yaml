@@ -8,18 +8,7 @@ catalog:
   vitest: ^4.1.9
   vite: ^6.4.3
   typescript: 6.0.3
-  '@types/node': ^20.0.0
-# Force-resolve transitively-vulnerable phantoms. Unlike the catalog above, these
-# packages aren't referenced by any workspace manifest (the `catalog:` protocol
-# only reaches direct deps), so an override is the only lever that reaches them.
-# All are dev/build-only tooling, so none carry runtime risk.
-overrides:
-  # js-yaml patched-version pin — Dependabot #10/#16/#17 (prototype pollution in
-  # merge `<<`; quadratic-complexity DoS in merge-key handling). Reached via
-  # markdownlint-cli2, which hard-pins the vulnerable 4.1.0; >=4.2.0 fixes it, so
-  # the override is required until markdownlint-cli2 bumps. Removal tracked in
-  # https://github.com/jasonworden/mermaid-lint/issues/116.
-  js-yaml@4: ^4.2.0
+  '@types/node': ^22.0.0
 allowBuilds:
   '@biomejs/biome': true
   esbuild: true

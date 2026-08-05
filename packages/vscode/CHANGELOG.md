@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.14.0
+
+- New diagnostic: a `<!-- mermaid-lint-disable-file -->` (or `-disable-file
+  <rule>`) comment that suppressed nothing anywhere in the document is now
+  flagged `suppression-unused`, the same as a stale body-scope `%%` directive
+  already was. Previously a file-scope suppression could outlive the problem
+  it was added for with no warning.
+- Raised the minimum supported Node.js version to 22 (from 20).
+
 ## 0.13.0
 
 - Honor the `rules` key from the project's mermaid-lint config file: the editor

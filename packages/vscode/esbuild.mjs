@@ -5,7 +5,7 @@ await build({
   bundle: true,
   platform: 'node',
   format: 'cjs',
-  target: 'node20',
+  target: 'node22',
   outfile: 'dist/extension.cjs',
   // `vscode` is provided by the host. `@mermaid-lint/core` is kept external —
   // NOT bundled — on purpose: it transitively pulls in jsdom, whose synchronous

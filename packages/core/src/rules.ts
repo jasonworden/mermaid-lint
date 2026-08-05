@@ -45,6 +45,10 @@ export type RuleId =
   | 'radar-no-curves'
   | 'radar-curve-length-mismatch'
   | 'radar-duplicate-axis'
+  | 'treemap-zero-value'
+  | 'treemap-no-leaves'
+  | 'treemap-duplicate-sibling'
+  | 'treemap-branch-with-value'
   | 'sankey-non-positive-value'
   | 'sankey-duplicate-link'
   | 'sankey-self-loop'
@@ -153,6 +157,7 @@ export type RuleDocsScope =
   | 'sequenceDiagram'
   | 'stateDiagram'
   | 'timeline'
+  | 'treemap-beta'
   | 'wardley-beta'
   | 'xychart-beta';
 
@@ -309,6 +314,18 @@ export interface RuleMetadata {
  * about. A negative curve value is likewise not a rule — Mermaid's lexer
  * rejects it.
  *
+ * The treemap-beta rules are all advisory `warn`: `treemap-zero-value` (a leaf
+ * whose value is `0`, which renders as a zero-area rectangle — the analogue of
+ * `pie-zero-value`), `treemap-no-leaves` (no row carries a `: value`, so the
+ * diagram has no area to draw), `treemap-duplicate-sibling` (two rows rendering
+ * the same label under one parent, the analogue of `mindmap-duplicate-sibling`),
+ * and `treemap-branch-with-value` (a row that carries a value *and* has rows
+ * indented under it — Mermaid types any valued row as a leaf and never nests
+ * under it, so those rows silently re-parent). The zero rule is deliberately
+ * narrower than `sankey-non-positive-value`: `sankey-beta` accepts a negative
+ * link value, but a negative treemap value dies in the lexer, so only the zero
+ * half is reachable here.
+ *
  * The quadrantChart rules are all advisory `warn`: `quadrant-duplicate-point`
  * (two data points with the same label — renders overlapping markers, usually
  * a copy-paste mistake), `quadrant-no-points` (a quadrantChart with axis or
@@ -429,6 +446,26 @@ export const RULE_METADATA = {
     defaultSeverity: 'warn',
     docsScope: 'radar-beta',
     readmeDiagramKeywords: ['radar-beta'],
+  },
+  'treemap-zero-value': {
+    defaultSeverity: 'warn',
+    docsScope: 'treemap-beta',
+    readmeDiagramKeywords: ['treemap-beta'],
+  },
+  'treemap-no-leaves': {
+    defaultSeverity: 'warn',
+    docsScope: 'treemap-beta',
+    readmeDiagramKeywords: ['treemap-beta'],
+  },
+  'treemap-duplicate-sibling': {
+    defaultSeverity: 'warn',
+    docsScope: 'treemap-beta',
+    readmeDiagramKeywords: ['treemap-beta'],
+  },
+  'treemap-branch-with-value': {
+    defaultSeverity: 'warn',
+    docsScope: 'treemap-beta',
+    readmeDiagramKeywords: ['treemap-beta'],
   },
   'sankey-non-positive-value': {
     defaultSeverity: 'warn',

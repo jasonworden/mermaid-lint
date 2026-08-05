@@ -85,7 +85,7 @@ For a selective project arc instead of a full changelog, see
 
 ### Beyond JavaScript projects
 
-mermaid-lint only requires Node.js ≥20 and runs via `npx`, so it works in any
+mermaid-lint only requires Node.js ≥22 and runs via `npx`, so it works in any
 project regardless of language. See [docs/ci-and-precommit.md](docs/ci-and-precommit.md)
 for Python/Go/Rust recipes, pre-commit hooks (`pre-commit`, husky + lint-staged),
 and CI usage.
@@ -556,7 +556,7 @@ measure of how much analysis a given type gets beyond "does it parse".
 | Kanban | `kanban` | ✅ | - | No dedicated semantic rules yet |
 | Event modeling | `eventmodeling` | ✅ | - | No dedicated semantic rules yet |
 | Radar | `radar-beta` | ✅ | `no-experimental`, `radar-no-curves`, `radar-curve-length-mismatch`, `radar-duplicate-axis` | Experimental |
-| Treemap | `treemap-beta` | ✅ | `no-experimental` | Experimental; no dedicated semantic rules yet |
+| Treemap | `treemap-beta` | ✅ | `no-experimental`, `treemap-zero-value`, `treemap-no-leaves`, `treemap-duplicate-sibling`, `treemap-branch-with-value` | Experimental |
 | Venn | `venn-beta` | ✅ | `no-experimental` | Experimental; no dedicated semantic rules yet |
 | Ishikawa | `ishikawa-beta` | ✅ | `no-experimental` | Experimental; no dedicated semantic rules yet |
 | Wardley map | `wardley-beta` | ✅ | `no-experimental`, `wardley-undefined-component`, `wardley-orphan-component`, `wardley-no-components`, `wardley-mixed-coordinate-scale` | Experimental; not covered by the Rust fast path — always falls back to mermaid.js |

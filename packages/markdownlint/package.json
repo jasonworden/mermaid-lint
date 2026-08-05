@@ -12,7 +12,7 @@
   "types": "./dist/index.d.ts",
   "files": ["dist", "index.ts"],
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "scripts": {
     "build": "tsc"
@@ -24,7 +24,7 @@
     "@mermaid-lint/core": "workspace:*"
   },
   "devDependencies": {
-    "markdownlint": "^0.38.0",
-    "markdownlint-cli2": "^0.18.0"
+    "markdownlint": "^0.41.0",
+    "markdownlint-cli2": "^0.23.0"
   }
 }

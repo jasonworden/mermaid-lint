@@ -43,6 +43,25 @@ const DIAGRAMS: Record<string, string> = {
 
 const DIRECTIVE = '%% mermaid-lint-disable-next-line duplicate-ids: probe';
 
+interface ProbeNode {
+  name: string;
+  value?: number;
+  children?: ProbeNode[];
+}
+
+/**
+ * Build a treemap-beta diagram and hand back the hierarchy Mermaid derived from
+ * it. `validateWithMermaidJS` only reports a verdict, and the treemap rules
+ * depend on *shape* — so this reaches past it to the diagram's own db. The
+ * leading call is what installs the jsdom window mermaid needs at import time.
+ */
+async function treemapRoot(body: string): Promise<ProbeNode> {
+  expect((await validateWithMermaidJS(body)).ok).toBe(true);
+  const { default: mermaid } = await import('mermaid');
+  const diagram = await mermaid.mermaidAPI.getDiagramFromText(body);
+  return (diagram.db as { getRoot(): ProbeNode }).getRoot();
+}
+
 describe('mermaid behavior contracts', () => {
   it('parses every diagram type the README claims support for', async () => {
     // The README's "27 diagram types" table is only true as long as the
@@ -125,6 +144,90 @@ describe('mermaid behavior contracts', () => {
         )
       ).ok,
     ).toBe(false);
+  }, 30_000);
+
+  it('accepts the treemap-beta shapes the treemap rules exist to flag', async () => {
+    // Each of these parses clean under the bundled mermaid, which is the whole
+    // premise of the treemap rules: they are semantic gaps, not syntax errors
+    // the parser already reports. If a bump makes any of them reject, the
+    // matching rule is redundant.
+    const bodies = {
+      'treemap-zero-value': 'treemap-beta\n"Root"\n  "A": 0\n  "B": 10',
+      'treemap-no-leaves': 'treemap-beta\n"Root"',
+      'treemap-duplicate-sibling': 'treemap-beta\n"Root"\n  "A": 5\n  "A": 10',
+      'treemap-branch-with-value': 'treemap-beta\n"Root": 99\n  "A": 5',
+    };
+    for (const [rule, body] of Object.entries(bodies)) {
+      const result = await validateWithMermaidJS(body);
+      expect(result.ok, `${rule}: ${JSON.stringify(result)}`).toBe(true);
+    }
+  }, 30_000);
+
+  it('accepts every treemap-beta row form TREEMAP_ROW_RE has to recognize', async () => {
+    // A row the regex misses is a row every treemap rule goes blind on, so the
+    // grammar's less obvious corners are pinned here: the separator may be a
+    // comma, a leaf's `:::class` trails its value, and a value is a run of
+    // digits, `.`, `_`, and `,` rather than a plain number.
+    const rows = [
+      '"A", 30',
+      '"A",30',
+      '"A" : 30',
+      '"A": 5:::big',
+      '"A": 1,000',
+      '"A": 1_000',
+      '"A": 5.',
+      '"A": .5',
+      '"A": 1%% trailing comment',
+      "'A': 30",
+    ];
+    for (const row of rows) {
+      const result = await validateWithMermaidJS(
+        `treemap-beta\n"Root"\n  ${row}`,
+      );
+      expect(result.ok, `${row}: ${JSON.stringify(result)}`).toBe(true);
+    }
+
+    // The mirror image: a leaf whose selector precedes its value is a parse
+    // error, so the regex is right to reject that order.
+    expect(
+      (await validateWithMermaidJS('treemap-beta\n"Root"\n  "A":::big: 5')).ok,
+    ).toBe(false);
+  }, 30_000);
+
+  it('reads treemap-beta values by dropping group commas, then parsing', async () => {
+    // What `treemapValue` reimplements, and the reason `treemap-zero-value`
+    // cannot just compare the raw text to "0": `1,000` is a thousand while
+    // `1_000` is one, and several spellings of zero are not the digit alone.
+    const root = await treemapRoot(
+      'treemap-beta\n"Root"\n  "A": 1,000\n  "B": 1_000\n  "C": 0.\n  "D": 0_0',
+    );
+    expect(root.children?.[0].children?.map((leaf) => leaf.value)).toEqual([
+      1000, 1, 0, 0,
+    ]);
+  }, 30_000);
+
+  it('rejects a negative treemap-beta value, which is why the zero rule is zero-only', async () => {
+    // `treemap-zero-value` is deliberately narrower than
+    // `sankey-non-positive-value`: sankey accepts `A,B,-5`, but a negative
+    // treemap value is a lexer error, so only the zero half is reachable. If
+    // this starts passing, the rule should widen to match sankey's.
+    const result = await validateWithMermaidJS(
+      'treemap-beta\n"Root"\n  "A": -5\n  "B": 10',
+    );
+    expect(result.ok).toBe(false);
+  }, 30_000);
+
+  it('re-parents rows indented under a valued treemap-beta row', async () => {
+    // The claim `treemap-branch-with-value` makes, and the one thing parse
+    // acceptance alone cannot show. Mermaid types any row carrying a value as
+    // a `Leaf` and never pushes it onto its hierarchy stack, so `"A"` lands
+    // beside `"Root"` instead of inside it — neither summing the children nor
+    // honoring the literal, but silently flattening. `parseTreemapRows`
+    // reproduces the same stack, so if this changes both the rule and that
+    // parser's notion of "sibling" are wrong.
+    const root = await treemapRoot('treemap-beta\n"Root": 99\n  "A": 5');
+    expect(root.children?.map((child) => child.name)).toEqual(['Root', 'A']);
+    expect(root.children?.[0].children).toBeUndefined();
   }, 30_000);
 
   it('detects the diagram type past YAML frontmatter', () => {
