@@ -2734,6 +2734,86 @@ describe('header-line anchoring', () => {
   });
 });
 
+describe('wardley-undefined-component rule', () => {
+  it('flags a link endpoint that was never declared', () => {
+    const b = block(
+      [
+        'wardley-beta',
+        '  component User [0.9, 0.5]',
+        '  component Kettle [0.5, 0.6]',
+        '  User -> Ghost',
+      ].join('\n'),
+      'wardley-beta',
+    );
+    const warnings = only(b, 'wardley-undefined-component');
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].severity).toBe('warn');
+    expect(warnings[0].message).toContain('`Ghost`');
+    expect(warnings[0].message).toContain('link target');
+    expect(warnings[0].line).toBe(4);
+  });
+
+  it('flags an undeclared evolve target', () => {
+    const b = block(
+      [
+        'wardley-beta',
+        '  component User [0.9, 0.5]',
+        '  evolve Ghost 0.8',
+      ].join('\n'),
+      'wardley-beta',
+    );
+    const warnings = only(b, 'wardley-undefined-component');
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].message).toContain('`Ghost`');
+    expect(warnings[0].message).toContain('evolve target');
+  });
+
+  it('resolves anchors, pipeline members, and quoted names', () => {
+    const b = block(
+      [
+        'wardley-beta',
+        '  anchor Business [0.95, 0.63]',
+        '  component "Cup of Tea" [0.9, 0.5]',
+        '  component Kettle [0.5, 0.6]',
+        '  pipeline Kettle {',
+        '    component Electric [0.63]',
+        '  }',
+        '  Business -> Cup of Tea',
+        '  Cup of Tea -> Electric',
+        '  Kettle_Electric -> Business',
+      ].join('\n'),
+      'wardley-beta',
+    );
+    expect(only(b, 'wardley-undefined-component')).toEqual([]);
+  });
+
+  it('leaves a pipeline parent alone, since mermaid already rejects it', () => {
+    const b = block(
+      [
+        'wardley-beta',
+        '  component Kettle [0.5, 0.6]',
+        '  pipeline Ghost {',
+        '    component Electric [0.63]',
+        '  }',
+      ].join('\n'),
+      'wardley-beta',
+    );
+    expect(only(b, 'wardley-undefined-component')).toEqual([]);
+  });
+
+  it('does not read an evolution stage row as a link', () => {
+    const b = block(
+      [
+        'wardley-beta',
+        '  component User [0.9, 0.5]',
+        '  evolution Genesis -> Custom -> Product -> Commodity',
+      ].join('\n'),
+      'wardley-beta',
+    );
+    expect(only(b, 'wardley-undefined-component')).toEqual([]);
+  });
+});
+
 // https://github.com/jasonworden/mermaid-lint/issues/123. Every case here goes
 // through the real extractor rather than `block()`: the rule gates on
 // `block.type === '---'`, so hardcoding the type would assert the rule's body

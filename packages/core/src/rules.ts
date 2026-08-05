@@ -102,6 +102,7 @@ export type RuleId =
   | 'c4-undefined-relationship-endpoint'
   | 'c4-undefined-element-style'
   | 'c4-undefined-relationship-style-endpoint'
+  | 'wardley-undefined-component'
   | 'frontmatter-must-be-first'
   | 'suppression-unknown-rule'
   | 'suppression-unused'
@@ -149,6 +150,7 @@ export type RuleDocsScope =
   | 'sequenceDiagram'
   | 'stateDiagram'
   | 'timeline'
+  | 'wardley-beta'
   | 'xychart-beta';
 
 /**
@@ -319,6 +321,14 @@ export interface RuleMetadata {
  * the sankey rules catch non-positive link values and self-loops; and the
  * block/packet/architecture rules flag parser-valid diagrams that otherwise
  * render empty.
+ *
+ * The wardley-beta rules cover the coordinate space and reference integrity,
+ * the two things a Wardley map can get wrong while still parsing.
+ * `wardley-undefined-component` (`warn`) catches a link endpoint or `evolve`
+ * target naming a component that was never declared — mermaid drops both
+ * silently, the renderer filtering links whose endpoints have no position and
+ * populateDb skipping an unresolvable `evolve`. It deliberately ignores the
+ * `pipeline <parent>` reference, which mermaid validates itself.
  *
  * `frontmatter-must-be-first` is `error`, joining `duplicate-ids` as the only
  * non-advisory rules: a diagram whose frontmatter is preceded by anything does
@@ -678,6 +688,11 @@ export const RULE_METADATA = {
     defaultSeverity: 'warn',
     docsScope: 'C4Context',
     readmeDiagramKeywords: ['C4Context'],
+  },
+  'wardley-undefined-component': {
+    defaultSeverity: 'warn',
+    docsScope: 'wardley-beta',
+    readmeDiagramKeywords: ['wardley-beta'],
   },
   // Document-shape rule. Like the directive-correctness rules below it
   // describes the body rather than any one diagram type, so it carries no

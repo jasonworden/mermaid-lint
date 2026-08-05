@@ -295,6 +295,8 @@ const RULE_DESCRIPTIONS: Record<RuleId, string> = {
     'Mermaid: a C4 element style references an undefined id',
   'c4-undefined-relationship-style-endpoint':
     'Mermaid: a C4 relationship style references an undefined endpoint',
+  'wardley-undefined-component':
+    'Mermaid: a Wardley link or evolve names an undeclared component',
   'frontmatter-must-be-first':
     'Mermaid: something precedes the YAML frontmatter, so the diagram will not render',
   'suppression-unknown-rule':

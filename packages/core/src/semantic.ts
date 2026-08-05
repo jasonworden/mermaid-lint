@@ -484,6 +484,258 @@ const radarDuplicateAxis: Rule = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// Wardley map helpers and rules
+// ---------------------------------------------------------------------------
+
+interface WardleyDeclaration {
+  /** Quote-stripped, as mermaid's `resolveNodeId` would see it. */
+  name: string;
+  line: number;
+}
+
+interface WardleyReference {
+  name: string;
+  line: number;
+  /** Reads directly into the message, so it is phrased for a reader. */
+  kind: 'link source' | 'link target' | 'evolve target';
+}
+
+interface WardleyCoordinate {
+  value: number;
+  line: number;
+}
+
+interface ParsedWardley {
+  /** Top-level `component` rows — the only orphan candidates. */
+  components: WardleyDeclaration[];
+  /** `anchor` rows; they become nodes too, so they count against an empty map. */
+  anchors: WardleyDeclaration[];
+  /** Every name a reference may legally resolve to. */
+  declared: Set<string>;
+  references: WardleyReference[];
+  /** Names reached by a link, an `evolve`, or a pipeline. */
+  referenced: Set<string>;
+  /** Every value that reaches mermaid's `toPercent`. */
+  coordinates: WardleyCoordinate[];
+}
+
+/** Mermaid's `WARDLEY_NUMBER`: a bare integer does not lex as a coordinate. */
+const WARDLEY_NUMBER = String.raw`[0-9]+\.[0-9]+`;
+/** Mermaid's `CoordinateValue`: annotations additionally accept a bare integer. */
+const WARDLEY_COORD = String.raw`[0-9]+(?:\.[0-9]+)?`;
+
+// Each coordinate pattern anchors on the *first* bracket group only. A
+// component row may carry a trailing `label [10, -20]`, and `size [800, 600]`
+// is a canvas dimension — neither passes through `toPercent`, so neither is a
+// coordinate.
+const WARDLEY_COMPONENT_RE = new RegExp(
+  `^component\\s+(.+?)\\s*\\[\\s*(${WARDLEY_NUMBER})\\s*,\\s*(${WARDLEY_NUMBER})\\s*\\]`,
+);
+/** Inside a pipeline a component carries only its evolution. */
+const WARDLEY_PIPELINE_MEMBER_RE = new RegExp(
+  `^component\\s+(.+?)\\s*\\[\\s*(${WARDLEY_NUMBER})\\s*\\]`,
+);
+const WARDLEY_ANCHOR_RE = new RegExp(
+  `^anchor\\s+(.+?)\\s*\\[\\s*(${WARDLEY_NUMBER})\\s*,\\s*(${WARDLEY_NUMBER})\\s*\\]`,
+);
+const WARDLEY_NOTE_RE = new RegExp(
+  `^note\\s+(.+?)\\s*\\[\\s*(${WARDLEY_NUMBER})\\s*,\\s*(${WARDLEY_NUMBER})\\s*\\]`,
+);
+const WARDLEY_ACCELERATOR_RE = new RegExp(
+  `^(?:de)?accelerator\\s+(.+?)\\s*\\[\\s*(${WARDLEY_NUMBER})\\s*,\\s*(${WARDLEY_NUMBER})\\s*\\]`,
+);
+const WARDLEY_ANNOTATIONS_RE = new RegExp(
+  `^annotations\\s*\\[\\s*(${WARDLEY_COORD})\\s*,\\s*(${WARDLEY_COORD})\\s*\\]`,
+);
+/** The leading index is not a coordinate, so it is matched and discarded. */
+const WARDLEY_ANNOTATION_RE = new RegExp(
+  `^annotation\\s+[0-9]+\\s*,\\s*\\[\\s*(${WARDLEY_COORD})\\s*,\\s*(${WARDLEY_COORD})\\s*\\]`,
+);
+const WARDLEY_EVOLVE_RE = new RegExp(
+  `^evolve\\s+(.+?)\\s+(${WARDLEY_NUMBER})\\s*$`,
+);
+const WARDLEY_PIPELINE_RE = /^pipeline\s+(.+?)\s*\{/;
+
+// Any row opening with a keyword is a statement, never a link. This is what
+// keeps `evolution Genesis -> Custom` from being read as a link to `Custom`.
+const WARDLEY_KEYWORD_RE =
+  /^(?:component|anchor|note|evolve|evolution|pipeline|accelerator|deaccelerator|annotations?|size|title|accTitle|accDescr)\b/;
+
+/** Longest-first, so `-->` never matches as `->` and `+'x'>` never as `>`. */
+const WARDLEY_LINK_SEP_RE = /\+'[^']*'(?:<>|<|>)|-\.->|-->|->|\+(?:<>|<|>)|>/;
+/** A `;`-prefixed link annotation runs to end of line. */
+const WARDLEY_LINK_LABEL_RE = /;.*$/;
+/** A port may trail the target: `A -> B+<`. */
+const WARDLEY_TRAILING_PORT_RE = /\+(?:<>|<|>)$/;
+
+function isWardley(block: Block): boolean {
+  return stripHeaderColon(block.type) === 'wardley-beta';
+}
+
+/**
+ * Normalize a name the way mermaid's value converter does. `component "Cup of
+ * Tea"` and a later bare `Cup of Tea -> Kettle` name the same node, so the
+ * quotes have to come off before anything is compared.
+ */
+function wardleyName(raw: string): string {
+  const trimmed = raw.trim();
+  const quoted = /^"(.*)"$|^'(.*)'$/.exec(trimmed);
+  return (quoted?.[1] ?? quoted?.[2] ?? trimmed).trim();
+}
+
+function parseWardleyLink(
+  trimmed: string,
+): { from: string; to: string } | null {
+  const body = trimmed.replace(WARDLEY_LINK_LABEL_RE, '');
+  const sep = WARDLEY_LINK_SEP_RE.exec(body);
+  // `index === 0` means the row opens with an arrow and has no source.
+  if (sep === null || sep.index === 0) return null;
+
+  const from = wardleyName(body.slice(0, sep.index));
+  const to = wardleyName(
+    body.slice(sep.index + sep[0].length).replace(WARDLEY_TRAILING_PORT_RE, ''),
+  );
+  if (from === '' || to === '') return null;
+  return { from, to };
+}
+
+/**
+ * Scan a wardley-beta body for its declarations, references, and coordinates.
+ *
+ * Pipeline blocks are tracked with a cursor because a `component` row means
+ * something different inside one: a single evolution coordinate, and a node
+ * whose id is synthetic (`parent_child`) while its label stays bare.
+ */
+function parseWardley(lines: string[]): ParsedWardley {
+  const parsed: ParsedWardley = {
+    components: [],
+    anchors: [],
+    declared: new Set(),
+    references: [],
+    referenced: new Set(),
+    coordinates: [],
+  };
+  let pipelineParent: string | null = null;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = i + 1;
+    const trimmed = lines[i].trim();
+    if (trimmed === '' || trimmed.startsWith('%%')) continue;
+
+    if (pipelineParent !== null) {
+      if (trimmed.startsWith('}')) {
+        pipelineParent = null;
+        continue;
+      }
+      const member = WARDLEY_PIPELINE_MEMBER_RE.exec(trimmed);
+      if (member === null) continue;
+      const name = wardleyName(member[1]);
+      // `resolveNodeId` tries the exact id first and falls back to a label
+      // scan, so both spellings are legal references to the same node.
+      parsed.declared.add(name);
+      parsed.declared.add(`${pipelineParent}_${name}`);
+      // A pipeline member is structurally attached to its parent, never orphaned.
+      parsed.referenced.add(name);
+      parsed.coordinates.push({ value: Number(member[2]), line });
+      continue;
+    }
+
+    const pipeline = WARDLEY_PIPELINE_RE.exec(trimmed);
+    if (pipeline !== null) {
+      pipelineParent = wardleyName(pipeline[1]);
+      // Recorded as a reference for the orphan rule only. It is not pushed to
+      // `references`: mermaid already rejects a pipeline whose parent does not
+      // exist, so `wardley-undefined-component` would only double-report.
+      parsed.referenced.add(pipelineParent);
+      continue;
+    }
+
+    const component = WARDLEY_COMPONENT_RE.exec(trimmed);
+    if (component !== null) {
+      const name = wardleyName(component[1]);
+      parsed.components.push({ name, line });
+      parsed.declared.add(name);
+      parsed.coordinates.push(
+        { value: Number(component[2]), line },
+        { value: Number(component[3]), line },
+      );
+      continue;
+    }
+
+    const anchor = WARDLEY_ANCHOR_RE.exec(trimmed);
+    if (anchor !== null) {
+      const name = wardleyName(anchor[1]);
+      parsed.anchors.push({ name, line });
+      parsed.declared.add(name);
+      parsed.coordinates.push(
+        { value: Number(anchor[2]), line },
+        { value: Number(anchor[3]), line },
+      );
+      continue;
+    }
+
+    const evolve = WARDLEY_EVOLVE_RE.exec(trimmed);
+    if (evolve !== null) {
+      const name = wardleyName(evolve[1]);
+      parsed.references.push({ name, line, kind: 'evolve target' });
+      parsed.referenced.add(name);
+      parsed.coordinates.push({ value: Number(evolve[2]), line });
+      continue;
+    }
+
+    // Coordinate-only rows. `annotations` is tested before `annotation`
+    // because one keyword is a prefix of the other.
+    const placed =
+      WARDLEY_NOTE_RE.exec(trimmed) ??
+      WARDLEY_ACCELERATOR_RE.exec(trimmed) ??
+      WARDLEY_ANNOTATIONS_RE.exec(trimmed) ??
+      WARDLEY_ANNOTATION_RE.exec(trimmed);
+    if (placed !== null) {
+      // The last two captures are the coordinate pair in every one of these.
+      const pair = placed.slice(-2);
+      for (const value of pair) {
+        parsed.coordinates.push({ value: Number(value), line });
+      }
+      continue;
+    }
+
+    // A malformed statement row is skipped rather than misread as a link.
+    if (WARDLEY_KEYWORD_RE.test(trimmed)) continue;
+
+    const link = parseWardleyLink(trimmed);
+    if (link === null) continue;
+    parsed.references.push(
+      { name: link.from, line, kind: 'link source' },
+      { name: link.to, line, kind: 'link target' },
+    );
+    parsed.referenced.add(link.from);
+    parsed.referenced.add(link.to);
+  }
+
+  return parsed;
+}
+
+const wardleyUndefinedComponent: Rule = {
+  id: 'wardley-undefined-component',
+  appliesTo: isWardley,
+  evaluate: ({ lines }) => {
+    const parsed = parseWardley(lines);
+    const findings: RuleFinding[] = [];
+
+    for (const ref of parsed.references) {
+      if (parsed.declared.has(ref.name)) continue;
+      const dropped = ref.kind === 'evolve target' ? 'evolution arrow' : 'link';
+      findings.push({
+        message: `wardley-beta ${ref.kind} \`${ref.name}\` is not a declared component or anchor; Mermaid drops the ${dropped} silently rather than reporting an error.`,
+        line: ref.line,
+      });
+    }
+
+    return findings;
+  },
+};
+
 interface SankeyLink {
   source: string;
   target: string;
@@ -2936,6 +3188,7 @@ const RULES: Rule[] = [
   c4UndefinedRelationshipEndpoint,
   c4UndefinedElementStyle,
   c4UndefinedRelationshipStyleEndpoint,
+  wardleyUndefinedComponent,
 ];
 
 // ---------------------------------------------------------------------------
