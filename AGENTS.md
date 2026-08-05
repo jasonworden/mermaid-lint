@@ -112,6 +112,15 @@ ESLint** — and run the repo's pinned binaries rather than `npx`; see
   [docs/semantic-rules.md](docs/semantic-rules.md), and the README "Diagram
   types" related-rules column. `pnpm test` includes a coverage check that fails
   when these drift.
+- **A rule that names a line number in its message must map it with
+  `ctx.fileLine`.** Rules count from the diagram body, but messages are read
+  beside a `file:line` position, and inside a Markdown fence the two disagree.
+  `RuleFinding.line` stays body-relative (suppression indexes body lines) —
+  only the number you interpolate into message text gets mapped. The rule
+  tests in `semantic.test.ts` run on `.mmd` fixtures where both spaces
+  coincide, so also add a fenced-Markdown case in `markdown-adapter.test.ts`;
+  a source-scanning guard in `semantic.test.ts` catches the common phrasing
+  but cannot catch a wrong argument.
 - **Don't skip hooks** (`--no-verify`); if husky/lint-staged blocks, fix the cause.
 - **API docs (Cloudflare Pages):** keep `"router": "structure"` in
   `packages/core/typedoc.json`. The default `kind` router emits a top-level

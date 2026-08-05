@@ -5,6 +5,7 @@ import {
   RULE_DEFAULTS,
   type ResolvedRules,
   type RuleId,
+  bodyLineToFileLine,
   extractMermaidBlocks,
   fixBlockBody,
   isFenceMarker,
@@ -145,10 +146,6 @@ function computeBlockFixes(
     lines.join('\n'),
     fences ? { fences } : {},
   );
-  // Body line offset mirrors core's markdown-adapter `toAbsLine`: a fenced
-  // block's body starts the line after its opener; a whole-file `.mmd` body
-  // starts at line 1.
-  const isMmd = name.endsWith('.mmd');
   for (const block of blocks) {
     const fixedBody = fixBlockBody(block.body);
     if (fixedBody === block.body) continue;
@@ -157,10 +154,11 @@ function computeBlockFixes(
     // Guard: only map fixes when the rewrite preserved the line count, so a
     // changed line lines up one-to-one with a document line.
     if (original.length !== fixed.length) continue;
-    const bodyOffset = isMmd ? block.line - 1 : block.line;
     for (let k = 0; k < original.length; k++) {
       if (original[k] !== fixed[k]) {
-        fixes.set(bodyOffset + k + 1, {
+        // Core owns the body→file mapping, so autofix line keys land on the
+        // same lines its diagnostics do.
+        fixes.set(bodyLineToFileLine(block, k + 1), {
           original: original[k],
           fixed: fixed[k],
         });

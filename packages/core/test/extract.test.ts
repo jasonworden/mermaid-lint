@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { extractMermaidBlocks } from '../src/extract.js';
+import type { Block } from '../src/extract.js';
+import { bodyLineToFileLine, extractMermaidBlocks } from '../src/extract.js';
 
 describe('extractMermaidBlocks', () => {
   it('extracts a single block', () => {
@@ -151,5 +152,42 @@ describe('extractMermaidBlocks', () => {
     const md = '```mermaid\nflowchart LR\n```\n~~~mermaid\ngraph TD\n~~~\n';
     const blocks = extractMermaidBlocks('test.md', md, { fences: [] });
     expect(blocks).toHaveLength(0);
+  });
+});
+
+describe('bodyLineToFileLine', () => {
+  const block = (path: string, line: number): Block => ({
+    path,
+    line,
+    col: 1,
+    body: '',
+    type: 'flowchart',
+  });
+
+  it('offsets a fenced body by the opener line', () => {
+    // Opener on line 3, so body line 1 is file line 4.
+    expect(bodyLineToFileLine(block('a.md', 3), 1)).toBe(4);
+    expect(bodyLineToFileLine(block('a.md', 3), 5)).toBe(8);
+  });
+
+  it('is the identity for a whole-file `.mmd`', () => {
+    for (const bodyLine of [1, 2, 40]) {
+      expect(bodyLineToFileLine(block('a.mmd', 1), bodyLine)).toBe(bodyLine);
+    }
+  });
+
+  it('treats an extension-less path as fenced', () => {
+    // remark and textlint fall back to `<stdin>` / `<text>` when the host has
+    // no path, and those blocks are always fenced Markdown. Inverting the
+    // check to test for `.md` instead would send them off by one here.
+    expect(bodyLineToFileLine(block('<stdin>', 3), 1)).toBe(4);
+    expect(bodyLineToFileLine(block('<text>', 3), 1)).toBe(4);
+  });
+
+  it('anchors a `.mmd` block to its own start line', () => {
+    // Only reachable for a hand-built block: the extractor always reports
+    // line 1 for whole-file `.mmd`. The offset stays `line - 1`, so body
+    // line 1 maps to the block's own start.
+    expect(bodyLineToFileLine(block('a.mmd', 7), 1)).toBe(7);
   });
 });
