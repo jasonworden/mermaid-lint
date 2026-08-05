@@ -9,7 +9,7 @@ it (no version is hardcoded in the workflow), so local and CI stay in lockstep.
 | Tool | Version | Where it's pinned |
 |---|---|---|
 | **pnpm** | `10.34.3` | `packageManager` in `package.json` |
-| **Node** | `>=20` (CI runs `24`) | `engines.node`; `.github/workflows/ci.yml` |
+| **Node** | `>=22` (CI runs `24`) | `engines.node`; `.github/workflows/ci.yml` |
 | **TypeScript** | `5.9.x` (`^5.0.0`) | root `devDependencies` |
 | **Vitest** | `4.1.x` (`^4.1.9`) | root `devDependencies` |
 | **Vite** | `6.4.x` (`^6.4.3`) | root `devDependencies` |
