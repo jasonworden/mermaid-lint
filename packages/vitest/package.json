@@ -1,6 +1,6 @@
 {
   "name": "@mermaid-lint/vitest",
-  "version": "0.42.1",
+  "version": "0.42.2",
   "type": "module",
   "description": "Vitest adapter for mermaid-lint",
   "exports": {
