@@ -235,28 +235,38 @@ describe('parseFileDirectives', () => {
     expect(ds[0].line).toBe(5);
   });
 
-  it('scans unterminated HTML comments in linear time (ReDoS regression)', () => {
-    // The obvious `/<!--([\s\S]*?)-->/g` backtracks polynomially here: the
-    // lazy body re-scans to end-of-input from every `<!--`. Since documents
-    // come from users, that is a real denial-of-service vector. Doubling the
-    // input must roughly double the time, not quadruple it — so compare the
-    // two rather than asserting a wall-clock threshold, which would be flaky
-    // on loaded CI runners.
-    const pathological = (n: number) => '<!--a'.repeat(n);
-    const timed = (text: string) => {
+  it(
+    'scans unterminated HTML comments in linear time (ReDoS regression)',
+    // Only the failing path is slow: a quadratic scan has to run to completion
+    // (~6s idle, ~10s under load, more on a slow runner) before the assertion
+    // can report it, and a timeout would hide which check failed. Passing
+    // costs ~2ms, so this ceiling never applies on a green run.
+    { timeout: 60_000 },
+    () => {
+      // The obvious `/<!--([\s\S]*?)-->/g` backtracks polynomially here: the
+      // lazy body re-scans to end-of-input from every `<!--`. Documents come
+      // from users, so that is a real denial-of-service vector.
+      //
+      // At this size the two complexity classes are ~3800x apart: the linear
+      // scan takes ~1.5ms, the quadratic one ~5800ms. So this asserts a budget
+      // sitting orders of magnitude from both rather than trying to measure
+      // the growth rate. An earlier version compared 20k against 40k with a 3x
+      // ratio threshold, which sounds tighter but resolved a 3800x effect
+      // using ~0.3ms samples — at that scale a scheduler hiccup is bigger than
+      // the signal, and CI duly failed on one.
+      const pathological = '<!--a'.repeat(100_000);
+
       const start = performance.now();
-      parseFileDirectives(text);
-      return performance.now() - start;
-    };
+      const directives = parseFileDirectives(pathological);
+      const elapsed = performance.now() - start;
 
-    expect(parseFileDirectives(pathological(20_000))).toEqual([]);
-
-    const single = timed(pathological(20_000));
-    const double = timed(pathological(40_000));
-    // Linear would be ~2x. Quadratic would be ~4x. Allow generous headroom
-    // for timer noise while still failing loudly on a return to backtracking.
-    expect(double).toBeLessThan(Math.max(single, 1) * 3);
-  });
+      expect(directives).toEqual([]);
+      // ~330x above the real cost, and still ~12x below the quadratic scan
+      // this guards against. Reaching it under load alone would take a 300x
+      // stall on a 1.5ms operation; the algorithm changing is far likelier.
+      expect(elapsed).toBeLessThan(500);
+    },
+  );
 });
 
 describe('buildSuppressionIndex', () => {
