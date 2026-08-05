@@ -479,11 +479,6 @@ flowchart LR
   A[Start] --> B[End]
 ```
 
-(This snippet illustrates *placement* only, not suppression behavior:
-mermaid-lint currently mis-detects the diagram type when frontmatter is
-present, so no semantic rule fires inside a frontmatter-prefixed diagram yet
-— see [#122](https://github.com/jasonworden/mermaid-lint/issues/122).)
-
 `all` covers semantic rules only, and never the three suppression meta-rules
 below — `suppression-unknown-rule`, `suppression-unused`, and
 `suppression-malformed` stay on even under `-disable-diagram all`; name one
