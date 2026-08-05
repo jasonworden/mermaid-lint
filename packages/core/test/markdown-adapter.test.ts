@@ -166,6 +166,34 @@ describe('suppression', () => {
     expect(diags.some((d) => d.ruleId === 'mermaid')).toBe(false);
   });
 
+  it('never suppresses an unclosed fence, even with -disable-file mermaid', async () => {
+    // Structural errors describe the document, not the diagram. An unclosed
+    // fence has no parseable body, so no `%%` directive can reach it — making
+    // -disable-file the only lever, and a blunt enough one to hide broken
+    // Markdown forever. See `ValidationError.structural`.
+    const text =
+      '<!-- mermaid-lint-disable-file mermaid: vendored -->\n\n' +
+      '# Doc\n\n```mermaid\nflowchart LR\n  A --> B\n';
+    const diags = await lintMarkdown('a.md', text);
+    expect(diags.some((d) => d.ruleId === 'mermaid')).toBe(true);
+  });
+
+  it('never suppresses an empty block, even with -disable-file mermaid', async () => {
+    const text =
+      '<!-- mermaid-lint-disable-file mermaid: vendored -->\n\n' +
+      '```mermaid\n```\n';
+    const diags = await lintMarkdown('a.md', text);
+    expect(diags.some((d) => d.ruleId === 'mermaid')).toBe(true);
+  });
+
+  it('still suppresses a real parse error at file scope', async () => {
+    // Guards the inverse of the two above: exempting structural errors must
+    // not have exempted genuine diagram-parse failures too.
+    const text = `<!-- mermaid-lint-disable-file mermaid: parser lags -->\n\n${md('flowchart LR\n  A -->')}`;
+    const diags = await lintMarkdown('a.md', text);
+    expect(diags.some((d) => d.ruleId === 'mermaid')).toBe(false);
+  });
+
   it('applies a document-level directive to every block', async () => {
     const text =
       '<!-- mermaid-lint-disable-file duplicate-ids: vendored docs -->\n\n' +
@@ -265,26 +293,6 @@ describe('suppression', () => {
       ),
     );
     expect(diags.some((d) => d.ruleId === 'suppression-malformed')).toBe(true);
-  });
-
-  it('a file-scope `mermaid` directive also suppresses structural errors (unclosed fence)', async () => {
-    // Intentional side effect of file scope matching unconditionally: a
-    // structural error (unclosed fence, empty block) carries no line, and
-    // file/diagram-scope directives match regardless of line - see
-    // suppress.ts's `isSuppressed` comment on the `file`/`diagram` branch.
-    const text =
-      '<!-- mermaid-lint-disable-file mermaid: quiet parser noise -->\n\n' +
-      '```mermaid\nflowchart LR\n  A --> B\n';
-    const diags = await lintMarkdown('a.md', text);
-    expect(diags.some((d) => d.ruleId === 'mermaid')).toBe(false);
-  });
-
-  it('a file-scope `mermaid` directive also suppresses an empty mermaid block', async () => {
-    const text =
-      '<!-- mermaid-lint-disable-file mermaid: quiet parser noise -->\n\n' +
-      '```mermaid\n```\n';
-    const diags = await lintMarkdown('a.md', text);
-    expect(diags.some((d) => d.ruleId === 'mermaid')).toBe(false);
   });
 
   it('does not treat a file directive inside a fenced code block as live', async () => {

@@ -35,6 +35,8 @@ interface RuleContext {
   lines: string[];
   /** 1-indexed body line of the diagram header (see `locateHeader`). */
   headerLine: number;
+  /** Trimmed text of that header line, or `''` when there is none. */
+  headerText: string;
 }
 
 interface RuleFinding {
@@ -101,11 +103,6 @@ function locateHeader(lines: string[]): { line: number; text: string } {
   return { text: '', line: 1 };
 }
 
-/** First non-blank, non-comment line of a diagram body, or `''`. */
-function firstKeywordLine(lines: string[]): string {
-  return locateHeader(lines).text;
-}
-
 function isFlowchartOrGraph(block: Block): boolean {
   return block.type === 'flowchart' || block.type === 'graph';
 }
@@ -162,8 +159,8 @@ const preferFlowchart: Rule = {
 const requireDirection: Rule = {
   id: 'require-direction',
   appliesTo: isFlowchartOrGraph,
-  evaluate: ({ block, lines, headerLine }) => {
-    if (DIRECTION_RE.test(firstKeywordLine(lines))) return [];
+  evaluate: ({ block, headerLine, headerText }) => {
+    if (DIRECTION_RE.test(headerText)) return [];
     return [
       {
         message: `\`${block.type}\` has no direction and defaults to \`TD\`. Prefer an explicit direction, e.g. \`${block.type} TD\`, to make layout intent clear.`,
@@ -2804,10 +2801,12 @@ export function checkSemantics(
   const lines = block.body.split('\n');
   const suppression =
     index ?? buildSuppressionIndex(lines, block.fileDirectives);
+  const header = locateHeader(lines);
   const ctx: RuleContext = {
     block,
     lines,
-    headerLine: locateHeader(lines).line,
+    headerLine: header.line,
+    headerText: header.text,
   };
   const out: SemanticWarning[] = [];
 

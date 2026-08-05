@@ -491,6 +491,13 @@ explicitly to quiet it. Suppressing a syntax error requires naming `mermaid`
 explicitly too, and only at diagram or file scope:
 `%% mermaid-lint-disable-diagram mermaid: uses syntax our pinned parser predates`.
 
+**Structural errors are never suppressible.** An unclosed ` ```mermaid ` fence
+or an empty block is a defect in the Markdown, not the diagram — and an
+unclosed fence has no parseable body for a `%%` directive to live in, so
+`-disable-file mermaid` would be the only lever and would hide broken Markdown
+indefinitely. `mermaid` suppression applies to diagrams the parser rejected,
+not to fences that never closed.
+
 Malformed and unknown directives are themselves reported, and so is a
 body-scope directive (`-disable-next-line`/`-disable`/`-disable-diagram`)
 that suppressed nothing — see `suppression-malformed`,

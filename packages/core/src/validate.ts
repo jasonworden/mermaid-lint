@@ -19,6 +19,18 @@ export interface ValidationError {
   line?: number;
   /** 1-indexed column within the diagram body, when known. */
   col?: number;
+  /**
+   * True when the error is a defect in the *document* rather than the diagram
+   * — an unclosed fence or an empty block — so no diagram was ever parsed.
+   *
+   * Suppression directives deliberately do not apply to these. An unclosed
+   * fence has no parseable body (its `body` is the `__UNCLOSED_FENCE__`
+   * sentinel), so no in-diagram `%%` directive can reach it and a
+   * `-disable-file mermaid` would be the only lever — a blunt one that would
+   * hide a broken fence indefinitely. Suppressing "mermaid rejected this
+   * diagram" should not also suppress "your Markdown never closed".
+   */
+  structural?: boolean;
 }
 
 /**
@@ -129,14 +141,17 @@ export async function validateBlock(
   if (body === '__UNCLOSED_FENCE__') {
     return {
       ok: false,
-      error: { message: 'unclosed ```mermaid fence (no closing ``` found)' },
+      error: {
+        message: 'unclosed ```mermaid fence (no closing ``` found)',
+        structural: true,
+      },
       warnings: [],
     };
   }
   if (!body.trim()) {
     return {
       ok: false,
-      error: { message: 'empty mermaid block' },
+      error: { message: 'empty mermaid block', structural: true },
       warnings: [],
     };
   }

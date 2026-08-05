@@ -221,7 +221,17 @@ export async function blockToDiagnostics(
   // Filter on body-relative lines — the same space directives are parsed in —
   // then convert. Doing it after toAbsLine would compare document lines against
   // body lines.
-  if (!result.ok && !index.isSuppressed(SYNTAX_RULE_ID, result.error.line)) {
+  //
+  // Structural errors (unclosed fence, empty block) are never suppressible:
+  // they describe the document, not the diagram, and an unclosed fence has no
+  // parseable body for a `%%` directive to live in — so honoring suppression
+  // there would let a single `-disable-file mermaid` hide broken Markdown
+  // indefinitely. See `ValidationError.structural`.
+  const suppressible = !result.ok && !result.error.structural;
+  if (
+    !result.ok &&
+    (!suppressible || !index.isSuppressed(SYNTAX_RULE_ID, result.error.line))
+  ) {
     diagnostics.push({
       line: toAbsLine(block, result.error.line),
       column: result.error.col ?? 1,
