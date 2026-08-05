@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { extractMermaidBlocks } from '../src/extract.js';
 import type { Block } from '../src/extract.js';
 import { RULE_DEFAULTS, type ResolvedRules } from '../src/rules.js';
 import { checkSemantics } from '../src/semantic.js';
@@ -2521,5 +2522,46 @@ describe('header-line anchoring', () => {
   it('still reports line 1 when the header is on line 1', () => {
     const b = block('graph LR\n  A --> B', 'graph');
     expect(only(b, 'prefer-flowchart')[0]?.line).toBe(1);
+  });
+
+  it('anchors the header past YAML frontmatter', () => {
+    const b = block('---\ntitle: T\n---\ngraph LR\n  A --> B', 'graph');
+    expect(only(b, 'prefer-flowchart')[0]?.line).toBe(4);
+  });
+
+  it('reports duplicate-ids in a frontmatter diagram end to end', () => {
+    // Regression for https://github.com/jasonworden/mermaid-lint/issues/122 —
+    // the type came back as '---', so every rule's `appliesTo` rejected the
+    // block and this finding was silently dropped. Goes through the real
+    // extractor rather than `block()` because the bug was in type detection.
+    const md = [
+      '```mermaid',
+      '---',
+      'title: T',
+      '---',
+      'flowchart LR',
+      '  A[Start] --> B',
+      '  A[Begin] --> C',
+      '```',
+    ].join('\n');
+    const [b] = extractMermaidBlocks('test.md', md);
+    expect(b.type).toBe('flowchart');
+    expect(only(b, 'duplicate-ids')).toHaveLength(1);
+  });
+
+  it('reports duplicate-ids identically with and without frontmatter', () => {
+    const body = 'flowchart LR\n  A[Start] --> B\n  A[Begin] --> C';
+    const plain = only(block(body), 'duplicate-ids');
+    const withFm = only(block(`---\ntitle: T\n---\n${body}`), 'duplicate-ids');
+    expect(withFm).toHaveLength(plain.length);
+    // Line numbers in the message are body-relative (not header-anchored),
+    // so the 3-line frontmatter block shifts them by exactly 3; normalize
+    // that shift out to confirm the finding is otherwise identical.
+    expect(
+      withFm[0].message.replace(
+        /line (\d+)/g,
+        (_m, n) => `line ${Number(n) - 3}`,
+      ),
+    ).toBe(plain[0].message);
   });
 });
