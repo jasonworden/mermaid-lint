@@ -121,6 +121,26 @@ ESLint** — and run the repo's pinned binaries rather than `npx`; see
   coincide, so also add a fenced-Markdown case in `markdown-adapter.test.ts`;
   a source-scanning guard in `semantic.test.ts` catches the common phrasing
   but cannot catch a wrong argument.
+- **Parser prose is body-relative too, and is mapped on the way out.** Every
+  "on line N" mermaid prints counts from the diagram body, because the body is
+  all it was handed. There is no interpolation site to wrap as there is for
+  rules, so `mapParserMessageLines` (in `validate.ts`, applied by
+  `markdown-adapter.ts`) maps the finished string. It matches only mermaid's own
+  error *headers*, anchored to the start of a message line — jison echoes the
+  user's diagram into the message, and a diagram may legitimately contain the
+  text "Parse error on line 9". Keep any new pattern anchored, and leave
+  `ValidationError.message` body-relative so the mapping stays in one place.
+- **Syntax-error positions come from `loc.first_line`, not `hash.line`.**
+  mermaid offers three signals and none is reliable alone, so `validate.ts`
+  falls back in this order: the offending token's own start line
+  (`hash.loc.first_line`), then the number cited in the error prose, then
+  `hash.line`. `hash.line` is last because for most jison grammars it is a
+  0-indexed cursor one line above the defect; the cited number is what rescues
+  the Langium-based types (pie, packet, gitGraph, architecture, treemap), which
+  throw with no `hash` at all. Some cases still resolve to nothing — radar-beta
+  prints a literal `on line ?` — and those fall back to the block opener. When
+  touching this, check both a bad-token defect and an unclosed-delimiter one:
+  the signals disagree in opposite directions between the two.
 - **Don't skip hooks** (`--no-verify`); if husky/lint-staged blocks, fix the cause.
 - **API docs (Cloudflare Pages):** keep `"router": "structure"` in
   `packages/core/typedoc.json`. The default `kind` router emits a top-level

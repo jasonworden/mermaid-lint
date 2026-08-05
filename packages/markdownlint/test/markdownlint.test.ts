@@ -250,6 +250,33 @@ describe('@mermaid-lint/markdownlint — autofix (--fix)', () => {
     expect(fixable?.errorDetail).toContain('`A -> B` → `A --> B`');
   });
 
+  it('keeps the parser message when a fix rides on the parse error', async () => {
+    // The parse error names the offending token's line, so it usually lands on
+    // the fixable line itself. That must not cost the reader either half: the
+    // parser says what is wrong, the edit says what `--fix` will do about it.
+    const input = '```mermaid\nflowchart LR\n  A -> B\n```\n';
+    const [finding, ...rest] = (await lintWith(input, [rules.syntax]))[
+      'test.md'
+    ];
+    // One finding, not one for the error and a second for the same fix.
+    expect(rest).toEqual([]);
+    expect(finding.lineNumber).toBe(3);
+    expect(finding.errorDetail).toContain('Parse error');
+    expect(finding.errorDetail).toContain('`A -> B` → `A --> B`');
+    expect(finding.fixInfo).toBeDefined();
+  });
+
+  it('still surfaces a fixable line the parse error did not land on', async () => {
+    // mermaid reports one error per block, so a second correctable line has no
+    // parse error to ride on and must stand as its own fixable finding.
+    const input = '```mermaid\nflowchart LR\n  A -> B\n  C -> D\n```\n';
+    const findings = (await lintWith(input, [rules.syntax]))['test.md'];
+    const lines = findings.map((e) => e.lineNumber);
+    expect(lines).toContain(3);
+    expect(lines).toContain(4);
+    expect(findings.every((e) => e.fixInfo)).toBe(true);
+  });
+
   it('is idempotent — re-fixing already-fixed content is a no-op', async () => {
     const input = '```mermaid\nflowchart LR\n  A -> B\n```\n';
     const once = await fix(input);

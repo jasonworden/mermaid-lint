@@ -443,6 +443,111 @@ describe('line citations shift with the fence offset', () => {
   });
 });
 
+describe('parser prose cites file lines, not body lines', () => {
+  // Covers the fence offset reaching the parser's own prose, across every
+  // message shape mermaid emits. Why the mapping lives on the finished string
+  // rather than at an interpolation site: see `mapParserMessageLines`.
+  const OFFSET = 3; // fence opener on file line 3, so body N is file N + 3
+  const fence = (body: string) =>
+    ['# Doc', '', '```mermaid', body, '```'].join('\n');
+
+  const syntaxMessage = async (path: string, text: string): Promise<string> => {
+    const errors = (await lintMarkdown(path, text)).filter(
+      (d) => d.ruleId === 'mermaid',
+    );
+    expect(errors).toHaveLength(1);
+    return errors[0].message;
+  };
+
+  const linesIn = (message: string): number[] =>
+    [...message.matchAll(/on line (\d+)/g)].map((m) => Number(m[1]));
+
+  it('cites the file line, not the body line', async () => {
+    // Body line 3 holds the bad arrow; the fence opener is file line 3, so the
+    // defect is on file line 6. A fixed number, not a shift — a shift alone
+    // cannot tell a mapped citation from a double-mapped one.
+    const message = await syntaxMessage(
+      'doc.md',
+      fence('flowchart TD\n  A --> B\n  B -> C'),
+    );
+    expect(message).toContain('Parse error on line 6:');
+    expect(message).not.toContain('on line 3:');
+  });
+
+  // One body per message shape mermaid emits with a line number in it. The
+  // shapes come from two parser families (jison and Langium) that word their
+  // errors differently, so a mapping keyed to only one of them silently misses
+  // the rest.
+  const SHAPES: ReadonlyArray<readonly [string, string]> = [
+    ['jison parse error', 'flowchart TD\n  A --> B\n  B -> C'],
+    ['jison lexical error', 'quadrantChart\n  title Q\n  bogus ^^^ here'],
+    ['langium lexer error', 'pie\n  "A" : 40\n  bogus line here'],
+    ['langium parse error', 'gitGraph\n  commit\n  brunch foo'],
+  ];
+
+  it.each(SHAPES)('shifts every number in a %s', async (_shape, body) => {
+    const bare = await syntaxMessage('x.mmd', body);
+    // Non-vacuity: a fixture that stopped producing a numbered message would
+    // otherwise pass by comparing two empty lists.
+    expect(linesIn(bare).length).toBeGreaterThan(0);
+
+    const fenced = await syntaxMessage('x.md', fence(body));
+    expect(linesIn(fenced)).toEqual(linesIn(bare).map((n) => n + OFFSET));
+  });
+
+  it('maps every citation when one message carries several', async () => {
+    // Langium joins its lexer-error and parser-error groups with a space, so
+    // the second citation lands mid-line rather than at the start of one.
+    // Mapping only the line-leading citation would leave a single message
+    // quoting two different coordinate systems with nothing to tell them apart.
+    const message = await syntaxMessage('x.md', fence('gitGraph\nX\n@@@@'));
+    const cited = linesIn(message);
+    expect(cited.length).toBeGreaterThan(1);
+    // Body lines 1..3 are file lines 4..6; nothing may still read as 1..3.
+    for (const n of cited) expect(n).toBeGreaterThan(OFFSET);
+  });
+
+  it('leaves a standalone .mmd message untouched', async () => {
+    // The offset is zero for a whole-file block, so mapping must be an
+    // identity here rather than shifting by the block's own line.
+    const message = await syntaxMessage(
+      'x.mmd',
+      'flowchart TD\n  A --> B\n  B -> C',
+    );
+    expect(message).toContain('Parse error on line 3:');
+  });
+
+  it('leaves a non-numeric line reference alone', async () => {
+    // radar-beta reports `on line ?, column ?` when it cannot locate the error.
+    const message = await syntaxMessage(
+      'x.md',
+      fence('radar-beta\n  axis a, b\n  curve x{1, 2'),
+    );
+    expect(message).toContain('on line ?');
+  });
+
+  it('does not rewrite a line number inside the echoed diagram source', async () => {
+    // jison echoes a snippet of the user's own source into the message. A
+    // number that appears there is the user's text, not a parser citation, and
+    // shifting it would corrupt the echo.
+    const message = await syntaxMessage(
+      'x.md',
+      fence('flowchart TD\n  X["Lexical error on line 7"]\n  B -> C'),
+    );
+    // jison truncates the echo, so match only the tail it is guaranteed to keep.
+    expect(message).toContain('on line 7"');
+  });
+
+  it('does not rewrite line numbers in a body echoed verbatim', async () => {
+    // An unrecognized diagram type makes mermaid quote the whole body back and
+    // cite no line at all, so there is nothing to map and everything to break.
+    const body = 'notADiagram\n  Parse error on line 9: whatever';
+    const message = await syntaxMessage('x.md', fence(body));
+    expect(message).toContain('No diagram type detected');
+    expect(message).toContain('Parse error on line 9:');
+  });
+});
+
 describe('suppression', () => {
   const md = (body: string) => `# Doc\n\n\`\`\`mermaid\n${body}\n\`\`\`\n`;
 
