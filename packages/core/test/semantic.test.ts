@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { extractMermaidBlocks } from '../src/extract.js';
 import type { Block } from '../src/extract.js';
 import { RULE_DEFAULTS, type ResolvedRules } from '../src/rules.js';
-import { checkSemantics } from '../src/semantic.js';
+import { checkSemantics, parseWardley } from '../src/semantic.js';
 
 function block(body: string, type = 'flowchart'): Block {
   return { path: 'test.md', line: 1, col: 1, body, type };
@@ -2811,6 +2811,127 @@ describe('wardley-undefined-component rule', () => {
       'wardley-beta',
     );
     expect(only(b, 'wardley-undefined-component')).toEqual([]);
+  });
+
+  // `fromPort` and `arrow` are independently optional in mermaid's grammar,
+  // so a source port with no arrow token immediately after it (`A+<> -> B`)
+  // is valid. The naive separator match eats only the port, leaving the
+  // arrow stuck to the front of the target text.
+  it('does not misread a source port as part of the target name', () => {
+    const b = block(
+      [
+        'wardley-beta',
+        '  component User [0.9, 0.5]',
+        '  component Kettle [0.5, 0.6]',
+        '  User+<> -> Kettle',
+      ].join('\n'),
+      'wardley-beta',
+    );
+    expect(only(b, 'wardley-undefined-component')).toEqual([]);
+  });
+
+  it('still resolves the real target when a source port precedes the arrow', () => {
+    const b = block(
+      [
+        'wardley-beta',
+        '  component User [0.9, 0.5]',
+        '  User+<> -> Ghost',
+      ].join('\n'),
+      'wardley-beta',
+    );
+    const warnings = only(b, 'wardley-undefined-component');
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].message).toContain('`Ghost`');
+    expect(warnings[0].message).not.toContain('-> Ghost');
+  });
+
+  // `SINGLE_LINE_COMMENT` is a hidden terminal that can start anywhere on a
+  // line, not just in the opening column — a trailing `%%` after a link or
+  // an `evolve` is real mermaid syntax, confirmed against mermaid 11.15.
+  it('does not let a trailing %% comment swallow a link target', () => {
+    const b = block(
+      [
+        'wardley-beta',
+        '  component User [0.9, 0.5]',
+        '  component Kettle [0.5, 0.6]',
+        '  User -> Kettle %% main flow',
+      ].join('\n'),
+      'wardley-beta',
+    );
+    expect(only(b, 'wardley-undefined-component')).toEqual([]);
+  });
+
+  it('still flags an undeclared link target behind a trailing %% comment', () => {
+    const b = block(
+      [
+        'wardley-beta',
+        '  component User [0.9, 0.5]',
+        '  User -> Ghost %% flow',
+      ].join('\n'),
+      'wardley-beta',
+    );
+    const warnings = only(b, 'wardley-undefined-component');
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].message).toContain('`Ghost`');
+    expect(warnings[0].message).not.toContain('%%');
+  });
+
+  it('still flags an undeclared evolve target behind a trailing %% comment', () => {
+    const b = block(
+      [
+        'wardley-beta',
+        '  component User [0.9, 0.5]',
+        '  evolve Ghost 0.8 %% note',
+      ].join('\n'),
+      'wardley-beta',
+    );
+    const warnings = only(b, 'wardley-undefined-component');
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].message).toContain('`Ghost`');
+    expect(warnings[0].message).toContain('evolve target');
+  });
+
+  // `accDescr { ... }`'s brace form is a single lexer token spanning
+  // newlines, so an arrow inside it is description text, not a link.
+  it('does not read an arrow inside a braced accDescr block as a link', () => {
+    const b = block(
+      [
+        'wardley-beta',
+        '  component Kettle [0.5, 0.6]',
+        '  accDescr {',
+        '    Kettle -> Power',
+        '  }',
+      ].join('\n'),
+      'wardley-beta',
+    );
+    expect(only(b, 'wardley-undefined-component')).toEqual([]);
+  });
+});
+
+describe('parseWardley', () => {
+  it('collects the coordinate value from every construct, discarding the annotation index and any trailing label', () => {
+    const parsed = parseWardley([
+      'wardley-beta',
+      '  note "Some note" [0.4, 0.55]',
+      '  accelerator Public cloud [0.62, 0.35]',
+      '  annotations [1, 4]',
+      '  annotation 1, [0.7, 0.8]',
+      '  size [800, 600]',
+      '  component Widget [0.62, 0.75] label [10, -20]',
+    ]);
+
+    expect(parsed.coordinates).toEqual([
+      { value: 0.4, line: 2 },
+      { value: 0.55, line: 2 },
+      { value: 0.62, line: 3 },
+      { value: 0.35, line: 3 },
+      { value: 1, line: 4 },
+      { value: 4, line: 4 },
+      { value: 0.7, line: 5 },
+      { value: 0.8, line: 5 },
+      { value: 0.62, line: 7 },
+      { value: 0.75, line: 7 },
+    ]);
   });
 });
 

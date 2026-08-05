@@ -556,6 +556,14 @@ const WARDLEY_EVOLVE_RE = new RegExp(
   `^evolve\\s+(.+?)\\s+(${WARDLEY_NUMBER})\\s*$`,
 );
 const WARDLEY_PIPELINE_RE = /^pipeline\s+(.+?)\s*\{/;
+/**
+ * `ACC_DESCR`'s brace form spans newlines as a single lexer token, so every
+ * line up to the matching `}` is opaque description text — never statements
+ * — the same way a pipeline body is a different parsing context. Only the
+ * brace form needs tracking; the colon form (`accDescr: text`) is one line
+ * and already falls under `WARDLEY_KEYWORD_RE` below.
+ */
+const WARDLEY_ACC_DESCR_OPEN_RE = /^accDescr\s*\{/;
 
 // Any row opening with a keyword is a statement, never a link. This is what
 // keeps `evolution Genesis -> Custom` from being read as a link to `Custom`.
@@ -568,6 +576,18 @@ const WARDLEY_LINK_SEP_RE = /\+'[^']*'(?:<>|<|>)|-\.->|-->|->|\+(?:<>|<|>)|>/;
 const WARDLEY_LINK_LABEL_RE = /;.*$/;
 /** A port may trail the target: `A -> B+<`. */
 const WARDLEY_TRAILING_PORT_RE = /\+(?:<>|<|>)$/;
+/**
+ * `fromPort` and `arrow` are independently optional in mermaid's grammar
+ * (`from fromPort? arrow? to toPort?`), so `A+<> -> B` is valid: a bare
+ * source port with its own arrow following. `WARDLEY_LINK_SEP_RE` finds the
+ * *first* separator token, which is the port, leaving the arrow stuck to the
+ * front of the target text. Only the `\+(?:<>|<|>)` alternative can match a
+ * port rather than a full arrow, so whenever that happens the target text is
+ * unconditionally checked for a leading arrow and it is stripped if found.
+ * An ordinary `A -> B` never has one here — its separator already consumed
+ * the arrow — so this never mis-fires on the common case.
+ */
+const WARDLEY_LEADING_ARROW_RE = /^\s*(?:-\.->|-->|->|>)\s*/;
 
 function isWardley(block: Block): boolean {
   return stripHeaderColon(block.type) === 'wardley-beta';
@@ -584,6 +604,31 @@ function wardleyName(raw: string): string {
   return (quoted?.[1] ?? quoted?.[2] ?? trimmed).trim();
 }
 
+/**
+ * Strip a trailing `%% comment` — mermaid's `SINGLE_LINE_COMMENT` is a hidden
+ * terminal that can start anywhere on a line, not just in the opening column.
+ * It only starts a comment when the `%%` is not inside a quoted name or a
+ * `+'label'>` arrow annotation: there, the string terminal consumes the `%%`
+ * as ordinary text before the comment terminal ever gets a chance to match.
+ * So this tracks quote state rather than cutting at the first `%%` found.
+ */
+function stripWardleyComment(raw: string): string {
+  let quote: '"' | "'" | null = null;
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i];
+    if (quote !== null) {
+      if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+      continue;
+    }
+    if (ch === '%' && raw[i + 1] === '%') return raw.slice(0, i);
+  }
+  return raw;
+}
+
 function parseWardleyLink(
   trimmed: string,
 ): { from: string; to: string } | null {
@@ -594,7 +639,10 @@ function parseWardleyLink(
 
   const from = wardleyName(body.slice(0, sep.index));
   const to = wardleyName(
-    body.slice(sep.index + sep[0].length).replace(WARDLEY_TRAILING_PORT_RE, ''),
+    body
+      .slice(sep.index + sep[0].length)
+      .replace(WARDLEY_LEADING_ARROW_RE, '')
+      .replace(WARDLEY_TRAILING_PORT_RE, ''),
   );
   if (from === '' || to === '') return null;
   return { from, to };
@@ -607,7 +655,7 @@ function parseWardleyLink(
  * something different inside one: a single evolution coordinate, and a node
  * whose id is synthetic (`parent_child`) while its label stays bare.
  */
-function parseWardley(lines: string[]): ParsedWardley {
+export function parseWardley(lines: string[]): ParsedWardley {
   const parsed: ParsedWardley = {
     components: [],
     anchors: [],
@@ -617,11 +665,26 @@ function parseWardley(lines: string[]): ParsedWardley {
     coordinates: [],
   };
   let pipelineParent: string | null = null;
+  let inAccDescr = false;
 
   for (let i = 0; i < lines.length; i++) {
     const line = i + 1;
-    const trimmed = lines[i].trim();
-    if (trimmed === '' || trimmed.startsWith('%%')) continue;
+    const trimmed = stripWardleyComment(lines[i]).trim();
+    if (trimmed === '') continue;
+
+    if (inAccDescr) {
+      if (trimmed.includes('}')) inAccDescr = false;
+      continue;
+    }
+
+    const accDescrOpen = WARDLEY_ACC_DESCR_OPEN_RE.exec(trimmed);
+    if (accDescrOpen !== null) {
+      // A same-line `accDescr { ... }` closes immediately; otherwise every
+      // following line is interior text until the matching `}` shows up.
+      const openIdx = trimmed.indexOf('{');
+      if (trimmed.indexOf('}', openIdx) === -1) inAccDescr = true;
+      continue;
+    }
 
     if (pipelineParent !== null) {
       if (trimmed.startsWith('}')) {
@@ -684,8 +747,9 @@ function parseWardley(lines: string[]): ParsedWardley {
       continue;
     }
 
-    // Coordinate-only rows. `annotations` is tested before `annotation`
-    // because one keyword is a prefix of the other.
+    // Coordinate-only rows. The order between `annotations` and `annotation`
+    // is arbitrary, not load-bearing: `WARDLEY_ANNOTATION_RE` requires a
+    // digit right after the keyword, so it can never match `annotations`.
     const placed =
       WARDLEY_NOTE_RE.exec(trimmed) ??
       WARDLEY_ACCELERATOR_RE.exec(trimmed) ??
