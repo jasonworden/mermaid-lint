@@ -53,11 +53,11 @@ jobs:
           node scripts/check-docs-cloudflare-safe.mjs packages/core/docs
 
   # Runtime test matrix. Proves the published packages actually run on every
-  # Node we declare support for (engines.node ">=20"), not just the LTS the
+  # Node we declare support for (engines.node ">=22"), not just the LTS the
   # quality gates use. Keep this list in sync with the supported range.
   test-matrix:
-    # Render matrix legs as "test (node-20)" … "test (node-26)" rather than
-    # bare "test (20)", so the Node version is unambiguous in the checks list.
+    # Render matrix legs as "test (node-22)" … "test (node-26)" rather than
+    # bare "test (22)", so the Node version is unambiguous in the checks list.
     # The job id is test-matrix; the single required "test" check is the
     # aggregate gate job below (matrix check names change with the matrix, so
     # branch protection targets the stable gate instead of the legs).
@@ -70,7 +70,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-version: ['20', '22', '24', '26']
+        node-version: ['22', '24', '26']
     steps:
       - uses: actions/checkout@v7
 

@@ -20,6 +20,7 @@ timeline TD
   v0.17 : broader semantic rule set + per-rule severity
   v0.23 : adapter parity rollup: per-rule config + host autofix coverage across the Markdown integrations
   v0.35 : expanded semantic coverage (journey, timeline, C4Context, experimental diagrams) + docs consistency guards
+  v0.41 : Node.js floor raised to 22 (Node 20 dropped)
 ```
 
 The `v0.9` milestone refers to the `remark` plugin surface in the

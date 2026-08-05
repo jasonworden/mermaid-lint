@@ -6,14 +6,13 @@ what that guarantee is backed by.
 
 ## Supported versions
 
-Every published package declares a runtime floor of **Node.js ≥20** via
-`engines.node` (`">=20"`). Within that range:
+Every published package declares a runtime floor of **Node.js ≥22** via
+`engines.node` (`">=22"`). Within that range:
 
 | Node line | Status |
 |---|---|
-| 18 and older | **Not supported** — below the floor; install will warn or fail |
-| 20 | Supported — minimum version |
-| 22 | Supported |
+| 20 and older | **Not supported** — below the floor; install will warn or fail |
+| 22 | Supported — minimum version |
 | 24 | Supported — **recommended** (current LTS) |
 | 26 | Supported — newest line |
 
@@ -31,7 +30,7 @@ time:
   (unless you set `engine-strict=true` in your `.npmrc`).
 - **pnpm** and **Yarn** fail the install by default on a version mismatch.
 
-So on Node 18 you'll see a warning (npm) or a hard error (pnpm/Yarn). On Node 20
+So on Node 20 you'll see a warning (npm) or a hard error (pnpm/Yarn). On Node 22
 or newer, install proceeds normally.
 
 ## How this is verified
@@ -39,8 +38,8 @@ or newer, install proceeds normally.
 A declaration alone wouldn't prove the code actually runs on the whole range —
 so CI runs the **full test suite on every supported Node version**. The
 [`test` job in `.github/workflows/ci.yml`](../.github/workflows/ci.yml) is a
-matrix across Node **20, 22, 24, and 26**; a change that relies on an API newer
-than the Node 20 floor fails the lower legs instead of shipping. That's the
+matrix across Node **22, 24, and 26**; a change that relies on an API newer
+than the Node 22 floor fails the lower legs instead of shipping. That's the
 backing behind the "supported" column above.
 
 ## When the supported range changes
