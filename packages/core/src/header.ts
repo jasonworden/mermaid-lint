@@ -15,7 +15,10 @@ const MERMAID_COMMENT_RE = /^%%/;
  * Mermaid's regex is. Indented fences keep their source indentation (see
  * `Block.body` in `extract.ts`), so a column-strict match would miss
  * frontmatter in a list-nested fence while still finding the keyword on the
- * following line.
+ * following line. This assumes the block is uniformly indented; a block
+ * whose delimiters disagree on indentation is not frontmatter to Mermaid at
+ * all, and is treated as frontmatter here — harmlessly, since Mermaid will
+ * not render such a diagram regardless.
  *
  * Two callers need this: `detectDiagramType`, which reads the header's leading
  * keyword, and the semantic rules, which anchor findings to `line` so a

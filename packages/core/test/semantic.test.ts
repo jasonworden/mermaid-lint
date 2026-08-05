@@ -2585,4 +2585,24 @@ describe('header-line anchoring', () => {
     const stripLines = (s: string) => s.replace(/line \d+/g, 'line N');
     expect(stripLines(withFm[0].message)).toBe(stripLines(plain[0].message));
   });
+
+  it('reports duplicate-ids in a frontmatter diagram for a standalone .mmd file', () => {
+    // Same regression as the `.md` case above, but through the `.mmd` branch
+    // of `extractMermaidBlocks` (no fence — the whole file is the diagram),
+    // which `toAbsLine` in markdown-adapter.ts offsets differently than a
+    // fenced block. Pinned separately since the two paths could diverge.
+    const md = [
+      '---',
+      'title: T',
+      '---',
+      'flowchart LR',
+      '  A[Start] --> B',
+      '  A[Begin] --> C',
+    ].join('\n');
+    const [b] = extractMermaidBlocks('test.mmd', md);
+    expect(b.type).toBe('flowchart');
+    const findings = only(b, 'duplicate-ids');
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.line).toBe(6);
+  });
 });

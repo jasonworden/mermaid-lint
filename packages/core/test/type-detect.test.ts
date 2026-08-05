@@ -69,4 +69,21 @@ describe('detectDiagramType', () => {
       'flowchart',
     );
   });
+
+  it('returns --- for frontmatter preceded by a blank line', () => {
+    // This looks like it should detect 'flowchart', but a leading blank line
+    // means the frontmatter does not open the body, so it is not skipped —
+    // matching Mermaid's own behavior under a single preprocessing pass.
+    // Mermaid's `cleanupText` does not trim, and `cleanupComments`'s
+    // `trimStart()` runs *after* `processFrontmatter`, so a body that starts
+    // with a blank line still has that blank line when frontmatter detection
+    // runs, and the block is not recognized as frontmatter. This is what
+    // `render` does (one preprocessing pass); `mermaid.parse` survives it only
+    // because it preprocesses twice. See the pinned boundary for issue #123
+    // at `mermaid-behavior.test.ts:81` ('accepts content before frontmatter,
+    // which is why parse alone cannot catch #123') — do not "fix" this case
+    // without re-checking that boundary, since the two are the same
+    // single-vs-double-preprocessing distinction.
+    expect(detectDiagramType('\n---\ntitle: T\n---\nflowchart LR')).toBe('---');
+  });
 });

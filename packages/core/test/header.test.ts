@@ -63,6 +63,16 @@ describe('locateHeader', () => {
     });
   });
 
+  it('does not treat a four-dash line as a closing delimiter', () => {
+    // Opening `---` is valid, but Mermaid's regex is `-{3}\s*`, so a fourth
+    // dash on the closing line is not whitespace and does not match. The
+    // block is therefore unterminated, and the header falls back to '---'.
+    expect(at('---\ntitle: T\n----\nflowchart LR')).toEqual({
+      line: 1,
+      text: '---',
+    });
+  });
+
   it('returns an empty header when the body is only frontmatter', () => {
     expect(at('---\ntitle: T\n---')).toEqual({ line: 1, text: '' });
   });
