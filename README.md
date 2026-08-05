@@ -556,7 +556,7 @@ measure of how much analysis a given type gets beyond "does it parse".
 | Kanban | `kanban` | ✅ | - | No dedicated semantic rules yet |
 | Event modeling | `eventmodeling` | ✅ | - | No dedicated semantic rules yet |
 | Radar | `radar-beta` | ✅ | `no-experimental`, `radar-no-curves`, `radar-curve-length-mismatch`, `radar-duplicate-axis` | Experimental |
-| Treemap | `treemap-beta` | ✅ | `no-experimental` | Experimental; no dedicated semantic rules yet |
+| Treemap | `treemap-beta` | ✅ | `no-experimental`, `treemap-zero-value`, `treemap-no-leaves`, `treemap-duplicate-sibling`, `treemap-branch-with-value` | Experimental |
 | Venn | `venn-beta` | ✅ | `no-experimental` | Experimental; no dedicated semantic rules yet |
 | Ishikawa | `ishikawa-beta` | ✅ | `no-experimental` | Experimental; no dedicated semantic rules yet |
 | Wardley map | `wardley-beta` | ✅ | `no-experimental` | Experimental; no dedicated semantic rules yet. Not covered by the Rust fast path — always falls back to mermaid.js |
