@@ -527,4 +527,25 @@ describe('buildSuppressionIndex', () => {
     const rangeStart = i.directives.find((d) => d.kind === 'range-start');
     expect(i.unused()).not.toContainEqual(rangeStart);
   });
+
+  it('reports a file-scope directive via isUsed even though unused() excludes it', () => {
+    // `unused()` skips file-scope directives so a stale one isn't reported
+    // once per block; `isUsed` is the per-directive form `lintMarkdown` unions
+    // across every block's index to get the document-wide answer.
+    const [fileDirective] = parseFileDirectives(
+      '<!-- mermaid-lint-disable-file duplicate-ids: vendored -->',
+    );
+    const i = buildSuppressionIndex(
+      ['flowchart LR', '  A --> B'],
+      [fileDirective],
+    );
+    expect(i.isUsed(fileDirective)).toBe(false);
+    expect(i.unused()).toEqual([]);
+
+    expect(i.isSuppressed('duplicate-ids', 2)).toBe(true);
+    expect(i.isUsed(fileDirective)).toBe(true);
+    // Still excluded from `unused()` after firing - the exclusion is
+    // categorical, not usage-dependent.
+    expect(i.unused()).toEqual([]);
+  });
 });

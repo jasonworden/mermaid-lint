@@ -1,7 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { blockToDiagnostics, lintMarkdown } from '../index.js';
+import {
+  blockToDiagnostics,
+  extractMermaidBlocks,
+  lintMarkdown,
+} from '../index.js';
 
 const repoRoot = resolve(import.meta.dirname, '../../..');
 
@@ -247,6 +251,14 @@ describe('suppression', () => {
       '# Doc\n\n```mermaid\nflowchart LR\n  A --> B\n';
     const diags = await lintMarkdown('a.md', text);
     expect(diags.some((d) => d.ruleId === 'mermaid')).toBe(true);
+    // ...and because it suppressed nothing, it is also reported stale. That
+    // reads oddly next to the error it tried to silence, but it is the honest
+    // answer: this directive can never suppress a structural error, so saying
+    // so is what tells the user to delete it rather than keep expecting it to
+    // work. Asserted explicitly so the pairing is a decision, not an accident.
+    expect(diags.filter((d) => d.ruleId === 'suppression-unused')).toHaveLength(
+      1,
+    );
   });
 
   it('never suppresses an empty block, even with -disable-file mermaid', async () => {
@@ -255,6 +267,9 @@ describe('suppression', () => {
       '```mermaid\n```\n';
     const diags = await lintMarkdown('a.md', text);
     expect(diags.some((d) => d.ruleId === 'mermaid')).toBe(true);
+    expect(diags.filter((d) => d.ruleId === 'suppression-unused')).toHaveLength(
+      1,
+    );
   });
 
   it('still suppresses a real parse error at file scope', async () => {
@@ -431,6 +446,190 @@ describe('suppression', () => {
     expect(finding?.message).toContain('%%');
     // The wrong-scope HTML comment doesn't suppress the duplicate id either.
     expect(diags.some((d) => d.ruleId === 'duplicate-ids')).toBe(true);
+  });
+
+  it('reports a stale file directive once for the whole document, at the HTML comment line', async () => {
+    const text =
+      '# Doc\n\n' +
+      '<!-- mermaid-lint-disable-file duplicate-ids: no longer needed -->\n\n' +
+      '```mermaid\nflowchart LR\n  A --> B\n```\n\n' +
+      '```mermaid\nflowchart LR\n  C --> D\n```\n\n' +
+      '```mermaid\nflowchart LR\n  E --> F\n```\n';
+    const diags = await lintMarkdown('a.md', text);
+    const findings = diags.filter((d) => d.ruleId === 'suppression-unused');
+    expect(findings).toHaveLength(1);
+    // `# Doc` is line 1, blank line 2, so the HTML comment is line 3 - not any
+    // block's fence-opener line.
+    expect(findings[0].line).toBe(3);
+    expect(findings[0].column).toBe(1);
+    expect(findings[0].message).toContain('in this document');
+  });
+
+  it('does not report a file directive that suppressed something', async () => {
+    const text =
+      '<!-- mermaid-lint-disable-file duplicate-ids: vendored -->\n\n' +
+      '```mermaid\nflowchart LR\n  A[x] --> B\n  A[y] --> C\n```\n';
+    const diags = await lintMarkdown('a.md', text);
+    expect(diags.some((d) => d.ruleId === 'suppression-unused')).toBe(false);
+  });
+
+  it('does not report a file directive that fired in only one of several blocks', async () => {
+    // The whole point of unioning per-block usage: from block 1's index alone
+    // this directive looks unused.
+    const text =
+      '<!-- mermaid-lint-disable-file duplicate-ids: vendored -->\n\n' +
+      '```mermaid\nflowchart LR\n  A --> B\n```\n\n' +
+      '```mermaid\nflowchart LR\n  C --> D\n```\n\n' +
+      '```mermaid\nflowchart LR\n  E[x] --> F\n  E[y] --> G\n```\n';
+    const diags = await lintMarkdown('a.md', text);
+    expect(diags.some((d) => d.ruleId === 'duplicate-ids')).toBe(false);
+    expect(diags.some((d) => d.ruleId === 'suppression-unused')).toBe(false);
+  });
+
+  it('reports a file directive in a document with no mermaid blocks at all', async () => {
+    const text =
+      '# Doc\n\n<!-- mermaid-lint-disable-file all: leftover -->\n\nprose only\n';
+    const diags = await lintMarkdown('a.md', text);
+    const findings = diags.filter((d) => d.ruleId === 'suppression-unused');
+    expect(findings).toHaveLength(1);
+    expect(findings[0].line).toBe(3);
+  });
+
+  it('does not report a file directive that suppressed another file directive problem', async () => {
+    const text =
+      '<!-- mermaid-lint-disable-file suppression-unknown-rule: shush -->\n' +
+      '<!-- mermaid-lint-disable-file duplicat-ids: typo -->\n\n' +
+      '```mermaid\nflowchart LR\n  A --> B\n```\n';
+    const diags = await lintMarkdown('a.md', text);
+    expect(diags.some((d) => d.ruleId === 'suppression-unknown-rule')).toBe(
+      false,
+    );
+    // The meta-rule directive fired, so it is not itself stale. The typo'd
+    // directive carries a problem and is inert, so it is never "unused".
+    expect(diags.some((d) => d.ruleId === 'suppression-unused')).toBe(false);
+  });
+
+  it('reports a file-scope `all` directive when the only finding is a syntax error', async () => {
+    // `all` deliberately excludes `mermaid` (see RULE_IDS_EXCLUDED_FROM_ALL),
+    // so over a document whose only problem is a parse error it really did
+    // suppress nothing. Suppressing that error takes naming `mermaid`.
+    const text =
+      '<!-- mermaid-lint-disable-file all: vendored -->\n\n' +
+      '```mermaid\nflowchart LR\n  A -->|broken\n```\n';
+    const diags = await lintMarkdown('a.md', text);
+    expect(diags.some((d) => d.ruleId === 'mermaid')).toBe(true);
+    expect(diags.filter((d) => d.ruleId === 'suppression-unused')).toHaveLength(
+      1,
+    );
+  });
+
+  it('marks both of two identical file directives used when the rule fires', async () => {
+    // `isSuppressed` deliberately has no early break, so every matching
+    // directive is marked used — otherwise the second copy would look stale
+    // purely because the first one matched first.
+    const text =
+      '<!-- mermaid-lint-disable-file duplicate-ids: r1 -->\n' +
+      '<!-- mermaid-lint-disable-file duplicate-ids: r2 -->\n\n' +
+      '```mermaid\nflowchart LR\n  A[x] --> B\n  A[y] --> C\n```\n';
+    const diags = await lintMarkdown('a.md', text);
+    expect(diags).toEqual([]);
+  });
+
+  it('reports both of two identical file directives when the rule never fires', async () => {
+    const text =
+      '<!-- mermaid-lint-disable-file duplicate-ids: r1 -->\n' +
+      '<!-- mermaid-lint-disable-file duplicate-ids: r2 -->\n\n' +
+      '```mermaid\nflowchart LR\n  A --> B\n```\n';
+    const diags = await lintMarkdown('a.md', text);
+    const findings = diags.filter((d) => d.ruleId === 'suppression-unused');
+    expect(findings.map((d) => d.line)).toEqual([1, 2]);
+  });
+
+  it('reports a file directive naming a rule that is off by default', async () => {
+    // The known false-positive mode: `no-orphan-nodes` is `off`, so it is
+    // never queried and the directive looks stale even though the diagram has
+    // an orphan. The hedged wording exists for exactly this.
+    const text =
+      '<!-- mermaid-lint-disable-file no-orphan-nodes: shush -->\n\n' +
+      '```mermaid\nflowchart LR\n  A --> B\n  Z\n```\n';
+    const diags = await lintMarkdown('a.md', text);
+    const findings = diags.filter((d) => d.ruleId === 'suppression-unused');
+    expect(findings).toHaveLength(1);
+    expect(findings[0].message).toContain('may be off');
+  });
+
+  it('does not also report a wrong-scope HTML comment as unused', async () => {
+    // It already carries a `wrong-scope` problem, which makes it inert — a
+    // directive is reported as broken or as stale, never as both.
+    const text =
+      '<!-- mermaid-lint-disable-next-line duplicate-ids: r -->\n\n' +
+      '```mermaid\nflowchart LR\n  A --> B\n```\n';
+    const diags = await lintMarkdown('a.md', text);
+    expect(diags.some((d) => d.ruleId === 'suppression-malformed')).toBe(true);
+    expect(diags.some((d) => d.ruleId === 'suppression-unused')).toBe(false);
+  });
+
+  it('reports a stale file directive at the right line in a CRLF document', async () => {
+    const text =
+      '# Doc\r\n\r\n' +
+      '<!-- mermaid-lint-disable-file duplicate-ids: stale -->\r\n\r\n' +
+      '```mermaid\r\nflowchart LR\r\n  A --> B\r\n```\r\n';
+    const diags = await lintMarkdown('a.md', text);
+    const findings = diags.filter((d) => d.ruleId === 'suppression-unused');
+    expect(findings).toHaveLength(1);
+    expect(findings[0].line).toBe(3);
+  });
+
+  it('returns no diagnostics for a document with neither blocks nor HTML comments', async () => {
+    // Covers the false branch of the `<!--` fast path that guards the
+    // no-blocks `parseFileDirectives` fallback.
+    expect(
+      await lintMarkdown('a.md', '# just prose\n\nnothing here\n'),
+    ).toEqual([]);
+  });
+
+  it('returns no diagnostics for a non-directive HTML comment with no blocks', async () => {
+    expect(
+      await lintMarkdown('a.md', '# Doc\n\n<!-- TODO: something -->\n'),
+    ).toEqual([]);
+  });
+
+  it('does not report a file directive as unused for a .mmd file', async () => {
+    // `.mmd` is a whole-file diagram, not Markdown - HTML comments in it are
+    // diagram content, never directives.
+    const diags = await lintMarkdown(
+      'a.mmd',
+      '<!-- mermaid-lint-disable-file duplicate-ids: n/a -->\nflowchart LR\n  A --> B',
+    );
+    expect(diags.some((d) => d.ruleId === 'suppression-unused')).toBe(false);
+  });
+});
+
+describe('blockToDiagnostics and file-scope directives', () => {
+  it('never reports a stale file directive, however many blocks it is called for', async () => {
+    // Per-block callers can't answer "unused document-wide" - a directive that
+    // fires in block 3 looks unused from block 1 - so blockToDiagnostics stays
+    // silent rather than reporting it once per block. See its doc comment.
+    const text =
+      '<!-- mermaid-lint-disable-file duplicate-ids: stale -->\n\n' +
+      '```mermaid\nflowchart LR\n  A --> B\n```\n\n' +
+      '```mermaid\nflowchart LR\n  C --> D\n```\n';
+    const blocks = extractMermaidBlocks('a.md', text);
+    expect(blocks).toHaveLength(2);
+    const diags = (
+      await Promise.all(blocks.map((b) => blockToDiagnostics(b)))
+    ).flat();
+    expect(diags.some((d) => d.ruleId === 'suppression-unused')).toBe(false);
+  });
+
+  it('still reports a stale body-scope directive per block', async () => {
+    const text =
+      '```mermaid\n%% mermaid-lint-disable-diagram no-self-loop: stale\nflowchart LR\n  A --> B\n```\n';
+    const [block] = extractMermaidBlocks('a.md', text);
+    const diags = await blockToDiagnostics(block);
+    const findings = diags.filter((d) => d.ruleId === 'suppression-unused');
+    expect(findings).toHaveLength(1);
+    expect(findings[0].message).toContain('nothing here');
   });
 });
 

@@ -65,39 +65,37 @@ export async function computeMermaidDiagnostics(
   options: ComputeOptions = {},
 ): Promise<MermaidDiagnostic[]> {
   const { semantic = true, strict = false, fences, rules } = options;
-  const {
-    extractMermaidBlocks,
-    blockToDiagnostics,
-    resolveRules,
-    SYNTAX_RULE_ID,
-  } = await loadCore();
+  const { lintMarkdown, resolveRules, SYNTAX_RULE_ID } = await loadCore();
   const lines = text.replace(/\r\n/g, '\n').split('\n');
-  const blocks = extractMermaidBlocks(path, text, fences ? { fences } : {});
   // Layer the config's `rules` over the built-in defaults. `semantic: false`
   // resolves every rule (including the suppression meta-rules) to `off`, so
   // the adapter emits no warnings.
   const resolved = resolveRules({ rules, semantic });
-  const out: MermaidDiagnostic[] = [];
 
-  await Promise.all(
-    blocks.map(async (block) => {
-      // `blockToDiagnostics` returns document-absolute coordinates already —
-      // same extract → validate → report path every other integration uses,
-      // so suppression directives (syntax-error suppression and the
-      // suppression-* meta-rules) are honored here too.
-      const diagnostics = await blockToDiagnostics(block, resolved);
-      for (const d of diagnostics) {
-        // A syntax error is always an error; for everything else, a rule
-        // resolved to `error` is always an error, and `strict` elevates the
-        // remaining `warning`-severity findings to errors too.
-        const severity: Severity =
-          d.ruleId === SYNTAX_RULE_ID || d.severity === 'error' || strict
-            ? 'error'
-            : 'warning';
-        out.push(makeDiag(lines, d.line, d.column, d.message, severity));
-      }
-    }),
+  // `lintMarkdown`, not a per-block `blockToDiagnostics` loop: it runs the same
+  // extract → validate → report path (returning document-absolute coordinates,
+  // suppression directives honored) but adds the document-scope diagnostics no
+  // single block can produce — a `<!-- mermaid-lint-disable-file -->` that is
+  // malformed, names an unknown rule, or suppressed nothing anywhere in the
+  // file. Those need every block's suppression state at once, so a per-block
+  // caller can't surface them at all.
+  const diagnostics = await lintMarkdown(
+    path,
+    text,
+    fences ? { fences } : {},
+    resolved,
   );
+
+  const out = diagnostics.map((d) => {
+    // A syntax error is always an error; for everything else, a rule resolved
+    // to `error` is always an error, and `strict` elevates the remaining
+    // `warning`-severity findings to errors too.
+    const severity: Severity =
+      d.ruleId === SYNTAX_RULE_ID || d.severity === 'error' || strict
+        ? 'error'
+        : 'warning';
+    return makeDiag(lines, d.line, d.column, d.message, severity);
+  });
 
   out.sort((a, b) => a.startLine - b.startLine || a.startCol - b.startCol);
   return out;

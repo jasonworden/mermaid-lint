@@ -10,6 +10,7 @@ import {
   type SuppressionIndex,
   buildSuppressionIndex,
   parseFileDirectives,
+  unusedFileDirectives,
 } from './suppress.js';
 import { validateBlock } from './validate.js';
 
@@ -59,6 +60,27 @@ function toAbsLine(block: Block, relLine: number | undefined): number {
   return bodyOffset + relLine;
 }
 
+/** Which scope a `directiveDiagnostics` pass is reporting for. */
+type DirectiveScope = 'body' | 'file';
+
+/**
+ * `suppression-unused` wording, scaled to the scope that found it: a body
+ * directive suppressed nothing in its own diagram, a file directive nothing in
+ * the whole document.
+ *
+ * The hedging is deliberate and shared: a directive naming a rule that is
+ * `off` in config, or that applies to no diagram type present, is never
+ * queried and so looks unused. Both scopes say "may" rather than claiming the
+ * directive is definitely stale — building them from one template is what
+ * keeps that caveat identical in both.
+ */
+function unusedMessage(scope: DirectiveScope): string {
+  const where = scope === 'file' ? 'in this document' : 'here';
+  const applies =
+    scope === 'file' ? 'any diagram type here' : 'this diagram type';
+  return `suppression directive suppressed nothing ${where}; the named rule may be off, may not apply to ${applies}, or the directive may simply no longer be needed`;
+}
+
 /**
  * One diagnostic per directive problem, plus one per directive that never
  * suppressed anything, each reported at the directive's own line (mapped
@@ -82,6 +104,9 @@ function toAbsLine(block: Block, relLine: number | undefined): number {
  * an already-evaluated array would race that - JS evaluates call arguments
  * before the function body runs, so `unused()` must be called from inside
  * this function, after the problem loop, not by the caller beforehand.
+ *
+ * `scope` selects the `suppression-unused` wording (see {@link unusedMessage});
+ * it covaries with `toLine` and `column`, which are already per-scope.
  */
 function directiveDiagnostics(
   directives: readonly Directive[],
@@ -90,6 +115,7 @@ function directiveDiagnostics(
   toLine: (directiveLine: number) => number,
   column: number,
   rules: ResolvedRules,
+  scope: DirectiveScope,
 ): Diagnostic[] {
   const out: Diagnostic[] = [];
   const push = (ruleId: RuleId, line: number, message: string) => {
@@ -173,11 +199,7 @@ function directiveDiagnostics(
   }
 
   for (const d of getUnused()) {
-    push(
-      'suppression-unused',
-      d.line,
-      'suppression directive suppressed nothing here; the named rule may be off, may not apply to this diagram type, or the directive may simply no longer be needed',
-    );
+    push('suppression-unused', d.line, unusedMessage(scope));
   }
 
   return out;
@@ -192,16 +214,22 @@ function directiveDiagnostics(
  * coordinates before conversion — and broken *body*-scope directives are
  * reported via the `suppression-*` meta-rules.
  *
- * Broken file-scope (`<!-- -->`) directives are deliberately **not** reported
- * here: `block.fileDirectives` is the same array for every block in the
- * document, and this function runs once per block, so reporting them here
- * would duplicate the same diagnostic once per block. `lintMarkdown` reports
- * them exactly once, at the directive's real document line, after processing
- * all blocks. One consequence: adapters that call `blockToDiagnostics`
- * directly per block (remark, textlint) and never call `lintMarkdown` will
- * not surface file-directive problems — consistent with `unused()` already
- * excluding file-scope directives for the same per-block-vs-once-per-document
- * reason (see suppress.ts).
+ * File-scope (`<!-- -->`) directive diagnostics — both a broken directive and
+ * one that suppressed nothing — are deliberately **not** reported here:
+ * `block.fileDirectives` is the same array for every block in the document,
+ * and this function runs once per block, so reporting them here would
+ * duplicate the same diagnostic once per block. Worse for the unused case,
+ * this function cannot even answer it: a file directive that fires in block 3
+ * looks unused from block 1. `lintMarkdown` has the whole-document view and
+ * reports both exactly once, at the directive's real document line, after
+ * processing every block.
+ *
+ * One consequence: callers that drive `blockToDiagnostics` per block and never
+ * call `lintMarkdown` — today the CLI, remark, textlint, and the test-runner
+ * adapters — surface no file-scope directive diagnostics at all. Reaching them
+ * means giving each a document-level path (the CLI's `--format json` shape
+ * nests every finding under a diagram and has no slot for a document-level
+ * one), which is a separate change.
  *
  * @param block - The block to validate.
  * @param rules - Resolved per-rule severities for the semantic pass. Defaults
@@ -213,6 +241,33 @@ export async function blockToDiagnostics(
   block: Block,
   rules: ResolvedRules = RULE_DEFAULTS,
 ): Promise<Diagnostic[]> {
+  return (await blockDiagnostics(block, rules)).diagnostics;
+}
+
+/**
+ * {@link blockToDiagnostics}'s body, plus which of the document's file-scope
+ * directives actually fired for this block.
+ *
+ * `lintMarkdown` unions that second channel across every block to decide
+ * whether a file directive suppressed nothing document-wide. Widening
+ * `blockToDiagnostics`'s published return type for it would be a breaking
+ * change to a diagnostic-only feature, so the public wrapper above keeps its
+ * shape and this internal form carries the extra channel.
+ *
+ * Deliberately narrower than returning the whole `SuppressionIndex`: an index
+ * closes over the block's split body, its parsed directives and its range map,
+ * so handing them all back would keep every block's parse state alive until
+ * the whole document finished. A set of directive references costs nothing.
+ *
+ * @internal
+ */
+async function blockDiagnostics(
+  block: Block,
+  rules: ResolvedRules,
+): Promise<{
+  diagnostics: Diagnostic[];
+  usedFileDirectives: ReadonlySet<Directive>;
+}> {
   const bodyLines = block.body.split('\n');
   const index = buildSuppressionIndex(bodyLines, block.fileDirectives);
   const result = await validateBlock(block, rules, index);
@@ -278,10 +333,18 @@ export async function blockToDiagnostics(
       (line) => toAbsLine(block, line),
       block.col,
       rules,
+      'body',
     ),
   );
 
-  return diagnostics;
+  // Read after every `isSuppressed` query above has run, so it reflects the
+  // block's full validation pass.
+  return {
+    diagnostics,
+    usedFileDirectives: new Set(
+      [...realFileDirectives].filter((d) => index.isUsed(d)),
+    ),
+  };
 }
 
 /**
@@ -290,10 +353,13 @@ export async function blockToDiagnostics(
  * so a structural error at EOF can't point past the last line. This is the main
  * entry point for Markdown tool integrations.
  *
- * File-scope (`<!-- -->`) directive problems apply to the whole document, not
- * to any one block, so they are computed and reported exactly once here —
+ * File-scope (`<!-- -->`) directive diagnostics apply to the whole document,
+ * not to any one block, so they are computed and reported exactly once here —
  * see {@link blockToDiagnostics}'s doc comment for why it deliberately
- * excludes them.
+ * excludes them. That covers both a broken file directive and one that
+ * suppressed nothing anywhere in the document; the latter is only answerable
+ * here, since it takes every block's suppression index to know that no block
+ * used it.
  *
  * @param path - Source path (a `.mmd` extension switches to whole-file mode).
  * @param text - Document contents.
@@ -311,9 +377,9 @@ export async function lintMarkdown(
 ): Promise<Diagnostic[]> {
   const blocks = extractMermaidBlocks(path, text, options);
   const perBlock = await Promise.all(
-    blocks.map((block) => blockToDiagnostics(block, rules)),
+    blocks.map((block) => blockDiagnostics(block, rules)),
   );
-  const diagnostics = perBlock.flat();
+  const diagnostics = perBlock.flatMap((r) => r.diagnostics);
 
   // Mirrors extract.ts: a `.mmd` file is a whole-file diagram, not Markdown,
   // so `<!-- -->` file directives are not meaningful for it (extract.ts
@@ -325,10 +391,16 @@ export async function lintMarkdown(
     // document has no Mermaid blocks at all (so nothing to reuse it from) —
     // a document can still carry a file directive with no diagrams to apply
     // it to, and that directive's own problems (e.g. unknown-rule) should
-    // still be reported.
+    // still be reported. The `<!--` test keeps that fallback off the common
+    // case: `parseFileDirectives` scans the whole document for fences and
+    // inline-code spans, and a file with no HTML comment at all can't yield a
+    // directive anyway. That matters because the VS Code extension re-lints
+    // on every edit, and most Markdown files carry no diagrams.
     const fileDirectives =
       blocks[0]?.fileDirectives ??
-      parseFileDirectives(text.replace(/\r\n/g, '\n'));
+      (text.includes('<!--')
+        ? parseFileDirectives(text.replace(/\r\n/g, '\n'))
+        : []);
     // File directives carry no body, only the document; an empty body list
     // is fine because `isSuppressed`'s `file`/`diagram` branch never
     // consults `line` or body content.
@@ -336,11 +408,29 @@ export async function lintMarkdown(
     diagnostics.push(
       ...directiveDiagnostics(
         fileDirectives,
-        () => fileIndex.unused(), // always [] - unused() excludes file-scope directives.
+        // Stays a thunk for the same reason the body-scope call does: the
+        // problem loop inside `directiveDiagnostics` runs first and can mark
+        // a directive used on `fileIndex` — a file directive naming a
+        // meta-rule can suppress *another* file directive's problem, and that
+        // counts as having fired. So `used` must be assembled here, not by
+        // the caller beforehand.
+        //
+        // Every block reports usage over the very `Directive` objects in
+        // `fileDirectives` (extract.ts attaches one shared array to every
+        // block), so identity comparison across blocks is sound.
+        () =>
+          unusedFileDirectives(
+            fileDirectives,
+            new Set([
+              ...fileDirectives.filter((d) => fileIndex.isUsed(d)),
+              ...perBlock.flatMap((r) => [...r.usedFileDirectives]),
+            ]),
+          ),
         fileIndex,
         (line) => line, // parseFileDirectives already yields a real document line.
         1,
         rules,
+        'file',
       ),
     );
   }

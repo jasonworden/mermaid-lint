@@ -458,6 +458,47 @@ export interface SuppressionIndex {
   isSuppressed(ruleId: string, line: number | undefined): boolean;
   /** Well-formed directives that never suppressed anything. */
   unused(): Directive[];
+  /**
+   * Whether `directive` ever matched a query on *this* index.
+   *
+   * The per-directive form of what `unused()` answers in bulk, for the one
+   * case `unused()` can't serve: a file-scope directive is queried once per
+   * block index, so no single index knows whether it fired document-wide.
+   * Feed the answers to {@link unusedFileDirectives}.
+   */
+  isUsed(directive: Directive): boolean;
+}
+
+/**
+ * File-scope directives that suppressed nothing anywhere in the document.
+ *
+ * The document-wide counterpart to {@link SuppressionIndex.unused}, which
+ * excludes file scope precisely because one index can't answer this (see the
+ * exclusion in {@link buildSuppressionIndex}). Both apply the same
+ * well-formedness rule — a directive carrying a problem is inert and already
+ * reported as broken, so it is never also "unused" — and keeping that rule
+ * here, next to `unused()`, is what stops the two definitions from drifting.
+ *
+ * The `kind` guard mirrors `unused()`'s: a keyword used at the wrong scope
+ * parses to a `Directive` whose kind is the scope it *asked* for, so it can
+ * appear in this list without being a real file directive. It always carries
+ * a `wrong-scope` problem too, so the guard is belt-and-braces.
+ *
+ * @param fileDirectives - The document's file-scope directives.
+ * @param used - Every directive that fired on any index — union the block
+ *   indices' {@link SuppressionIndex.isUsed} answers with the document-scope
+ *   one, since a file directive naming a meta-rule can suppress another file
+ *   directive's problem.
+ * @returns The file directives to report as `suppression-unused`.
+ * @internal
+ */
+export function unusedFileDirectives(
+  fileDirectives: readonly Directive[],
+  used: ReadonlySet<Directive>,
+): Directive[] {
+  return fileDirectives.filter(
+    (d) => d.kind === 'file' && d.problems.length === 0 && !used.has(d),
+  );
 }
 
 /**
@@ -654,17 +695,15 @@ export function buildSuppressionIndex(
           // block in the document (see extract.ts), and `blockToDiagnostics`
           // runs once per block. If `unused` counted them, a single stale
           // `-disable-file` would be reported once per block instead of once
-          // for the document. There is no per-document index built anywhere
-          // that queries file-scope directives across every block before
-          // asking `unused()` - `lintMarkdown` builds a document-scoped index
-          // too (see markdown-adapter.ts), but that index's `unused()` hits
-          // this same exclusion and is always `[]`. Net effect: a stale
-          // `-disable-file` is never reported as unused, from any entry
-          // point - see suppress.ts's `README.md` overclaim note, since the
-          // README previously (wrongly) documented this as covered.
+          // for the document. Whether one suppressed nothing *document-wide*
+          // is a question no single block's index can answer - `lintMarkdown`
+          // answers it by unioning `isUsed` across every block's index and
+          // reports it there, exactly once. This exclusion is what keeps that
+          // the only place it's reported.
           d.kind !== 'file' &&
           d.problems.length === 0 &&
           !used.has(d),
       ),
+    isUsed: (d) => used.has(d),
   };
 }
