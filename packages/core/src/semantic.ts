@@ -1171,6 +1171,280 @@ const wardleyDuplicateComponent: Rule = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// Event modeling helpers and rules
+// ---------------------------------------------------------------------------
+
+/**
+ * The five model entity types, folded onto the short spelling. Four of them
+ * have a long form as well (`command`, `event`, `readmodel`, `processor`) and
+ * mermaid treats the two spellings as one type, so both are normalized here
+ * and nothing downstream has to know a type has two names.
+ */
+type EventModelingEntityType = 'ui' | 'cmd' | 'evt' | 'rmo' | 'pcr';
+
+interface EventModelingFrame {
+  /**
+   * Kept as written rather than as a number: mermaid resolves a `->>` source
+   * by matching the name text, so `0` and `00` are two different frames.
+   */
+  id: string;
+  /** `tf` or `rf`, normalized off the long forms. `rf` resets the timeline. */
+  kind: 'tf' | 'rf';
+  type: EventModelingEntityType;
+  /** The entity identifier, possibly qualified (`Screen.Login`). */
+  name: string;
+  /** The line the frame keyword sits on — a frame may run past it. */
+  line: number;
+}
+
+interface EventModelingReference {
+  /** The frame id named after `->>`. */
+  sourceId: string;
+  /**
+   * The line of the id itself, not of its arrow. The two can differ — `->>`
+   * and its id may sit on separate lines — and the id is what a message names.
+   */
+  line: number;
+  /** The referencing frame: its id, and the type the flow table keys on. */
+  frameId: string;
+  frameType: EventModelingEntityType;
+}
+
+interface ParsedEventModeling {
+  frames: EventModelingFrame[];
+  references: EventModelingReference[];
+}
+
+/** One lexeme plus the line it came from. */
+interface EventModelingToken {
+  text: string;
+  line: number;
+}
+
+/** Frame openers, mapped onto the kind they declare. */
+const EVENTMODELING_FRAME_KEYWORDS = new Map<string, 'tf' | 'rf'>([
+  ['tf', 'tf'],
+  ['timeframe', 'tf'],
+  ['rf', 'rf'],
+  ['resetframe', 'rf'],
+]);
+
+const EVENTMODELING_ENTITY_TYPES = new Map<string, EventModelingEntityType>([
+  ['ui', 'ui'],
+  ['cmd', 'cmd'],
+  ['command', 'cmd'],
+  ['evt', 'evt'],
+  ['event', 'evt'],
+  ['rmo', 'rmo'],
+  ['readmodel', 'rmo'],
+  ['pcr', 'pcr'],
+  ['processor', 'pcr'],
+]);
+
+/** The source arrow. Compared as text, so no pattern is involved. */
+const EVENTMODELING_ARROW = '->>';
+
+/**
+ * The three comment openers. `%%` and `//` run to end of line; the block form
+ * is one lexer token that may span lines, so it needs its own closer.
+ */
+const EVENTMODELING_COMMENT_OPEN_RE = /%%|\/\/|\/\*/;
+
+/**
+ * One match per token. Anything else in a body — braces, quotes, the `[[ ]]`
+ * of a data reference — is passed over by the scan, which is all a frame walk
+ * needs: nothing between two frames can change how either one reads.
+ *
+ * Whitespace is not a token boundary in mermaid's lexer, so `Screen->>2` is
+ * three tokens and the arrow is matched first to keep it out of the name. Its
+ * dash sits in a character class rather than being written bare: CodeQL's
+ * `js/bad-tag-filter` reads a literal dash-arrow inside a pattern as an HTML
+ * comment terminator (the same reason `WARDLEY_LINK_SEP_RE` spells its arrows
+ * as quantifiers).
+ */
+const EVENTMODELING_TOKEN_RE = /[-]>>|[A-Za-z_][\w.]*|[0-9]+/g;
+
+/** A frame id is a bare integer; `0` is a valid one. */
+const EVENTMODELING_ID_RE = /^[0-9]+$/;
+
+/**
+ * `accDescr`'s brace form is a single terminal spanning newlines, so every
+ * line up to the matching `}` is description text and never a statement.
+ */
+const EVENTMODELING_ACC_DESCR_OPEN_RE = /^accDescr\s*\{/;
+/** The brace may sit on a later line, which only a lookahead can see. */
+const EVENTMODELING_ACC_DESCR_BARE_RE = /^accDescr$/;
+/**
+ * Metadata rows are whole-line terminals, so their text never reaches the
+ * token stream. None of the three parsed in any form tried against mermaid
+ * 11.15 — this is a defensive skip, not a supported path.
+ */
+const EVENTMODELING_META_RE = /^(?:title|accTitle|accDescr)\b/;
+
+/**
+ * Blank out the comments in a body, one output entry per input line so the
+ * line numbers a token reports stay true.
+ *
+ * All three forms are hidden terminals, so a comment may open anywhere a token
+ * boundary can — mid-statement included. The block form is the reason this is
+ * a whole-body pass rather than a per-line strip: it closes on a later line,
+ * so the state has to carry across the loop.
+ */
+function stripEventModelingComments(lines: string[]): string[] {
+  const stripped: string[] = [];
+  let inBlockComment = false;
+
+  for (const raw of lines) {
+    let rest = raw;
+    let kept = '';
+
+    while (rest !== '') {
+      if (inBlockComment) {
+        const close = rest.indexOf('*/');
+        if (close === -1) break;
+        inBlockComment = false;
+        rest = rest.slice(close + 2);
+        continue;
+      }
+
+      const open = EVENTMODELING_COMMENT_OPEN_RE.exec(rest);
+      if (open === null) {
+        kept += rest;
+        break;
+      }
+      kept += rest.slice(0, open.index);
+      // `%%` and `//` swallow the rest of the line; only the block form can
+      // hand code back after it closes.
+      if (open[0] !== '/*') break;
+      inBlockComment = true;
+      rest = rest.slice(open.index + 2);
+    }
+
+    stripped.push(kept);
+  }
+
+  return stripped;
+}
+
+/**
+ * Flatten a comment-stripped body into `{ text, line }` records.
+ *
+ * A statement spans lines arbitrarily — `tf 1` / `ui` / `Screen` on three
+ * separate lines parses, and so does a bare `->> 1` — because mermaid's `EM_WS`
+ * is a hidden terminal that swallows a newline like any other whitespace. A
+ * line-oriented scan cannot see those statements at all, so the body becomes
+ * one stream and each token carries only the line it was written on.
+ */
+function tokenizeEventModeling(lines: string[]): EventModelingToken[] {
+  const tokens: EventModelingToken[] = [];
+  let inAccDescr = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    if (trimmed === '') continue;
+
+    if (inAccDescr) {
+      if (trimmed.includes('}')) inAccDescr = false;
+      continue;
+    }
+
+    if (EVENTMODELING_ACC_DESCR_OPEN_RE.test(trimmed)) {
+      // A same-line `accDescr { ... }` closes immediately; otherwise the block
+      // runs until the matching `}` shows up.
+      const openIdx = trimmed.indexOf('{');
+      if (trimmed.indexOf('}', openIdx) === -1) inAccDescr = true;
+      continue;
+    }
+
+    if (EVENTMODELING_ACC_DESCR_BARE_RE.test(trimmed)) {
+      // Only whitespace may separate the keyword from its brace, so anything
+      // else on the next non-blank line means this row never lexed as an
+      // `accDescr` and the lines after it are ordinary statements.
+      const next = lines.slice(i + 1).find((later) => later.trim() !== '');
+      if (next?.trim().startsWith('{')) inAccDescr = true;
+      continue;
+    }
+
+    if (EVENTMODELING_META_RE.test(trimmed)) continue;
+
+    for (const match of trimmed.matchAll(EVENTMODELING_TOKEN_RE)) {
+      tokens.push({ text: match[0], line: i + 1 });
+    }
+  }
+
+  return tokens;
+}
+
+/**
+ * Walk an eventmodeling body for its frame declarations and `->>` references.
+ *
+ * The walk is over tokens rather than lines because a frame statement is not a
+ * line: see `tokenizeEventModeling`. On a frame keyword the head reads as
+ * `<id> <type> <name>`, then zero or more `->> <id>` pairs — multi-source is
+ * repeated arrows, since both the comma- and space-separated spellings are
+ * parse errors.
+ */
+export function parseEventModeling(lines: string[]): ParsedEventModeling {
+  const parsed: ParsedEventModeling = { frames: [], references: [] };
+  const tokens = tokenizeEventModeling(stripEventModelingComments(lines));
+
+  for (let i = 0; i < tokens.length; i++) {
+    const kind = EVENTMODELING_FRAME_KEYWORDS.get(tokens[i].text);
+    if (kind === undefined) continue;
+    if (i + 3 >= tokens.length) continue;
+
+    // All three head parts are mandatory, so a frame missing any of them never
+    // parsed and belongs to the syntax linter, not here. The cursor is left on
+    // the keyword rather than skipped past the malformed run — the very next
+    // token may open a frame that does read.
+    const id = tokens[i + 1];
+    const type = EVENTMODELING_ENTITY_TYPES.get(tokens[i + 2].text);
+    const name = tokens[i + 3];
+    if (!EVENTMODELING_ID_RE.test(id.text)) continue;
+    if (type === undefined) continue;
+    // An arrow, an id, or a frame keyword in the name slot means the head ran
+    // short and the token belongs to whatever comes next. A frame keyword
+    // especially: mermaid's lexer hands it to the parser as a keyword and not
+    // as an identifier, so `tf 2 ui` followed by `tf 3 ui Good` never named an
+    // entity `tf` — it is one broken frame and one good one.
+    if (
+      name.text === EVENTMODELING_ARROW ||
+      EVENTMODELING_ID_RE.test(name.text) ||
+      EVENTMODELING_FRAME_KEYWORDS.has(name.text)
+    )
+      continue;
+
+    parsed.frames.push({
+      id: id.text,
+      kind,
+      type,
+      name: name.text,
+      line: tokens[i].line,
+    });
+
+    let cursor = i + 4;
+    while (
+      cursor + 1 < tokens.length &&
+      tokens[cursor].text === EVENTMODELING_ARROW &&
+      EVENTMODELING_ID_RE.test(tokens[cursor + 1].text)
+    ) {
+      parsed.references.push({
+        sourceId: tokens[cursor + 1].text,
+        line: tokens[cursor + 1].line,
+        frameId: id.text,
+        frameType: type,
+      });
+      cursor += 2;
+    }
+    // `cursor` is the first token past this frame; the loop's own step lands on
+    // it, so a frame is never re-read as part of the one that follows.
+    i = cursor - 1;
+  }
+
+  return parsed;
+}
+
 interface SankeyLink {
   source: string;
   target: string;
