@@ -153,6 +153,96 @@ describe('computeMermaidDiagnostics — suppression directives', () => {
   });
 });
 
+// Document-scope diagnostics: only reachable because the adapter drives
+// `lintMarkdown` over the whole document rather than looping over blocks.
+describe('computeMermaidDiagnostics — file-scope directives', () => {
+  it('surfaces a stale file directive at the HTML comment line', async () => {
+    const md =
+      '# Doc\n\n' +
+      '<!-- mermaid-lint-disable-file duplicate-ids: no longer needed -->\n\n' +
+      '```mermaid\nflowchart LR\n  A --> B\n```\n\n' +
+      '```mermaid\nflowchart LR\n  C --> D\n```\n';
+    const diags = await computeMermaidDiagnostics('test.md', md);
+    const stale = diags.filter((d) =>
+      d.message.includes('suppressed nothing in this document'),
+    );
+    expect(stale).toHaveLength(1);
+    // Document line 3, 0-indexed for VS Code.
+    expect(stale[0].startLine).toBe(2);
+    expect(stale[0].severity).toBe('warning');
+  });
+
+  it('does not flag a file directive that suppressed something', async () => {
+    const md =
+      '<!-- mermaid-lint-disable-file duplicate-ids: vendored -->\n\n' +
+      '```mermaid\nflowchart LR\n  A[x] --> B\n  A[y] --> C\n```\n';
+    const diags = await computeMermaidDiagnostics('test.md', md);
+    expect(diags).toEqual([]);
+  });
+
+  it('surfaces an unknown rule id in a file directive', async () => {
+    const md =
+      '<!-- mermaid-lint-disable-file duplicat-ids: typo -->\n\n' +
+      '```mermaid\nflowchart LR\n  A --> B\n```\n';
+    const diags = await computeMermaidDiagnostics('test.md', md);
+    expect(diags.some((d) => d.message.includes('unknown rule'))).toBe(true);
+  });
+
+  it('emits no file-scope diagnostics when semantic is off', async () => {
+    const md =
+      '<!-- mermaid-lint-disable-file duplicate-ids: stale -->\n\n' +
+      '```mermaid\nflowchart LR\n  A --> B\n```\n';
+    const diags = await computeMermaidDiagnostics('test.md', md, {
+      semantic: false,
+    });
+    expect(diags).toEqual([]);
+  });
+
+  it('elevates a stale file directive to an error under strict', async () => {
+    const md =
+      '<!-- mermaid-lint-disable-file duplicate-ids: stale -->\n\n' +
+      '```mermaid\nflowchart LR\n  A --> B\n```\n';
+    const diags = await computeMermaidDiagnostics('test.md', md, {
+      strict: true,
+    });
+    expect(diags).toHaveLength(1);
+    expect(diags[0].severity).toBe('error');
+  });
+
+  it('honors the fences option when computing file-scope diagnostics', async () => {
+    // Pins that `fences` still reaches core after the switch to `lintMarkdown`
+    // — it moved from `extractMermaidBlocks`'s options to `lintMarkdown`'s
+    // third positional argument, and swapping it with `rules` would otherwise
+    // fail nothing. Restricted to backticks, the tilde block is not extracted,
+    // so the directive suppresses nothing and is reported stale.
+    const md =
+      '<!-- mermaid-lint-disable-file duplicate-ids: vendored -->\n\n' +
+      '~~~mermaid\nflowchart LR\n  A[x] --> B\n  A[y] --> C\n~~~\n';
+    const backtickOnly = await computeMermaidDiagnostics('test.md', md, {
+      fences: ['backtick'],
+    });
+    expect(
+      backtickOnly.some((d) =>
+        d.message.includes('suppressed nothing in this document'),
+      ),
+    ).toBe(true);
+
+    // With the CommonMark default (both markers) the tilde block is linted,
+    // the directive fires, and nothing is reported.
+    expect(await computeMermaidDiagnostics('test.md', md)).toEqual([]);
+  });
+
+  it('maps a stale file directive to the right line in a CRLF document', async () => {
+    const md =
+      '# Doc\r\n\r\n' +
+      '<!-- mermaid-lint-disable-file duplicate-ids: stale -->\r\n\r\n' +
+      '```mermaid\r\nflowchart LR\r\n  A --> B\r\n```\r\n';
+    const diags = await computeMermaidDiagnostics('test.md', md);
+    expect(diags).toHaveLength(1);
+    expect(diags[0].startLine).toBe(2);
+  });
+});
+
 describe('computeFix', () => {
   it('returns null when there is nothing to fix', async () => {
     expect(await computeFix('test.md', VALID_MD)).toBeNull();
