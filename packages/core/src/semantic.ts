@@ -1118,6 +1118,42 @@ const wardleyMixedCoordinateScale: Rule = {
   },
 };
 
+// `component` and `anchor` share one namespace: both register through
+// `addNode` under their bare name, and `WardleyBuilder.addNode` merges by id
+// (`{...existing, ...node}`). So a repeated name collapses into one node with
+// the last coordinates winning — and since components are processed after
+// anchors, a component silently takes over an anchor of the same name.
+// Pipeline members are excluded: their id is synthetic (`parent_child`), so a
+// top-level `component Electric` and an `Electric` inside a pipeline really are
+// two nodes.
+const wardleyDuplicateComponent: Rule = {
+  id: 'wardley-duplicate-component',
+  appliesTo: isWardley,
+  evaluate: ({ lines }) => {
+    const parsed = parseWardley(lines);
+    const declarations = [...parsed.components, ...parsed.anchors].sort(
+      (a, b) => a.line - b.line,
+    );
+
+    const seen = new Map<string, number>();
+    const findings: RuleFinding[] = [];
+
+    for (const declaration of declarations) {
+      const first = seen.get(declaration.name);
+      if (first === undefined) {
+        seen.set(declaration.name, declaration.line);
+        continue;
+      }
+      findings.push({
+        message: `wardley-beta component or anchor \`${declaration.name}\` is declared more than once (first on line ${first}); Mermaid merges them into one node and the last coordinates win.`,
+        line: declaration.line,
+      });
+    }
+
+    return findings;
+  },
+};
+
 interface SankeyLink {
   source: string;
   target: string;
@@ -3571,6 +3607,7 @@ const RULES: Rule[] = [
   wardleyOrphanComponent,
   wardleyNoComponents,
   wardleyMixedCoordinateScale,
+  wardleyDuplicateComponent,
 ];
 
 // ---------------------------------------------------------------------------

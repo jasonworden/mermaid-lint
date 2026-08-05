@@ -308,6 +308,8 @@ const RULE_DESCRIPTIONS: Record<RuleId, string> = {
   'wardley-no-components': 'Mermaid: a Wardley map has no components',
   'wardley-mixed-coordinate-scale':
     'Mermaid: a Wardley map mixes decimal and percentage coordinates',
+  'wardley-duplicate-component':
+    'Mermaid: a Wardley component or anchor name is declared twice',
   'frontmatter-must-be-first':
     'Mermaid: something precedes the YAML frontmatter, so the diagram will not render',
   'suppression-unknown-rule':

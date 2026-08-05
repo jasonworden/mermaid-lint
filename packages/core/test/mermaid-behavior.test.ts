@@ -355,6 +355,28 @@ describe('mermaid behavior contracts', () => {
     expect(result.ok).toBe(false);
   }, 20_000);
 
+  it('accepts a repeated wardley-beta component or anchor name', async () => {
+    // The premise of `wardley-duplicate-component`. `WardleyBuilder.addNode`
+    // merges by id, and both `component` and `anchor` register under their bare
+    // name, so each of these collapses into one node with the last coordinates
+    // winning — silently, since nothing rejects. If a bump starts rejecting
+    // them, the parser covers it and the rule is redundant.
+    expect(
+      (
+        await validateWithMermaidJS(
+          'wardley-beta\n  component A [0.9, 0.5]\n  component A [0.3, 0.2]',
+        )
+      ).ok,
+    ).toBe(true);
+    expect(
+      (
+        await validateWithMermaidJS(
+          'wardley-beta\n  anchor Foo [0.95, 0.63]\n  component Foo [0.3, 0.2]',
+        )
+      ).ok,
+    ).toBe(true);
+  }, 20_000);
+
   it('rejects a trailing colon on the wardley-beta header, unlike radar-beta', async () => {
     // Radar uniquely allows `radar-beta:`. Wardley does not, so `isWardley`
     // does not strictly need `stripHeaderColon` — it routes through it anyway

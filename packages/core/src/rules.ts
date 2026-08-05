@@ -110,6 +110,7 @@ export type RuleId =
   | 'wardley-orphan-component'
   | 'wardley-no-components'
   | 'wardley-mixed-coordinate-scale'
+  | 'wardley-duplicate-component'
   | 'frontmatter-must-be-first'
   | 'suppression-unknown-rule'
   | 'suppression-unused'
@@ -372,6 +373,15 @@ export interface RuleMetadata {
  * value that does not mean what its author intended. The finding points at
  * the minority spelling, ties going to the percentage form, since 0-1
  * decimals are the canonical Wardley notation.
+ *
+ * `wardley-duplicate-component` (`warn`) keys on the shared component/anchor
+ * namespace, because that is the namespace Mermaid itself uses: both register
+ * through `addNode` under their bare name, and the builder merges by id, so a
+ * repeated name collapses into one node with the last coordinates winning.
+ * Pipeline members are exempt — their id is synthetic (`parent_child`), so they
+ * cannot collide with a top-level component. `warn` rather than `error`,
+ * since a restatement is occasionally deliberate and the last-wins behavior is
+ * well defined even when it surprises.
  *
  * `frontmatter-must-be-first` is `error`, joining `duplicate-ids` as the only
  * non-advisory rules: a diagram whose frontmatter is preceded by anything does
@@ -768,6 +778,11 @@ export const RULE_METADATA = {
     readmeDiagramKeywords: ['wardley-beta'],
   },
   'wardley-mixed-coordinate-scale': {
+    defaultSeverity: 'warn',
+    docsScope: 'wardley-beta',
+    readmeDiagramKeywords: ['wardley-beta'],
+  },
+  'wardley-duplicate-component': {
     defaultSeverity: 'warn',
     docsScope: 'wardley-beta',
     readmeDiagramKeywords: ['wardley-beta'],

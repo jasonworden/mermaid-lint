@@ -3425,6 +3425,91 @@ describe('wardley-mixed-coordinate-scale rule', () => {
   });
 });
 
+describe('wardley-duplicate-component rule', () => {
+  it('flags a component name declared twice', () => {
+    const b = block(
+      [
+        'wardley-beta',
+        '  component User [0.9, 0.5]',
+        '  component Kettle [0.5, 0.6]',
+        '  component User [0.3, 0.2]',
+      ].join('\n'),
+      'wardley-beta',
+    );
+    const warnings = only(b, 'wardley-duplicate-component');
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].severity).toBe('warn');
+    // Reported on the later row, naming the first — the earlier row is the one
+    // the reader is looking for when they wonder where the node went.
+    expect(warnings[0].line).toBe(4);
+    expect(warnings[0].message).toContain('`User`');
+    expect(warnings[0].message).toContain('first on line 2');
+  });
+
+  // Both register through `addNode` under their bare name, so they collide.
+  it('flags an anchor and a component sharing a name', () => {
+    const b = block(
+      [
+        'wardley-beta',
+        '  anchor Foo [0.95, 0.63]',
+        '  component Foo [0.3, 0.2]',
+      ].join('\n'),
+      'wardley-beta',
+    );
+    const warnings = only(b, 'wardley-duplicate-component');
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].line).toBe(3);
+    expect(warnings[0].message).toContain('first on line 2');
+  });
+
+  it('reports every repeat after the first, each naming the first line', () => {
+    const b = block(
+      [
+        'wardley-beta',
+        '  component A [0.9, 0.5]',
+        '  component A [0.5, 0.5]',
+        '  component A [0.1, 0.1]',
+      ].join('\n'),
+      'wardley-beta',
+    );
+    const warnings = only(b, 'wardley-duplicate-component');
+    expect(warnings.map((w) => w.line)).toEqual([3, 4]);
+    for (const warning of warnings) {
+      expect(warning.message).toContain('first on line 2');
+    }
+  });
+
+  // A pipeline member's id is synthetic (`Kettle_Electric`), so it is a
+  // genuinely different node from a top-level `component Electric`.
+  it('does not flag a pipeline member sharing a top-level component name', () => {
+    const b = block(
+      [
+        'wardley-beta',
+        '  component Kettle [0.5, 0.6]',
+        '  component Electric [0.1, 0.2]',
+        '  pipeline Kettle {',
+        '    component Electric [0.63]',
+        '  }',
+      ].join('\n'),
+      'wardley-beta',
+    );
+    expect(only(b, 'wardley-duplicate-component')).toEqual([]);
+  });
+
+  it('stays silent when every name is distinct', () => {
+    const b = block(
+      [
+        'wardley-beta',
+        '  anchor Business [0.95, 0.63]',
+        '  component User [0.9, 0.5]',
+        '  component Kettle [0.5, 0.6]',
+      ].join('\n'),
+      'wardley-beta',
+    );
+    expect(only(b, 'wardley-duplicate-component')).toEqual([]);
+  });
+});
+
 describe('parseWardley', () => {
   it('collects the coordinate value from every construct, discarding the annotation index and any trailing label', () => {
     const parsed = parseWardley([
