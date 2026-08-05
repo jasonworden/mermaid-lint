@@ -1279,8 +1279,12 @@ const EVENTMODELING_ACC_DESCR_BARE_RE = /^accDescr$/;
  * Metadata rows are whole-line terminals, so their text never reaches the
  * token stream. None of the three parsed in any form tried against mermaid
  * 11.15 — this is a defensive skip, not a supported path.
+ *
+ * The keyword is closed with a lookahead over the identifier alphabet rather
+ * than with `\b`, which would end the word at the `.` of a qualified name and
+ * so swallow a continuation line reading `title.Bar` as metadata.
  */
-const EVENTMODELING_META_RE = /^(?:title|accTitle|accDescr)\b/;
+const EVENTMODELING_META_RE = /^(?:title|accTitle|accDescr)(?![\w.])/;
 
 /**
  * Blank out the comments in a body, one output entry per input line so the
@@ -1290,13 +1294,27 @@ const EVENTMODELING_META_RE = /^(?:title|accTitle|accDescr)\b/;
  * boundary can — mid-statement included. The block form is the reason this is
  * a whole-body pass rather than a per-line strip: it closes on a later line,
  * so the state has to carry across the loop.
+ *
+ * The pass starts at the header because mermaid removes frontmatter before its
+ * lexer ever runs, so a `/*` in a YAML title is title text and must not open a
+ * block comment that blanks the diagram below it. The header line itself is
+ * lexer input, so it is scanned rather than skipped. Preceding lines are
+ * blanked instead of sliced away to keep every token's reported line true.
  */
-function stripEventModelingComments(lines: string[]): string[] {
+function stripEventModelingComments(
+  lines: string[],
+  headerLine: number,
+): string[] {
   const stripped: string[] = [];
   let inBlockComment = false;
 
-  for (const raw of lines) {
-    let rest = raw;
+  for (let i = 0; i < lines.length; i++) {
+    if (i + 1 < headerLine) {
+      stripped.push('');
+      continue;
+    }
+
+    let rest = lines[i];
     let kept = '';
 
     while (rest !== '') {
@@ -1384,10 +1402,19 @@ function tokenizeEventModeling(lines: string[]): EventModelingToken[] {
  * `<id> <type> <name>`, then zero or more `->> <id>` pairs — multi-source is
  * repeated arrows, since both the comma- and space-separated spellings are
  * parse errors.
+ *
+ * `headerLine` is the 1-indexed body line of the header (see `locateHeader`);
+ * the walk ignores everything above it, which is frontmatter mermaid strips
+ * before lexing. Lines keep their body numbering regardless.
  */
-export function parseEventModeling(lines: string[]): ParsedEventModeling {
+export function parseEventModeling(
+  lines: string[],
+  headerLine: number,
+): ParsedEventModeling {
   const parsed: ParsedEventModeling = { frames: [], references: [] };
-  const tokens = tokenizeEventModeling(stripEventModelingComments(lines));
+  const tokens = tokenizeEventModeling(
+    stripEventModelingComments(lines, headerLine),
+  );
 
   for (let i = 0; i < tokens.length; i++) {
     const kind = EVENTMODELING_FRAME_KEYWORDS.get(tokens[i].text);
