@@ -108,6 +108,77 @@ describe('blockToDiagnostics', () => {
     // Body error on line 2 → opener(10) + 2 = 12.
     expect(errors[0].line).toBe(12);
   });
+
+  // https://github.com/jasonworden/mermaid-lint/issues/123 — the diagram
+  // parses, so before this rule the whole document came back clean.
+  it('reports frontmatter-must-be-first as an error diagnostic', async () => {
+    const text = [
+      '# Doc',
+      '',
+      '```mermaid',
+      '%% a note',
+      '---',
+      'title: T',
+      '---',
+      'flowchart LR',
+      '  A --> B',
+      '```',
+    ].join('\n');
+    const diags = await lintMarkdown('doc.md', text);
+    const found = diags.filter((d) => d.ruleId === 'frontmatter-must-be-first');
+    expect(found).toHaveLength(1);
+    expect(found[0].severity).toBe('error');
+    // Body line 2 (the `---`) → opener(3) + 2 = 5.
+    expect(found[0].line).toBe(5);
+  });
+
+  it('reports nothing when the frontmatter opens the diagram', async () => {
+    const text = [
+      '# Doc',
+      '',
+      '```mermaid',
+      '---',
+      'title: T',
+      '---',
+      'flowchart LR',
+      '  A --> B',
+      '```',
+    ].join('\n');
+    const diags = await lintMarkdown('doc.md', text);
+    expect(diags).toEqual([]);
+  });
+
+  it('is suppressible only from file scope, as the README documents', async () => {
+    // A `%%` directive above the frontmatter would be the content that breaks
+    // the render, so the file-scope directive is the only escape hatch that
+    // works. README's "Directives must sit below any YAML frontmatter" section
+    // tells readers to use exactly this — keep them in step.
+    const block = [
+      '```mermaid',
+      '%% a note',
+      '---',
+      'title: T',
+      '---',
+      'flowchart LR',
+      '  A --> B',
+      '```',
+    ];
+    const text = [
+      '<!-- mermaid-lint-disable-file frontmatter-must-be-first: vendored -->',
+      '',
+      ...block,
+    ].join('\n');
+    const diags = await lintMarkdown('doc.md', text);
+    expect(diags.some((d) => d.ruleId === 'frontmatter-must-be-first')).toBe(
+      false,
+    );
+
+    // Non-vacuous: the same document without the directive still reports.
+    const without = await lintMarkdown('doc.md', block.join('\n'));
+    expect(without.some((d) => d.ruleId === 'frontmatter-must-be-first')).toBe(
+      true,
+    );
+  });
 });
 
 describe('suppression', () => {

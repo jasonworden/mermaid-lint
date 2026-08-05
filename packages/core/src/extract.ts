@@ -26,7 +26,11 @@ export interface Block {
    * no closing marker.
    */
   body: string;
-  /** Detected diagram type (e.g. `'flowchart'`, `'sequenceDiagram'`, `'unknown'`). */
+  /**
+   * Detected diagram type (e.g. `'flowchart'`, `'sequenceDiagram'`,
+   * `'unknown'`). The value `'---'` is a meaningful sentinel rather than a
+   * diagram type — see {@link detectDiagramType}.
+   */
   type: string;
   /**
    * Document-level suppression directives (`<!-- mermaid-lint-disable-file -->`)

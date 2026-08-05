@@ -107,5 +107,18 @@ describe('mermaid behavior contracts', () => {
     const body = '---\ntitle: My Diagram\n---\nflowchart LR\n  A --> B';
     expect((await validateWithMermaidJS(body)).ok).toBe(true);
     expect((await validateWithMermaidJS(`%% note\n${body}`)).ok).toBe(true);
+    // A bare blank line is enough — which is why frontmatter-must-be-first
+    // fires on anything preceding the block, not just non-empty lines.
+    expect((await validateWithMermaidJS(`\n${body}`)).ok).toBe(true);
+  }, 20_000);
+
+  it('still rejects unterminated frontmatter, which frontmatter-must-be-first defers to', async () => {
+    // The rule stays silent when nothing precedes the `---` because this
+    // syntax error already covers it. If a mermaid bump starts accepting an
+    // unterminated block, that silence becomes a real gap and this fails.
+    const result = await validateWithMermaidJS(
+      '---\ntitle: T\nflowchart LR\n  A --> B',
+    );
+    expect(result.ok).toBe(false);
   }, 20_000);
 });

@@ -121,7 +121,11 @@ showing up in tooling architecture.
 - **Parse before you lint.** Well-formedness is a precondition for every other
   check; a parse error is categorically different from a style warning.
 - **Errors vs. warnings mirror compile-vs-lint.** In `mermaid-lint`, syntax =
-  error (won't render), semantics = warning (renders, but suspect).
+  error (won't render), semantics = warning (renders, but suspect). The split
+  is a default, not a law: a semantic rule may be `error` when the finding is
+  unambiguous. `frontmatter-must-be-first` is the sharpest case — the parser
+  accepts the diagram, but it will not render at all, so the only layer that
+  can catch it is the semantic one.
 - **Async parsing is the architectural pivot.** Whether a linter can host
   `mermaid-lint` comes down to whether its rule model can await the parse — the
   same reason `textlint` works and `ESLint` (today) cannot.
