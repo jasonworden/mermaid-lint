@@ -387,4 +387,37 @@ describe('mermaid behavior contracts', () => {
         .ok,
     ).toBe(false);
   }, 20_000);
+
+  it('accepts eventmodeling defects the three new rules exist to catch', async () => {
+    // eventmodeling parses through langium but runs neither validation nor
+    // cross-reference linking at parse time, so all three of these are silent
+    // no-ops rather than errors: the renderer just omits the arrow, drops the
+    // second `tf 1`, or draws the disallowed flow anyway. If a mermaid bump
+    // starts rejecting any of these, the matching rule
+    // (eventmodeling-undefined-frame / -duplicate-frame-id / -invalid-flow)
+    // becomes redundant and this is where that surfaces.
+    expect(
+      (
+        await validateWithMermaidJS(
+          'eventmodeling\n  tf 1 ui Screen\n  tf 2 cmd DoIt ->> 99',
+        )
+      ).ok,
+    ).toBe(true);
+    expect(
+      (
+        await validateWithMermaidJS(
+          'eventmodeling\n  tf 1 ui Screen\n  tf 1 cmd DoIt',
+        )
+      ).ok,
+    ).toBe(true);
+    // mermaid's own EventModelingValidator forbids an event sourced from a
+    // ui frame — evt may only follow cmd — but that validator never runs.
+    expect(
+      (
+        await validateWithMermaidJS(
+          'eventmodeling\n  tf 1 ui Screen\n  tf 2 evt ItHappened ->> 1',
+        )
+      ).ok,
+    ).toBe(true);
+  }, 20_000);
 });
