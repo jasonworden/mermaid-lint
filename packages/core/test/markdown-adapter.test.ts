@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  type Diagnostic,
   blockToDiagnostics,
   extractMermaidBlocks,
   lintMarkdown,
@@ -182,6 +183,263 @@ describe('blockToDiagnostics', () => {
     expect(without.some((d) => d.ruleId === 'frontmatter-must-be-first')).toBe(
       true,
     );
+  });
+});
+
+describe('line citations in messages', () => {
+  // Rules count lines from the diagram body, but a message crosses into the
+  // file's coordinate space the moment it is printed next to a file:line
+  // position. These lock the two together — a citation must name the line the
+  // reader would see, not the body-relative one (#137).
+  it('cites the file line, not the body line, inside a fence', async () => {
+    const text = [
+      '# Title',
+      '',
+      'Some prose here.',
+      '',
+      'More prose.',
+      '',
+      '```mermaid',
+      'pie',
+      '  "A" : 40',
+      '  "B" : 20',
+      '  "A" : 10',
+      '```',
+    ].join('\n');
+    const diags = await lintMarkdown('lines.md', text);
+    const found = diags.filter((d) => d.ruleId === 'pie-duplicate-label');
+    expect(found).toHaveLength(1);
+    // The duplicate is on file line 11; the first `"A"` on file line 9.
+    expect(found[0].line).toBe(11);
+    expect(found[0].message).toContain('first on line 9');
+  });
+
+  it('cites the same line as a standalone `.mmd`, where body is file', async () => {
+    const text = ['pie', '  "A" : 40', '  "B" : 20', '  "A" : 10'].join('\n');
+    const [block] = extractMermaidBlocks('lines.mmd', text);
+    const diags = (await blockToDiagnostics(block)).filter(
+      (d) => d.ruleId === 'pie-duplicate-label',
+    );
+    expect(diags).toHaveLength(1);
+    expect(diags[0].line).toBe(4);
+    expect(diags[0].message).toContain('first on line 2');
+  });
+
+  it('cites its own reported line for the second of a two-line citation', async () => {
+    // `duplicate-ids` names both declarations. The second is the line the
+    // diagnostic itself points at, so the two numbers must agree.
+    const text = [
+      '# Doc',
+      '',
+      '```mermaid',
+      'flowchart LR',
+      '  A[Start] --> B',
+      '  A[Begin] --> C',
+      '```',
+    ].join('\n');
+    const diags = await lintMarkdown('doc.md', text);
+    const found = diags.filter((d) => d.ruleId === 'duplicate-ids');
+    expect(found).toHaveLength(1);
+    expect(found[0].line).toBe(6);
+    expect(found[0].message).toContain('(line 5)');
+    expect(found[0].message).toContain('(line 6)');
+  });
+
+  it('omits the citation for a same-row duplicate, fenced or not', async () => {
+    // `radar-duplicate-axis` drops the clause when the first sighting is the
+    // row it is already reporting. That comparison is body-vs-body; mapping
+    // either side makes it false inside a fence and resurrects the noise
+    // clause. The offset-invariance table below cannot see this — it only
+    // compares citations that are emitted.
+    const body = 'radar-beta\n  axis a, a, b\n  curve x{1, 2, 3}';
+    const [bareBlock] = extractMermaidBlocks('x.mmd', body);
+    const bare = (await blockToDiagnostics(bareBlock)).filter(
+      (d) => d.ruleId === 'radar-duplicate-axis',
+    );
+    expect(bare).toHaveLength(1);
+    expect(bare[0].message).not.toContain('first on line');
+
+    const fenced = (
+      await lintMarkdown(
+        'x.md',
+        ['# Doc', '', 'Prose.', '```mermaid', body, '```'].join('\n'),
+      )
+    ).filter((d) => d.ruleId === 'radar-duplicate-axis');
+    expect(fenced).toHaveLength(1);
+    expect(fenced[0].message).not.toContain('first on line');
+  });
+
+  it('keeps suppression on body lines while citing file lines', async () => {
+    // The two coordinate spaces coexist: suppression matches the directive
+    // against body lines, the citation names a file line. A "fix" that
+    // unified them by making findings absolute would break this.
+    const body = ['pie', '  "A" : 40', '  "A" : 10'];
+    const fence = (lines: string[]) =>
+      ['# Doc', '', '```mermaid', ...lines, '```'].join('\n');
+
+    const without = await lintMarkdown('doc.md', fence(body));
+    const found = without.filter((d) => d.ruleId === 'pie-duplicate-label');
+    expect(found).toHaveLength(1);
+    expect(found[0].message).toContain('first on line 5');
+
+    const withDirective = await lintMarkdown(
+      'doc.md',
+      fence([
+        body[0],
+        body[1],
+        '  %% mermaid-lint-disable-next-line pie-duplicate-label: intentional',
+        body[2],
+      ]),
+    );
+    expect(withDirective.some((d) => d.ruleId === 'pie-duplicate-label')).toBe(
+      false,
+    );
+
+    // Both spaces in one finding: a directive naming a different rule leaves
+    // pie-duplicate-label firing, and it must still be matched on body lines
+    // (so the directive misses it) while citing file lines.
+    const otherRule = await lintMarkdown(
+      'doc.md',
+      fence([
+        body[0],
+        body[1],
+        '  %% mermaid-lint-disable-next-line duplicate-ids: unrelated',
+        body[2],
+      ]),
+    );
+    const still = otherRule.filter((d) => d.ruleId === 'pie-duplicate-label');
+    expect(still).toHaveLength(1);
+    expect(still[0].line).toBe(7);
+    expect(still[0].message).toContain('first on line 5');
+  });
+});
+
+// One minimal body per rule whose message names a line number. Keep in step
+// with the citation count asserted in semantic.test.ts.
+const CITING_RULES: ReadonlyArray<readonly [string, string]> = [
+  [
+    'xychart-series-length-mismatch',
+    'xychart-beta\n  line [1, 2, 3]\n  bar [1, 2]',
+  ],
+  [
+    'radar-duplicate-axis',
+    'radar-beta\n  axis a, b\n  axis a, c\n  curve x{1, 2, 3, 4}',
+  ],
+  ['treemap-duplicate-sibling', 'treemap-beta\n"Root"\n  "A": 5\n  "A": 10'],
+  [
+    'wardley-duplicate-component',
+    'wardley-beta\n  component User [0.9, 0.5]\n  component User [0.3, 0.2]',
+  ],
+  ['sankey-duplicate-link', 'sankey-beta\nA,B,5\nA,B,3'],
+  ['duplicate-ids', 'flowchart LR\n  A[Start] --> B\n  A[Begin] --> C'],
+  [
+    'no-duplicate-node-declarations',
+    'flowchart LR\n  A[Same] --> B\n  A[Same] --> C',
+  ],
+  ['no-duplicate-edges', 'flowchart LR\n  A --> B\n  A --> B'],
+  [
+    'requirement-duplicate-name',
+    'requirementDiagram\n  requirement foo {\n  id: 1\n  text: a\n  }\n  requirement foo {\n  id: 2\n  text: b\n  }',
+  ],
+  [
+    'requirement-duplicate-id',
+    'requirementDiagram\n  requirement foo {\n  id: 1\n  text: a\n  }\n  requirement bar {\n  id: 1\n  text: b\n  }',
+  ],
+  [
+    'sequence-duplicate-participant',
+    'sequenceDiagram\n  participant A\n  participant A',
+  ],
+  ['class-duplicate-class', 'classDiagram\n  class Foo\n  class Foo'],
+  [
+    'no-duplicate-methods',
+    'classDiagram\n  class Foo {\n    +run()\n    +run()\n  }',
+  ],
+  ['pie-duplicate-label', 'pie\n  "A" : 40\n  "A" : 10'],
+  [
+    'state-duplicate-state',
+    'stateDiagram-v2\n  state "X" as s1\n  state "Y" as s1',
+  ],
+  ['state-duplicate-transition', 'stateDiagram-v2\n  A --> B\n  A --> B'],
+  [
+    'er-duplicate-attribute',
+    'erDiagram\n  CAR {\n    string name\n    string name\n  }',
+  ],
+  [
+    'er-duplicate-entity',
+    'erDiagram\n  CAR {\n    string name\n  }\n  CAR {\n    string colour\n  }',
+  ],
+  [
+    'gantt-duplicate-task-id',
+    'gantt\n  title T\n  section S\n  A :a1, 2024-01-01, 1d\n  B :a1, 2024-01-02, 1d',
+  ],
+  ['mindmap-duplicate-sibling', 'mindmap\n  root\n    Child\n    Child'],
+  [
+    'gitgraph-duplicate-commit-id',
+    'gitGraph\n  commit id: "a"\n  commit id: "a"',
+  ],
+  [
+    'gitgraph-duplicate-tag',
+    'gitGraph\n  commit tag: "v1"\n  commit tag: "v1"',
+  ],
+  [
+    'architecture-duplicate-edge',
+    'architecture-beta\n  group g\n  service a(disk) in g\n  service b(disk) in g\n  a:R --> L:b\n  a:R --> L:b',
+  ],
+  [
+    'quadrant-duplicate-point',
+    'quadrantChart\n  x-axis Low --> High\n  y-axis Low --> High\n  A: [0.1, 0.2]\n  A: [0.3, 0.4]',
+  ],
+  [
+    'quadrant-duplicate-quadrant',
+    'quadrantChart\n  x-axis Low --> High\n  y-axis Low --> High\n  quadrant-1 X\n  quadrant-1 Y',
+  ],
+  ['c4-duplicate-id', 'C4Context\n  Person(a, "A")\n  Person(a, "B")'],
+];
+
+describe('line citations shift with the fence offset', () => {
+  // The rule suite in semantic.test.ts runs on `.mmd` fixtures, where body and
+  // file lines coincide — so an identity mapping passes there, and the source
+  // scan in that file only proves `fileLine` was *called*. This is the
+  // behavioral check: run each citing rule's body standalone and again fenced
+  // at a known offset, and require every number it prints — its own position
+  // and each one quoted in its message — to move by exactly that offset.
+  //
+  // Catches a citation that is unmapped, double-mapped, or phrased outside the
+  // source scan's "line ${...}" pattern, across all citing rules at once.
+  // Deliberately does NOT catch `fileLine` handed the wrong line variable
+  // (a wrong line still shifts by the offset) — only a fixed expected number
+  // does that, as in "cites the file line, not the body line" above. Nor does
+  // it see a citation that is wrongly *suppressed*; see the same-row radar
+  // case above.
+  const OFFSET = 4; // fence opener on file line 4, so body N is file N + 4
+
+  /** The rule's own line, followed by every line number in its message. */
+  const numbers = (d: Diagnostic): number[] => [
+    d.line,
+    ...[...d.message.matchAll(/line (\d+)/g)].map((m) => Number(m[1])),
+  ];
+
+  it.each(CITING_RULES)('%s', async (ruleId, body) => {
+    const [bareBlock] = extractMermaidBlocks('x.mmd', body);
+    const bare = (await blockToDiagnostics(bareBlock)).filter(
+      (d) => d.ruleId === ruleId,
+    );
+    // Non-vacuity: a fixture that stopped triggering its rule would otherwise
+    // make this pass by comparing two empty lists.
+    expect(bare.length).toBeGreaterThan(0);
+    // Every rule here names a line, so a message with no number means the
+    // citation was dropped or reworded past `numbers`.
+    expect(numbers(bare[0]).length).toBeGreaterThan(1);
+
+    const fenced = (
+      await lintMarkdown(
+        'x.md',
+        ['# Doc', '', 'Prose.', '```mermaid', body, '```'].join('\n'),
+      )
+    ).filter((d) => d.ruleId === ruleId);
+
+    expect(fenced).toHaveLength(bare.length);
+    expect(numbers(fenced[0])).toEqual(numbers(bare[0]).map((n) => n + OFFSET));
   });
 });
 

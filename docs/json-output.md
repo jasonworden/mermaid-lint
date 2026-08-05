@@ -12,15 +12,15 @@ npx mermaid-lint --format json --all
 
 ```json
 {
-  "version": "0.42.0",
+  "version": "0.42.1",
   "files": [
     {
       "path": "docs/api.md",
       "diagrams": [
         { "line": 42, "col": 1, "type": "flowchart", "ok": true,
-          "warnings": [{ "rule": "duplicate-ids", "message": "node \"A\" declared with label \"Start\" (line 2) and \"Begin\" (line 7)", "line": 7, "severity": "error" }] },
+          "warnings": [{ "rule": "duplicate-ids", "message": "node \"A\" declared with label \"Start\" (line 44) and \"Begin\" (line 49)", "line": 49, "severity": "error" }] },
         { "line": 89, "col": 1, "type": "sequenceDiagram", "ok": false,
-          "error": { "message": "Expecting 'SPACE'", "line": 2, "col": 5 }, "warnings": [] }
+          "error": { "message": "Expecting 'SPACE'", "line": 91, "col": 5 }, "warnings": [] }
       ]
     }
   ],
@@ -46,6 +46,13 @@ npx mermaid-lint --format json --all
       [semantic-rules.md](semantic-rules.md) for the rule list and how to tune
       severity.
 - **`summary`** — totals across all files, plus a `types` histogram.
+
+Every `line` in this report — the diagram's, an `error`'s, a warning's, and any
+line number quoted inside a `message` — is a line in the **file**, not an offset
+within the diagram body. So they are directly comparable: a warning at `line`
+49 sits 7 lines below a diagram whose fence opens at 42. (Core's `checkSemantics`
+API is the exception: it returns body-relative lines, which the CLI maps before
+they reach this report.)
 
 ## Example: fail CI on errors (any language)
 

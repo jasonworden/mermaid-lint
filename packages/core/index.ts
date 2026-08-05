@@ -1,4 +1,4 @@
-export { extractMermaidBlocks } from './src/extract.js';
+export { bodyLineToFileLine, extractMermaidBlocks } from './src/extract.js';
 export type { Block, ExtractOptions } from './src/extract.js';
 export { ALL_FENCE_MARKERS, isFenceMarker } from './src/fences.js';
 export type { FenceMarker } from './src/fences.js';

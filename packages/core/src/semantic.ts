@@ -1,5 +1,5 @@
 import { extractEdges } from './edges.js';
-import type { Block } from './extract.js';
+import { type Block, bodyLineToFileLine } from './extract.js';
 import { locateHeader } from './header.js';
 import {
   type EmittedSeverity,
@@ -19,7 +19,12 @@ import { type SuppressionIndex, buildSuppressionIndex } from './suppress.js';
 export interface SemanticWarning {
   /** Stable rule id, e.g. `'duplicate-ids'`. */
   rule: RuleId;
-  /** Human-readable description of the finding. */
+  /**
+   * Human-readable description of the finding. Any line number quoted in here
+   * is a **file** line, unlike `line` below — message text is read beside a
+   * `file:line` position, while `line` feeds suppression and the adapter's own
+   * mapping. Map `line` with {@link bodyLineToFileLine} to compare the two.
+   */
   message: string;
   /** 1-indexed line within the diagram body, when known. */
   line?: number;
@@ -38,6 +43,16 @@ interface RuleContext {
   headerLine: number;
   /** Trimmed text of that header line, or `''` when there is none. */
   headerText: string;
+  /**
+   * Turn a body line into the file line to *name in a message*. Every rule
+   * that writes "on line N" must route through this: a raw body line is a
+   * different coordinate space from the `file:line` prefix the message is
+   * printed behind, and inside a Markdown fence the two disagree (#137).
+   *
+   * `RuleFinding.line` deliberately stays body-relative — suppression indexes
+   * body lines, and the adapter maps positions itself.
+   */
+  fileLine(bodyLine: number): number;
 }
 
 interface RuleFinding {
@@ -337,7 +352,7 @@ const xychartNoSeries: Rule = {
 const xychartSeriesLengthMismatch: Rule = {
   id: 'xychart-series-length-mismatch',
   appliesTo: isXychart,
-  evaluate: ({ lines }) => {
+  evaluate: ({ lines, fileLine }) => {
     const chart = parseXychart(lines);
     if (chart.series.length === 0) return [];
 
@@ -357,7 +372,7 @@ const xychartSeriesLengthMismatch: Rule = {
     for (const series of rest) {
       if (series.length === first.length) continue;
       findings.push({
-        message: `${series.kind} series has ${series.length} values but the first series on line ${first.line} has ${first.length}; xychart-beta series should use the same length.`,
+        message: `${series.kind} series has ${series.length} values but the first series on line ${fileLine(first.line)} has ${first.length}; xychart-beta series should use the same length.`,
         line: series.line,
       });
     }
@@ -472,7 +487,7 @@ const radarCurveLengthMismatch: Rule = {
 const radarDuplicateAxis: Rule = {
   id: 'radar-duplicate-axis',
   appliesTo: isRadar,
-  evaluate: ({ lines }) => {
+  evaluate: ({ lines, fileLine }) => {
     const seen = new Map<string, number>(); // label -> first line
     const findings: RuleFinding[] = [];
     for (const axis of parseRadar(lines).axes) {
@@ -485,7 +500,9 @@ const radarDuplicateAxis: Rule = {
       // the row being reported — naming that same line back would just be
       // noise. Only cite the first sighting when it is a different row.
       const origin =
-        firstLine === axis.line ? '' : ` (first on line ${firstLine})`;
+        firstLine === axis.line
+          ? ''
+          : ` (first on line ${fileLine(firstLine)})`;
       findings.push({
         message: `radar-beta axis "${axis.label}" is declared more than once${origin}; duplicate spokes render identical labels and are usually a copy-paste mistake.`,
         line: axis.line,
@@ -645,7 +662,7 @@ const treemapNoLeaves: Rule = {
 const treemapDuplicateSibling: Rule = {
   id: 'treemap-duplicate-sibling',
   appliesTo: isTreemap,
-  evaluate: ({ lines, headerLine }) => {
+  evaluate: ({ lines, headerLine, fileLine }) => {
     // key: `${parentLine}\0${name}` -> first line seen
     const seen = new Map<string, number>();
     const findings: RuleFinding[] = [];
@@ -658,7 +675,7 @@ const treemapDuplicateSibling: Rule = {
         continue;
       }
       findings.push({
-        message: `treemap node "${row.name}" duplicates a sibling (first on line ${first}); two identically labeled boxes render under the same parent.`,
+        message: `treemap node "${row.name}" duplicates a sibling (first on line ${fileLine(first)}); two identically labeled boxes render under the same parent.`,
         line: row.line,
       });
     }
@@ -1129,7 +1146,7 @@ const wardleyMixedCoordinateScale: Rule = {
 const wardleyDuplicateComponent: Rule = {
   id: 'wardley-duplicate-component',
   appliesTo: isWardley,
-  evaluate: ({ lines }) => {
+  evaluate: ({ lines, fileLine }) => {
     const parsed = parseWardley(lines);
     const declarations = [...parsed.components, ...parsed.anchors].sort(
       (a, b) => a.line - b.line,
@@ -1145,7 +1162,7 @@ const wardleyDuplicateComponent: Rule = {
         continue;
       }
       findings.push({
-        message: `wardley-beta component or anchor \`${declaration.name}\` is declared more than once (first on line ${first}); Mermaid merges them into one node and the last coordinates win.`,
+        message: `wardley-beta component or anchor \`${declaration.name}\` is declared more than once (first on line ${fileLine(first)}); Mermaid merges them into one node and the last coordinates win.`,
         line: declaration.line,
       });
     }
@@ -1199,7 +1216,7 @@ const sankeyNonPositiveValue: Rule = {
 const sankeyDuplicateLink: Rule = {
   id: 'sankey-duplicate-link',
   appliesTo: isSankey,
-  evaluate: ({ lines }) => {
+  evaluate: ({ lines, fileLine }) => {
     const seen = new Map<string, number>();
     const findings: RuleFinding[] = [];
 
@@ -1211,7 +1228,7 @@ const sankeyDuplicateLink: Rule = {
         continue;
       }
       findings.push({
-        message: `sankey link \`${link.source} -> ${link.target}\` is declared more than once (first on line ${first}); repeated source/target rows are usually copy-paste duplicates.`,
+        message: `sankey link \`${link.source} -> ${link.target}\` is declared more than once (first on line ${fileLine(first)}); repeated source/target rows are usually copy-paste duplicates.`,
         line: link.line,
       });
     }
@@ -1314,7 +1331,7 @@ const packetEmptyLabels: Rule = {
 const duplicateIds: Rule = {
   id: 'duplicate-ids',
   appliesTo: isFlowchartOrGraph,
-  evaluate: ({ lines }) => {
+  evaluate: ({ lines, fileLine }) => {
     const seen = new Map<string, { label: string; line: number }>();
     const findings: RuleFinding[] = [];
 
@@ -1335,7 +1352,7 @@ const duplicateIds: Rule = {
           seen.set(id, { label, line: bodyLine });
         } else if (prior.label !== label) {
           findings.push({
-            message: `node "${id}" declared with label "${prior.label}" (line ${prior.line}) and "${label}" (line ${bodyLine})`,
+            message: `node "${id}" declared with label "${prior.label}" (line ${fileLine(prior.line)}) and "${label}" (line ${fileLine(bodyLine)})`,
             line: bodyLine,
           });
         }
@@ -1349,7 +1366,7 @@ const duplicateIds: Rule = {
 const noDuplicateNodeDeclarations: Rule = {
   id: 'no-duplicate-node-declarations',
   appliesTo: isFlowchartOrGraph,
-  evaluate: ({ lines }) => {
+  evaluate: ({ lines, fileLine }) => {
     const seen = new Map<string, { label: string; line: number }>();
     const findings: RuleFinding[] = [];
 
@@ -1370,7 +1387,7 @@ const noDuplicateNodeDeclarations: Rule = {
           seen.set(id, { label, line: bodyLine });
         } else if (prior.label === label) {
           findings.push({
-            message: `node \`${id}\` is declared with the same label more than once (first on line ${prior.line}); duplicate declarations are usually copy-paste noise.`,
+            message: `node \`${id}\` is declared with the same label more than once (first on line ${fileLine(prior.line)}); duplicate declarations are usually copy-paste noise.`,
             line: bodyLine,
           });
         }
@@ -1384,7 +1401,7 @@ const noDuplicateNodeDeclarations: Rule = {
 const noDuplicateEdges: Rule = {
   id: 'no-duplicate-edges',
   appliesTo: isFlowchartOrGraph,
-  evaluate: ({ lines }) => {
+  evaluate: ({ lines, fileLine }) => {
     const edges = extractEdges(lines);
     const seen = new Map<string, number>(); // key -> firstLine
     const findings: RuleFinding[] = [];
@@ -1396,7 +1413,7 @@ const noDuplicateEdges: Rule = {
         seen.set(key, e.line);
       } else {
         findings.push({
-          message: `duplicate edge: \`${e.source}\` → \`${e.target}\` is defined more than once (first on line ${firstLine}); duplicate edges render stacked and are usually a copy-paste mistake.`,
+          message: `duplicate edge: \`${e.source}\` → \`${e.target}\` is defined more than once (first on line ${fileLine(firstLine)}); duplicate edges render stacked and are usually a copy-paste mistake.`,
           line: e.line,
         });
       }
@@ -1619,7 +1636,7 @@ function parseRequirementDiagram(lines: string[]): ParsedRequirementDiagram {
 const requirementDuplicateName: Rule = {
   id: 'requirement-duplicate-name',
   appliesTo: (block) => block.type === 'requirementDiagram',
-  evaluate: ({ lines }) => {
+  evaluate: ({ lines, fileLine }) => {
     const parsed = parseRequirementDiagram(lines);
     const seen = new Map<string, number>();
     const findings: RuleFinding[] = [];
@@ -1632,7 +1649,7 @@ const requirementDuplicateName: Rule = {
       }
 
       findings.push({
-        message: `requirement/element name \`${definition.name}\` is declared more than once (first on line ${firstLine}); relationship and style targets become ambiguous.`,
+        message: `requirement/element name \`${definition.name}\` is declared more than once (first on line ${fileLine(firstLine)}); relationship and style targets become ambiguous.`,
         line: definition.line,
       });
     }
@@ -1644,7 +1661,7 @@ const requirementDuplicateName: Rule = {
 const requirementDuplicateId: Rule = {
   id: 'requirement-duplicate-id',
   appliesTo: (block) => block.type === 'requirementDiagram',
-  evaluate: ({ lines }) => {
+  evaluate: ({ lines, fileLine }) => {
     const parsed = parseRequirementDiagram(lines);
     const seen = new Map<string, number>();
     const findings: RuleFinding[] = [];
@@ -1657,7 +1674,7 @@ const requirementDuplicateId: Rule = {
       }
 
       findings.push({
-        message: `requirement id \`${id.value}\` is declared more than once (first on line ${firstLine}); duplicate ids make requirement references ambiguous.`,
+        message: `requirement id \`${id.value}\` is declared more than once (first on line ${fileLine(firstLine)}); duplicate ids make requirement references ambiguous.`,
         line: id.line,
       });
     }
@@ -1841,7 +1858,7 @@ const preferExplicitParticipants: Rule = {
 const sequenceDuplicateParticipant: Rule = {
   id: 'sequence-duplicate-participant',
   appliesTo: (block) => block.type === 'sequenceDiagram',
-  evaluate: ({ lines }) => {
+  evaluate: ({ lines, fileLine }) => {
     const seen = new Map<string, number>();
     const findings: RuleFinding[] = [];
 
@@ -1856,7 +1873,7 @@ const sequenceDuplicateParticipant: Rule = {
         seen.set(id, i + 1);
       } else {
         findings.push({
-          message: `participant \`${id}\` is declared more than once (first on line ${first}); duplicate declarations make participant ordering and labels ambiguous.`,
+          message: `participant \`${id}\` is declared more than once (first on line ${fileLine(first)}); duplicate declarations make participant ordering and labels ambiguous.`,
           line: i + 1,
         });
       }
@@ -1882,7 +1899,7 @@ const METHOD_RE = /([A-Za-z_]\w*)\s*\(([^)]*)\)/;
 const classDuplicateClass: Rule = {
   id: 'class-duplicate-class',
   appliesTo: (block) => block.type === 'classDiagram',
-  evaluate: ({ lines }) => {
+  evaluate: ({ lines, fileLine }) => {
     const seen = new Map<string, number>();
     const findings: RuleFinding[] = [];
 
@@ -1897,7 +1914,7 @@ const classDuplicateClass: Rule = {
         seen.set(name, i + 1);
       } else {
         findings.push({
-          message: `class \`${name}\` is declared more than once (first on line ${first}); Mermaid merges class declarations, which is usually a copy-paste mistake.`,
+          message: `class \`${name}\` is declared more than once (first on line ${fileLine(first)}); Mermaid merges class declarations, which is usually a copy-paste mistake.`,
           line: i + 1,
         });
       }
@@ -1910,7 +1927,7 @@ const classDuplicateClass: Rule = {
 const noDuplicateMethods: Rule = {
   id: 'no-duplicate-methods',
   appliesTo: (block) => block.type === 'classDiagram',
-  evaluate: ({ lines }) => {
+  evaluate: ({ lines, fileLine }) => {
     // methods[className][signature] = first bodyLine
     const methods = new Map<string, Map<string, number>>();
     const findings: RuleFinding[] = [];
@@ -1937,7 +1954,7 @@ const noDuplicateMethods: Rule = {
         classMap.set(key, bodyLine);
       } else {
         findings.push({
-          message: `method \`${key}\` is declared more than once on class \`${cls}\` (first on line ${firstLine}).`,
+          message: `method \`${key}\` is declared more than once on class \`${cls}\` (first on line ${fileLine(firstLine)}).`,
           line: bodyLine,
         });
       }
@@ -2021,7 +2038,7 @@ function isPie(block: Block): boolean {
 const pieDuplicateLabel: Rule = {
   id: 'pie-duplicate-label',
   appliesTo: isPie,
-  evaluate: ({ lines }) => {
+  evaluate: ({ lines, fileLine }) => {
     const seen = new Map<string, number>(); // label -> first line
     const findings: RuleFinding[] = [];
     for (const slice of parsePieSlices(lines)) {
@@ -2030,7 +2047,7 @@ const pieDuplicateLabel: Rule = {
         seen.set(slice.label, slice.line);
       } else {
         findings.push({
-          message: `pie slice "${slice.label}" is defined more than once (first on line ${firstLine}); duplicate labels render as separate slices and are usually a copy-paste mistake.`,
+          message: `pie slice "${slice.label}" is defined more than once (first on line ${fileLine(firstLine)}); duplicate labels render as separate slices and are usually a copy-paste mistake.`,
           line: slice.line,
         });
       }
@@ -2127,7 +2144,7 @@ function isState(block: Block): boolean {
 const stateDuplicateState: Rule = {
   id: 'state-duplicate-state',
   appliesTo: isState,
-  evaluate: ({ lines }) => {
+  evaluate: ({ lines, fileLine }) => {
     const seen = new Map<string, number>();
     const findings: RuleFinding[] = [];
 
@@ -2142,7 +2159,7 @@ const stateDuplicateState: Rule = {
         seen.set(id, i + 1);
       } else {
         findings.push({
-          message: `state \`${id}\` is declared more than once (first on line ${first}); duplicate state declarations make labels and composite bodies ambiguous.`,
+          message: `state \`${id}\` is declared more than once (first on line ${fileLine(first)}); duplicate state declarations make labels and composite bodies ambiguous.`,
           line: i + 1,
         });
       }
@@ -2155,7 +2172,7 @@ const stateDuplicateState: Rule = {
 const stateDuplicateTransition: Rule = {
   id: 'state-duplicate-transition',
   appliesTo: isState,
-  evaluate: ({ lines }) => {
+  evaluate: ({ lines, fileLine }) => {
     const seen = new Map<string, number>(); // key -> first line
     const findings: RuleFinding[] = [];
     for (const t of parseStateTransitions(lines)) {
@@ -2165,7 +2182,7 @@ const stateDuplicateTransition: Rule = {
         seen.set(key, t.line);
       } else {
         findings.push({
-          message: `duplicate transition: \`${t.source}\` → \`${t.target}\` is defined more than once (first on line ${firstLine}); duplicate transitions render stacked and are usually a copy-paste mistake.`,
+          message: `duplicate transition: \`${t.source}\` → \`${t.target}\` is defined more than once (first on line ${fileLine(firstLine)}); duplicate transitions render stacked and are usually a copy-paste mistake.`,
           line: t.line,
         });
       }
@@ -2300,7 +2317,7 @@ function isEr(block: Block): boolean {
 const erDuplicateAttribute: Rule = {
   id: 'er-duplicate-attribute',
   appliesTo: isEr,
-  evaluate: ({ lines }) => {
+  evaluate: ({ lines, fileLine }) => {
     const findings: RuleFinding[] = [];
     let entity: string | null = null;
     let attrs = new Map<string, number>(); // attribute name -> first line
@@ -2330,7 +2347,7 @@ const erDuplicateAttribute: Rule = {
         attrs.set(name, i + 1);
       } else {
         findings.push({
-          message: `attribute \`${name}\` is declared more than once on entity \`${entity}\` (first on line ${first}).`,
+          message: `attribute \`${name}\` is declared more than once on entity \`${entity}\` (first on line ${fileLine(first)}).`,
           line: i + 1,
         });
       }
@@ -2342,7 +2359,7 @@ const erDuplicateAttribute: Rule = {
 const erDuplicateEntity: Rule = {
   id: 'er-duplicate-entity',
   appliesTo: isEr,
-  evaluate: ({ lines }) => {
+  evaluate: ({ lines, fileLine }) => {
     const seen = new Map<string, number>(); // entity -> first block-open line
     const findings: RuleFinding[] = [];
     let inBlock = false;
@@ -2362,7 +2379,7 @@ const erDuplicateEntity: Rule = {
         seen.set(entity, i + 1);
       } else {
         findings.push({
-          message: `entity \`${entity}\` has its attribute block defined more than once (first on line ${first}); Mermaid merges them, so this is usually a copy-paste mistake.`,
+          message: `entity \`${entity}\` has its attribute block defined more than once (first on line ${fileLine(first)}); Mermaid merges them, so this is usually a copy-paste mistake.`,
           line: i + 1,
         });
       }
@@ -2506,7 +2523,7 @@ function isGantt(block: Block): boolean {
 const ganttDuplicateTaskId: Rule = {
   id: 'gantt-duplicate-task-id',
   appliesTo: isGantt,
-  evaluate: ({ lines }) => {
+  evaluate: ({ lines, fileLine }) => {
     const seen = new Map<string, number>(); // id -> first line
     const findings: RuleFinding[] = [];
     for (const task of parseGanttTasks(lines)) {
@@ -2516,7 +2533,7 @@ const ganttDuplicateTaskId: Rule = {
         seen.set(task.id, task.line);
       } else {
         findings.push({
-          message: `task id \`${task.id}\` is defined more than once (first on line ${first}); \`after\`/\`until\` references to it are ambiguous.`,
+          message: `task id \`${task.id}\` is defined more than once (first on line ${fileLine(first)}); \`after\`/\`until\` references to it are ambiguous.`,
           line: task.line,
         });
       }
@@ -2829,7 +2846,7 @@ function parseMindmapNodes(lines: string[]): MindmapNode[] {
 const mindmapDuplicateSibling: Rule = {
   id: 'mindmap-duplicate-sibling',
   appliesTo: isMindmap,
-  evaluate: ({ lines }) => {
+  evaluate: ({ lines, fileLine }) => {
     const findings: RuleFinding[] = [];
     // key: `${parentLine}\0${text}` -> first line seen
     const seen = new Map<string, number>();
@@ -2840,7 +2857,7 @@ const mindmapDuplicateSibling: Rule = {
         seen.set(key, node.line);
       } else {
         findings.push({
-          message: `mindmap node \`${node.text}\` duplicates a sibling (first on line ${first}); two identical branches render under the same parent.`,
+          message: `mindmap node \`${node.text}\` duplicates a sibling (first on line ${fileLine(first)}); two identical branches render under the same parent.`,
           line: node.line,
         });
       }
@@ -3051,24 +3068,24 @@ function findGitGraphDuplicates(
 const gitgraphDuplicateCommitId: Rule = {
   id: 'gitgraph-duplicate-commit-id',
   appliesTo: isGitGraph,
-  evaluate: ({ lines }) =>
+  evaluate: ({ lines, fileLine }) =>
     findGitGraphDuplicates(
       lines,
       GITGRAPH_ID_RE,
       (value, first) =>
-        `commit id \`${value}\` is used more than once (first on line ${first}); commit ids must be unique, and \`merge\`/\`cherry-pick\` references to it are ambiguous.`,
+        `commit id \`${value}\` is used more than once (first on line ${fileLine(first)}); commit ids must be unique, and \`merge\`/\`cherry-pick\` references to it are ambiguous.`,
     ),
 };
 
 const gitgraphDuplicateTag: Rule = {
   id: 'gitgraph-duplicate-tag',
   appliesTo: isGitGraph,
-  evaluate: ({ lines }) =>
+  evaluate: ({ lines, fileLine }) =>
     findGitGraphDuplicates(
       lines,
       GITGRAPH_TAG_RE,
       (value, first) =>
-        `tag \`${value}\` is used more than once (first on line ${first}); two commits render with the same tag, usually a copy-paste mistake.`,
+        `tag \`${value}\` is used more than once (first on line ${fileLine(first)}); two commits render with the same tag, usually a copy-paste mistake.`,
     ),
 };
 
@@ -3191,7 +3208,7 @@ const architectureNoEdges: Rule = {
 const architectureDuplicateEdge: Rule = {
   id: 'architecture-duplicate-edge',
   appliesTo: isArchitecture,
-  evaluate: ({ lines }) => {
+  evaluate: ({ lines, fileLine }) => {
     const seen = new Map<string, number>();
     const findings: RuleFinding[] = [];
 
@@ -3211,7 +3228,7 @@ const architectureDuplicateEdge: Rule = {
         continue;
       }
       findings.push({
-        message: `architecture edge \`${formatArchitectureEdge(edge)}\` is declared more than once (first on line ${first}); repeated exact edges are usually a copy-paste mistake.`,
+        message: `architecture edge \`${formatArchitectureEdge(edge)}\` is declared more than once (first on line ${fileLine(first)}); repeated exact edges are usually a copy-paste mistake.`,
         line: edge.line,
       });
     }
@@ -3282,13 +3299,13 @@ function findQuadrantDuplicates(
 const quadrantDuplicatePoint: Rule = {
   id: 'quadrant-duplicate-point',
   appliesTo: isQuadrantChart,
-  evaluate: ({ lines }) =>
+  evaluate: ({ lines, fileLine }) =>
     findQuadrantDuplicates(
       lines,
       QUADRANT_POINT_RE,
       (m) => m[1].trim(),
       (value, first) =>
-        `data point \`${value}\` is defined more than once (first on line ${first}); the points render overlapping, usually a copy-paste mistake.`,
+        `data point \`${value}\` is defined more than once (first on line ${fileLine(first)}); the points render overlapping, usually a copy-paste mistake.`,
     ),
 };
 
@@ -3346,13 +3363,13 @@ const quadrantMissingYAxis: Rule = {
 const quadrantDuplicateQuadrant: Rule = {
   id: 'quadrant-duplicate-quadrant',
   appliesTo: isQuadrantChart,
-  evaluate: ({ lines }) =>
+  evaluate: ({ lines, fileLine }) =>
     findQuadrantDuplicates(
       lines,
       QUADRANT_REGION_RE,
       (m) => m[1],
       (value, first) =>
-        `quadrant-${value} is labeled more than once (first on line ${first}); Mermaid keeps only the last, silently dropping the earlier label.`,
+        `quadrant-${value} is labeled more than once (first on line ${fileLine(first)}); Mermaid keeps only the last, silently dropping the earlier label.`,
     ),
 };
 
@@ -3427,7 +3444,7 @@ function collectC4RelationshipStyleEndpoints(
 const c4DuplicateId: Rule = {
   id: 'c4-duplicate-id',
   appliesTo: isC4Context,
-  evaluate: ({ lines }) => {
+  evaluate: ({ lines, fileLine }) => {
     const seen = new Map<string, number>();
     const findings: RuleFinding[] = [];
 
@@ -3437,7 +3454,7 @@ const c4DuplicateId: Rule = {
         seen.set(decl.id, decl.line);
       } else {
         findings.push({
-          message: `C4 element or boundary id \`${decl.id}\` is declared more than once (first on line ${first}); C4 ids share one namespace, so duplicate declarations are ambiguous.`,
+          message: `C4 element or boundary id \`${decl.id}\` is declared more than once (first on line ${fileLine(first)}); C4 ids share one namespace, so duplicate declarations are ambiguous.`,
           line: decl.line,
         });
       }
@@ -3642,6 +3659,7 @@ export function checkSemantics(
     lines,
     headerLine: header.line,
     headerText: header.text,
+    fileLine: (bodyLine) => bodyLineToFileLine(block, bodyLine),
   };
   const out: SemanticWarning[] = [];
 

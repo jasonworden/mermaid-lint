@@ -43,6 +43,24 @@ export interface Block {
 }
 
 /**
+ * Map a 1-indexed diagram-body line to its 1-indexed line in the source file.
+ *
+ * For a fenced block the body starts one line after the opener, so the opener
+ * line is itself the offset. For a whole-file `.mmd` block the body starts at
+ * line 1, so the offset is `block.line - 1` (0 when `block.line` is 1, which
+ * is why `.mmd` body and file lines coincide).
+ *
+ * The single owner of this mapping: diagnostic positions, the line numbers
+ * rules cite in messages, and markdownlint's autofix line keys all route here.
+ *
+ * @public
+ */
+export function bodyLineToFileLine(block: Block, bodyLine: number): number {
+  const bodyOffset = block.path.endsWith('.mmd') ? block.line - 1 : block.line;
+  return bodyOffset + bodyLine;
+}
+
+/**
  * Options controlling how {@link extractMermaidBlocks} scans a document.
  *
  * @public

@@ -1,11 +1,18 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { extractMermaidBlocks } from '../src/extract.js';
 import type { Block } from '../src/extract.js';
 import { RULE_DEFAULTS, type ResolvedRules } from '../src/rules.js';
 import { checkSemantics, parseWardley } from '../src/semantic.js';
 
+// A whole-file `.mmd` block, so body lines and file lines coincide: a rule's
+// `line` and any line it cites in its message are then the same number, and
+// these stay pure rule-logic tests. The body→file mapping that makes the two
+// diverge inside a Markdown fence belongs to the adapter, and is covered by
+// "line citations in messages" in markdown-adapter.test.ts (#137).
 function block(body: string, type = 'flowchart'): Block {
-  return { path: 'test.md', line: 1, col: 1, body, type };
+  return { path: 'test.mmd', line: 1, col: 1, body, type };
 }
 
 // Focus a single rule's findings — `checkSemantics` runs every rule, so the
@@ -1145,7 +1152,7 @@ describe('checkSemantics', () => {
       expect(warnings[0].severity).toBe('warn');
       expect(warnings[0].message).toContain('`bar()`');
       expect(warnings[0].message).toContain('`Foo`');
-      expect(warnings[0].message).toContain('first on line');
+      expect(warnings[0].message).toContain('first on line 3');
     });
 
     it('fires when a method is declared twice via inline syntax', () => {
@@ -3667,5 +3674,39 @@ describe('frontmatter-must-be-first rule', () => {
     const findings = only(b, 'frontmatter-must-be-first');
     expect(findings).toHaveLength(1);
     expect(findings[0].line).toBe(2);
+  });
+});
+
+describe('line citations in rule messages', () => {
+  const source = readFileSync(
+    resolve(import.meta.dirname, '../src/semantic.ts'),
+    'utf8',
+  );
+  const cites = source
+    .split('\n')
+    .map((text, i) => ({ line: i + 1, text }))
+    .filter(({ text }) => /line \$\{/.test(text));
+
+  // A rule counts body lines, but its message is read beside a `file:line`
+  // position, so a cited number must be mapped with `ctx.fileLine` first
+  // (#137). This scans the source because the rule suite above runs on `.mmd`
+  // fixtures, where the two coordinate spaces coincide and a rule that forgot
+  // would still pass. Its reach is the established "on line ${...}" phrasing:
+  // a rule inventing new wording, or passing `fileLine` the wrong variable,
+  // slips past — so a rule that cites a line also wants a fenced-Markdown case
+  // in markdown-adapter.test.ts.
+  it('maps every cited line number through fileLine', () => {
+    const unmapped = cites
+      .filter(({ text }) => !/line \$\{fileLine\(/.test(text))
+      .map(({ line, text }) => `${line}: ${text.trim()}`);
+    expect(unmapped).toEqual([]);
+  });
+
+  // Guards the guard. A rename that stopped the pattern matching would leave
+  // the check above passing vacuously; so would rephrasing rules out of it one
+  // at a time, which is why this is a floor at today's count rather than a
+  // loose lower bound. Raise it when you add a citing rule.
+  it('still finds every citation it is meant to police', () => {
+    expect(cites.length).toBeGreaterThanOrEqual(26);
   });
 });

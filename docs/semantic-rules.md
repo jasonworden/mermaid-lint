@@ -104,9 +104,15 @@ default to `error`, because neither leaves a judgment call to the reader:
 ## Example Output
 
 ```text
-docs/api.md:7:1: error: duplicate-ids: node "A" declared with label "Start" (line 2) and "Begin" (line 7)
+docs/api.md:7:1: error: duplicate-ids: node "A" declared with label "Start" (line 3) and "Begin" (line 7)
 docs/api.md:2:1: warning: prefer-flowchart: use `flowchart` instead of `graph`: ...
 ```
+
+A line number quoted inside a message is a line in the **file**, the same
+coordinate as the `path:line:col` prefix — so a rule that points at a second
+declaration and cites the first gives you two numbers you can jump to directly,
+whether the diagram is a standalone `.mmd` or fenced partway down a Markdown
+document.
 
 ## Suppressions
 

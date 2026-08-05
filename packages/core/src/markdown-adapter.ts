@@ -1,6 +1,7 @@
 import {
   type Block,
   type ExtractOptions,
+  bodyLineToFileLine,
   extractMermaidBlocks,
 } from './extract.js';
 import { RULE_DEFAULTS, type ResolvedRules, type RuleId } from './rules.js';
@@ -45,19 +46,15 @@ export interface Diagnostic {
 /**
  * Map a body-relative line to its absolute document line.
  *
- * - A structural error (unclosed/empty fence) carries no line; report it at the
- *   block's opener line (`block.line`).
- * - For a fenced block, the body starts one line after the opener, so the
- *   opener line itself is the offset added to the 1-indexed body line.
- * - For a whole-file `.mmd` block, the body starts at line 1, so the offset is
- *   `block.line - 1` (i.e. 0 when `block.line` is 1).
+ * Adds the one case {@link bodyLineToFileLine} does not cover: a structural
+ * error (unclosed/empty fence) carries no body line, and is reported at the
+ * block's opener instead.
  *
  * @internal
  */
 function toAbsLine(block: Block, relLine: number | undefined): number {
   if (relLine === undefined) return block.line;
-  const bodyOffset = block.path.endsWith('.mmd') ? block.line - 1 : block.line;
-  return bodyOffset + relLine;
+  return bodyLineToFileLine(block, relLine);
 }
 
 /** Which scope a `directiveDiagnostics` pass is reporting for. */
