@@ -4,6 +4,7 @@ import {
   blockToDiagnostics,
   detectDiagramType,
   fixBlockBody,
+  parseFileDirectives,
   resolveRules,
 } from '@mermaid-lint/core';
 import type { Code, Root } from 'mdast';
@@ -31,6 +32,9 @@ const remarkLintMermaid = lintRule<Root, Options>(
     const { strict = false, rules } = options;
     const resolved = resolveRules({ rules });
     const tasks: Promise<void>[] = [];
+    // Parsed once per document (not per block) — file-scope directives apply
+    // to every Mermaid block in the file.
+    const fileDirectives = parseFileDirectives(String(file.value ?? ''));
 
     visit(tree, 'code', (node: Code) => {
       if (node.lang !== 'mermaid' || !node.position) return;
@@ -43,6 +47,7 @@ const remarkLintMermaid = lintRule<Root, Options>(
         col: node.position.start.column,
         body: node.value,
         type: detectDiagramType(node.value),
+        fileDirectives,
       };
       tasks.push(
         blockToDiagnostics(block, resolved).then((diagnostics) => {

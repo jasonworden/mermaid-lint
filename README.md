@@ -448,15 +448,63 @@ you can tune any rule via the [`rules` config key](#configuration).
 See [docs/semantic-rules.md](docs/semantic-rules.md) for the full rule table,
 default severities, scopes, and example output.
 
-Suppress one rule per-diagram with a Mermaid comment:
+Suppress rules with directives. A reason after `:` is required.
+
+```mermaid
+flowchart LR
+  A[Start] --> B[End]
+%% mermaid-lint-disable-next-line duplicate-ids: ids collide upstream
+  A[Also Start] --> C[End]
+```
+
+| Directive | Scope |
+|---|---|
+| `%% mermaid-lint-disable-next-line <rules>: <reason>` | the next line |
+| `%% mermaid-lint-disable <rules>: <reason>` … `%% mermaid-lint-enable <rules>` | from the directive to the matching `enable`, or end of diagram |
+| `%% mermaid-lint-disable-diagram <rules>: <reason>` | the whole diagram |
+| `<!-- mermaid-lint-disable-file <rules>: <reason> -->` | every diagram in the Markdown file |
+
+`<rules>` is a space- or comma-separated list of rule ids, or `all`.
+
+**Directives must sit below any YAML frontmatter.** Mermaid only recognizes
+frontmatter at the very start of a diagram, so a comment above it silently
+breaks rendering:
 
 ```
-%% mermaid-lint-disable duplicate-ids
+---
+title: My Diagram
+---
+%% mermaid-lint-disable-next-line duplicate-ids: ids collide upstream
 flowchart LR
   A[Start] --> B[End]
 ```
 
-Use a bare `%% mermaid-lint-disable` to suppress all rules in a diagram, or disable everything for a run with `--no-semantic`.
+(This snippet illustrates *placement* only, not suppression behavior:
+mermaid-lint currently mis-detects the diagram type when frontmatter is
+present, so no semantic rule fires inside a frontmatter-prefixed diagram yet
+— see [#122](https://github.com/jasonworden/mermaid-lint/issues/122).)
+
+`all` covers semantic rules only, and never the three suppression meta-rules
+below — `suppression-unknown-rule`, `suppression-unused`, and
+`suppression-malformed` stay on even under `-disable-diagram all`; name one
+explicitly to quiet it. Suppressing a syntax error requires naming `mermaid`
+explicitly too, and only at diagram or file scope:
+`%% mermaid-lint-disable-diagram mermaid: uses syntax our pinned parser predates`.
+
+**Structural errors are never suppressible.** An unclosed ` ```mermaid ` fence
+or an empty block is a defect in the Markdown, not the diagram — and an
+unclosed fence has no parseable body for a `%%` directive to live in, so
+`-disable-file mermaid` would be the only lever and would hide broken Markdown
+indefinitely. `mermaid` suppression applies to diagrams the parser rejected,
+not to fences that never closed.
+
+Malformed and unknown directives are themselves reported, and so is a
+body-scope directive (`-disable-next-line`/`-disable`/`-disable-diagram`)
+that suppressed nothing — see `suppression-malformed`,
+`suppression-unknown-rule`, and `suppression-unused` in
+[docs/semantic-rules.md](docs/semantic-rules.md). A stale file-scope
+(`<!-- -->`) directive is the one exception: it is not currently reported as
+unused. Disable everything for a run with `--no-semantic`.
 
 ## Diagram types
 

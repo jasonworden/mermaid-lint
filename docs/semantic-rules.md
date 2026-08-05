@@ -82,6 +82,9 @@ Tune rules through the `rules` config key. Most rules default to `warn`;
 | `c4-undefined-relationship-endpoint` | `warn` | A C4 relationship whose source or target id is not declared | C4Context |
 | `c4-undefined-element-style` | `warn` | An `UpdateElementStyle` override that references an undeclared C4 element or boundary id | C4Context |
 | `c4-undefined-relationship-style-endpoint` | `warn` | An `UpdateRelStyle` override whose source or target id is not declared | C4Context |
+| `suppression-unknown-rule` | `warn` | A suppression directive naming a rule id that does not exist; the directive silently suppresses nothing | all |
+| `suppression-unused` | `warn` | A well-formed suppression directive that suppressed no finding; usually a stale directive left behind after a fix | all |
+| `suppression-malformed` | `warn` | A suppression directive with no reason, no rule ids, an `enable` closing nothing, or `mermaid` named at line scope | all |
 
 ## Example Output
 
@@ -92,13 +95,16 @@ docs/api.md:2:1: warning: prefer-flowchart: use `flowchart` instead of `graph`: 
 
 ## Suppressions
 
-Suppress one rule for a diagram with a Mermaid comment:
+Suppress a rule for the next line, a range, a diagram, or a whole file. Every
+directive requires a reason after `:`.
 
 ```mermaid
-%% mermaid-lint-disable duplicate-ids
 flowchart LR
   A[Start] --> B[End]
+%% mermaid-lint-disable-next-line duplicate-ids: ids collide upstream
+  A[Also Start] --> C[End]
 ```
 
-Use a bare `%% mermaid-lint-disable` to suppress all semantic rules in a
-diagram, or use `--no-semantic` to disable semantic checks for a run.
+See the [README directive table](../README.md#semantic-rules) for every form.
+Directives must sit below any YAML frontmatter. Use `--no-semantic` to disable
+semantic checks for a run.

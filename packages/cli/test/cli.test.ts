@@ -87,7 +87,7 @@ describe('mermaid-lint CLI', () => {
     const r = run(['--format', 'json', join(tmp, 'ok.md')], tmp);
     expect(r.status).toBe(0);
     const json = JSON.parse(r.stdout);
-    expect(json.version).toBe('0.35.2');
+    expect(json.version).toBe('0.36.0');
     expect(json.files).toHaveLength(1);
     expect(json.files[0].diagrams[0].ok).toBe(true);
     expect(json.files[0].diagrams[0].type).toBe('flowchart');
@@ -258,7 +258,7 @@ describe('mermaid-lint CLI', () => {
     // An error-severity finding fails the run even though the diagram parses.
     expect(r.status).toBe(1);
     const json = JSON.parse(r.stdout);
-    expect(json.version).toBe('0.35.2');
+    expect(json.version).toBe('0.36.0');
     expect(json.files[0].diagrams[0].ok).toBe(true);
     expect(json.files[0].diagrams[0].warnings).toHaveLength(1);
     expect(json.files[0].diagrams[0].warnings[0].rule).toBe('duplicate-ids');
@@ -856,6 +856,52 @@ describe('mermaid-lint CLI', () => {
     it('documents --ext in --help', () => {
       const r = run(['--help'], '.');
       expect(r.stdout).toContain('--ext');
+    });
+  });
+
+  describe('suppression directives', () => {
+    it('a -disable-diagram mermaid: <reason> directive suppresses a syntax error (exit 0)', () => {
+      const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+      writeFileSync(
+        join(tmp, 'suppressed.mmd'),
+        '%% mermaid-lint-disable-diagram mermaid: pinned parser predates this syntax\nflowchart LR\n  A[Start] -->\n',
+      );
+      const r = run([join(tmp, 'suppressed.mmd')], tmp);
+      expect(r.status).toBe(0);
+      expect(r.stdout).not.toContain('parse error');
+    });
+
+    it('a directive with an unknown rule id surfaces suppression-unknown-rule', () => {
+      const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+      writeFileSync(
+        join(tmp, 'typo.mmd'),
+        '%% mermaid-lint-disable-next-line dupilcate-ids: reason given\nflowchart LR\n  A --> B\n',
+      );
+      const r = run([join(tmp, 'typo.mmd')], tmp);
+      expect(r.stdout).toContain('suppression-unknown-rule');
+    });
+
+    it('a directive with no reason surfaces suppression-malformed', () => {
+      const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+      writeFileSync(
+        join(tmp, 'noreason.mmd'),
+        '%% mermaid-lint-disable-next-line duplicate-ids\nflowchart LR\n  A --> B\n',
+      );
+      const r = run([join(tmp, 'noreason.mmd')], tmp);
+      expect(r.stdout).toContain('suppression-malformed');
+    });
+
+    it('surfaces suppression findings through --format json too', () => {
+      const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+      writeFileSync(
+        join(tmp, 'noreason.mmd'),
+        '%% mermaid-lint-disable-next-line duplicate-ids\nflowchart LR\n  A --> B\n',
+      );
+      const r = run(['--format', 'json', join(tmp, 'noreason.mmd')], tmp);
+      const json = JSON.parse(r.stdout);
+      expect(json.files[0].diagrams[0].warnings).toContainEqual(
+        expect.objectContaining({ rule: 'suppression-malformed' }),
+      );
     });
   });
 });

@@ -98,7 +98,10 @@ export type RuleId =
   | 'c4-duplicate-id'
   | 'c4-undefined-relationship-endpoint'
   | 'c4-undefined-element-style'
-  | 'c4-undefined-relationship-style-endpoint';
+  | 'c4-undefined-relationship-style-endpoint'
+  | 'suppression-unknown-rule'
+  | 'suppression-unused'
+  | 'suppression-malformed';
 
 /**
  * User-facing `rules` configuration: a partial map of rule id to desired
@@ -629,6 +632,24 @@ export const RULE_METADATA = {
     defaultSeverity: 'warn',
     docsScope: 'C4Context',
     readmeDiagramKeywords: ['C4Context'],
+  },
+  // Directive-correctness rules. They describe the suppression comments
+  // themselves rather than any diagram type, so they carry no README diagram
+  // keywords — the README Diagram types table stays untouched.
+  'suppression-unknown-rule': {
+    defaultSeverity: 'warn',
+    docsScope: 'all',
+    readmeDiagramKeywords: [],
+  },
+  'suppression-unused': {
+    defaultSeverity: 'warn',
+    docsScope: 'all',
+    readmeDiagramKeywords: [],
+  },
+  'suppression-malformed': {
+    defaultSeverity: 'warn',
+    docsScope: 'all',
+    readmeDiagramKeywords: [],
   },
 } satisfies Record<RuleId, RuleMetadata>;
 

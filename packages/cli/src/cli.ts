@@ -5,6 +5,8 @@ import {
   ALL_FENCE_MARKERS,
   type FenceMarker,
   type ResolvedRules,
+  SYNTAX_RULE_ID,
+  blockToDiagnostics,
   discoverFiles,
   extractMermaidBlocks,
   fixText,
@@ -12,7 +14,6 @@ import {
   isRuleSeverity,
   loadConfig,
   resolveRules,
-  validateBlock,
 } from '@mermaid-lint/core';
 import chalk from 'chalk';
 import fg from 'fast-glob';
@@ -221,31 +222,25 @@ async function runTextMode(
     for (const block of blocks) {
       blockCount++;
       typeCounts[block.type] = (typeCounts[block.type] ?? 0) + 1;
-      const r = await validateBlock(block, rules);
-      if (!r.ok) {
-        failures++;
-        const loc = r.error.line != null ? `:${r.error.line}` : '';
-        const msg = r.error.message.replace(/\s*\n\s*/g, ' | ');
-        process.stdout.write(
-          `${chalk.bold(block.path)}:${block.line}:${block.col}${loc}: ${chalk.red('parse error:')} ${msg}\n`,
-        );
-      }
-      for (const w of r.warnings) {
-        const bodyOffset = block.path.endsWith('.mmd')
-          ? block.line - 1
-          : block.line;
-        const absLine = bodyOffset + (w.line ?? 1);
-        if (w.severity === 'error') {
+      const diagnostics = await blockToDiagnostics(block, rules);
+      for (const d of diagnostics) {
+        if (d.ruleId === SYNTAX_RULE_ID) {
+          failures++;
+          const msg = d.message.replace(/\s*\n\s*/g, ' | ');
+          process.stdout.write(
+            `${chalk.bold(block.path)}:${d.line}:${d.column}: ${chalk.red('parse error:')} ${msg}\n`,
+          );
+        } else if (d.severity === 'error') {
           // An "error"-severity finding fails the run like a parse error.
           failures++;
           process.stdout.write(
-            `${chalk.bold(block.path)}:${absLine}:${block.col}: ${chalk.red('error:')} ${w.rule}: ${w.message}\n`,
+            `${chalk.bold(block.path)}:${d.line}:${d.column}: ${chalk.red('error:')} ${d.ruleId}: ${d.message}\n`,
           );
         } else {
           warningCount++;
           if (showWarnings) {
             process.stdout.write(
-              `${chalk.bold(block.path)}:${absLine}:${block.col}: ${chalk.yellow('warning:')} ${w.rule}: ${w.message}\n`,
+              `${chalk.bold(block.path)}:${d.line}:${d.column}: ${chalk.yellow('warning:')} ${d.ruleId}: ${d.message}\n`,
             );
           }
         }
@@ -313,24 +308,36 @@ async function runJsonMode(
     const diagrams: DiagramResult[] = [];
     const blocks = extractMermaidBlocks(filePath, text, { fences });
     for (const block of blocks) {
-      const r = await validateBlock(block, rules);
-      totalWarnings += r.warnings.length;
-      for (const w of r.warnings) {
-        if (w.severity === 'error') errorFindings++;
+      const diagnostics = await blockToDiagnostics(block, rules);
+      const syntaxDiag = diagnostics.find((d) => d.ruleId === SYNTAX_RULE_ID);
+      const warningDiags = diagnostics.filter(
+        (d) => d.ruleId !== SYNTAX_RULE_ID,
+      );
+      totalWarnings += warningDiags.length;
+      for (const d of warningDiags) {
+        if (d.severity === 'error') errorFindings++;
         else warnFindings++;
       }
       const dr: DiagramResult = {
         line: block.line,
         col: block.col,
         type: block.type,
-        ok: r.ok,
-        warnings: r.warnings,
+        ok: !syntaxDiag,
+        warnings: warningDiags.map((d) => ({
+          rule: d.ruleId,
+          message: d.message,
+          line: d.line,
+          severity:
+            d.severity === 'error' ? ('error' as const) : ('warn' as const),
+        })),
       };
-      if (!r.ok) {
+      if (syntaxDiag) {
         failures++;
-        dr.error = { message: r.error.message };
-        if (r.error.line != null) dr.error.line = r.error.line;
-        if (r.error.col != null) dr.error.col = r.error.col;
+        dr.error = {
+          message: syntaxDiag.message,
+          line: syntaxDiag.line,
+          col: syntaxDiag.column,
+        };
       }
       diagrams.push(dr);
     }

@@ -86,8 +86,9 @@ Two layers, two meanings:
    violation is unambiguously wrong (e.g. `duplicate-ids`, where a conflicting
    label is silently dropped) defaults to `error`. `warn` findings are advisory
    and only fail the run under `strict`; `error` findings fail it outright.
-   Users tune any rule via the `rules` config key or suppress one in-diagram with
-   `%% mermaid-lint-disable <rule>`.
+   Users tune any rule via the `rules` config key or suppress one in-diagram
+   with `%% mermaid-lint-disable-next-line <rule>: <reason>` (see the README
+   for the full directive table).
 
 The shared [`markdown-adapter.ts`](../packages/core/src/markdown-adapter.ts)
 normalizes both into one `Diagnostic` shape (`error` | `warning`), so every

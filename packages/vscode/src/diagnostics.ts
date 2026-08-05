@@ -65,44 +65,36 @@ export async function computeMermaidDiagnostics(
   options: ComputeOptions = {},
 ): Promise<MermaidDiagnostic[]> {
   const { semantic = true, strict = false, fences, rules } = options;
-  const { extractMermaidBlocks, validateBlock, resolveRules } =
-    await loadCore();
-  const isMmd = path.endsWith('.mmd');
+  const {
+    extractMermaidBlocks,
+    blockToDiagnostics,
+    resolveRules,
+    SYNTAX_RULE_ID,
+  } = await loadCore();
   const lines = text.replace(/\r\n/g, '\n').split('\n');
   const blocks = extractMermaidBlocks(path, text, fences ? { fences } : {});
   // Layer the config's `rules` over the built-in defaults. `semantic: false`
-  // resolves every rule to `off`, so the validator emits no warnings.
+  // resolves every rule (including the suppression meta-rules) to `off`, so
+  // the adapter emits no warnings.
   const resolved = resolveRules({ rules, semantic });
   const out: MermaidDiagnostic[] = [];
 
   await Promise.all(
     blocks.map(async (block) => {
-      const result = await validateBlock(block, resolved);
-      const bodyStart = isMmd ? block.line : block.line + 1;
-      const toDocLine = (bodyLine: number | undefined): number =>
-        bodyLine === undefined ? block.line : bodyStart + bodyLine - 1;
-
-      if (!result.ok) {
-        out.push(
-          makeDiag(
-            lines,
-            toDocLine(result.error.line),
-            result.error.col,
-            result.error.message,
-            'error',
-          ),
-        );
-      }
-      if (semantic) {
-        for (const w of result.warnings) {
-          // A rule resolved to `error` is always an error; `strict` elevates
-          // the remaining `warn`-severity findings to errors too.
-          const severity: Severity =
-            w.severity === 'error' || strict ? 'error' : 'warning';
-          out.push(
-            makeDiag(lines, toDocLine(w.line), undefined, w.message, severity),
-          );
-        }
+      // `blockToDiagnostics` returns document-absolute coordinates already —
+      // same extract → validate → report path every other integration uses,
+      // so suppression directives (syntax-error suppression and the
+      // suppression-* meta-rules) are honored here too.
+      const diagnostics = await blockToDiagnostics(block, resolved);
+      for (const d of diagnostics) {
+        // A syntax error is always an error; for everything else, a rule
+        // resolved to `error` is always an error, and `strict` elevates the
+        // remaining `warning`-severity findings to errors too.
+        const severity: Severity =
+          d.ruleId === SYNTAX_RULE_ID || d.severity === 'error' || strict
+            ? 'error'
+            : 'warning';
+        out.push(makeDiag(lines, d.line, d.column, d.message, severity));
       }
     }),
   );
