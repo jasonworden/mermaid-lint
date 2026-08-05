@@ -43,4 +43,30 @@ describe('detectDiagramType', () => {
   it('returns unknown for comment-only body', () => {
     expect(detectDiagramType('%% only a comment')).toBe('unknown');
   });
+
+  it('detects the type past leading YAML frontmatter', () => {
+    expect(
+      detectDiagramType('---\ntitle: T\n---\nflowchart LR\n  A --> B'),
+    ).toBe('flowchart');
+  });
+
+  it('detects the type past frontmatter followed by a comment', () => {
+    expect(
+      detectDiagramType('---\ntitle: T\n---\n%% note\nsequenceDiagram'),
+    ).toBe('sequenceDiagram');
+  });
+
+  it('returns --- for unterminated frontmatter', () => {
+    expect(detectDiagramType('---\ntitle: T\nflowchart LR')).toBe('---');
+  });
+
+  it('returns unknown when the body is only frontmatter', () => {
+    expect(detectDiagramType('---\ntitle: T\n---')).toBe('unknown');
+  });
+
+  it('ignores a --- that does not open the body', () => {
+    expect(detectDiagramType('flowchart LR\n---\ntitle: T\n---')).toBe(
+      'flowchart',
+    );
+  });
 });
