@@ -5,6 +5,7 @@
       "**/node_modules",
       "**/pnpm-lock.yaml",
       "**/.git",
+      "**/.worktrees",
       "**/dist",
       "**/.vscode-test",
       "packages/core/docs"
