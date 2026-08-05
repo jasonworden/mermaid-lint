@@ -106,6 +106,74 @@ describe('fixText', () => {
     });
   });
 
+  describe('leading YAML frontmatter', () => {
+    it('normalizes arrows below frontmatter in a fenced block', () => {
+      const input =
+        '```mermaid\n---\ntitle: My Diagram\n---\nflowchart LR\n  A -> B\n```\n';
+      expect(fixText(input)).toBe(
+        '```mermaid\n---\ntitle: My Diagram\n---\nflowchart LR\n  A --> B\n```\n',
+      );
+    });
+
+    it('normalizes arrows below frontmatter in a .mmd file', () => {
+      const input = '---\ntitle: My Diagram\n---\nflowchart LR\n  A -> B\n';
+      expect(fixText(input, { path: 'diagram.mmd' })).toBe(
+        '---\ntitle: My Diagram\n---\nflowchart LR\n  A --> B\n',
+      );
+    });
+
+    it('inserts a missing sequence colon below frontmatter', () => {
+      const input =
+        '---\ntitle: T\n---\nsequenceDiagram\n  Alice->>Bob hello\n';
+      expect(fixText(input, { path: 'diagram.mmd' })).toBe(
+        '---\ntitle: T\n---\nsequenceDiagram\n  Alice->>Bob: hello\n',
+      );
+    });
+
+    it('leaves arrow-shaped frontmatter values byte-identical', () => {
+      const input =
+        '---\ntitle: A -> B\ndisplayMode: compact -> wide\n---\n' +
+        'flowchart LR\n  A -> B\n';
+      expect(fixText(input, { path: 'diagram.mmd' })).toBe(
+        '---\ntitle: A -> B\ndisplayMode: compact -> wide\n---\n' +
+          'flowchart LR\n  A --> B\n',
+      );
+    });
+
+    it('leaves message-shaped frontmatter values byte-identical', () => {
+      // A YAML block scalar can hold a line the missing-colon matcher accepts.
+      const input =
+        '---\ntitle: >\n  Alice->>Bob hello there\n---\n' +
+        'sequenceDiagram\n  Alice->>Bob hi\n';
+      expect(fixText(input, { path: 'diagram.mmd' })).toBe(
+        '---\ntitle: >\n  Alice->>Bob hello there\n---\n' +
+          'sequenceDiagram\n  Alice->>Bob: hi\n',
+      );
+    });
+
+    it('still skips %% comments below frontmatter', () => {
+      const input = '---\ntitle: T\n---\n%% A -> B\nflowchart LR\n  A -> B\n';
+      expect(fixText(input, { path: 'diagram.mmd' })).toBe(
+        '---\ntitle: T\n---\n%% A -> B\nflowchart LR\n  A --> B\n',
+      );
+    });
+
+    it('declines to fix through an unterminated frontmatter block', () => {
+      // Mermaid does not read it as frontmatter either, so `---` stays the
+      // header and the type is unrecognized — declining beats guessing where
+      // the user's YAML ends.
+      const input = '---\ntitle: T\nflowchart LR\n  A -> B\n';
+      expect(fixText(input, { path: 'diagram.mmd' })).toBe(input);
+    });
+
+    it('does not treat a non-leading --- block as frontmatter', () => {
+      const input = 'flowchart LR\n  A -> B\n---\ntitle: C -> D\n---\n';
+      expect(fixText(input, { path: 'diagram.mmd' })).toBe(
+        'flowchart LR\n  A --> B\n---\ntitle: C --> D\n---\n',
+      );
+    });
+  });
+
   describe('commonmark fences', () => {
     it('normalizes arrows inside a tilde fence', () => {
       const input = '~~~mermaid\nflowchart LR\n  A -> B\n~~~\n';
@@ -185,6 +253,18 @@ describe('fixBlockBody', () => {
     expect(fixBlockBody('flowchart LR\n      A -> B')).toBe(
       'flowchart LR\n      A --> B',
     );
+  });
+
+  it('fixes below frontmatter and leaves the frontmatter byte-identical', () => {
+    expect(
+      fixBlockBody('---\ntitle: A -> B\n---\nflowchart LR\n  A -> B'),
+    ).toBe('---\ntitle: A -> B\n---\nflowchart LR\n  A --> B');
+  });
+
+  it('preserves the line count on a frontmatter-prefixed body', () => {
+    const body = '---\ntitle: A -> B\n---\nflowchart LR\n  A -> B\n  C -> D';
+    const fixed = fixBlockBody(body);
+    expect(fixed.split('\n')).toHaveLength(body.split('\n').length);
   });
 
   it('does not add a closing fence (no fence-level work)', () => {

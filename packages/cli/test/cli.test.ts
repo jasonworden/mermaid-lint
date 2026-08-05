@@ -87,7 +87,7 @@ describe('mermaid-lint CLI', () => {
     const r = run(['--format', 'json', join(tmp, 'ok.md')], tmp);
     expect(r.status).toBe(0);
     const json = JSON.parse(r.stdout);
-    expect(json.version).toBe('0.40.0');
+    expect(json.version).toBe('0.40.1');
     expect(json.files).toHaveLength(1);
     expect(json.files[0].diagrams[0].ok).toBe(true);
     expect(json.files[0].diagrams[0].type).toBe('flowchart');
@@ -258,7 +258,7 @@ describe('mermaid-lint CLI', () => {
     // An error-severity finding fails the run even though the diagram parses.
     expect(r.status).toBe(1);
     const json = JSON.parse(r.stdout);
-    expect(json.version).toBe('0.40.0');
+    expect(json.version).toBe('0.40.1');
     expect(json.files[0].diagrams[0].ok).toBe(true);
     expect(json.files[0].diagrams[0].warnings).toHaveLength(1);
     expect(json.files[0].diagrams[0].warnings[0].rule).toBe('duplicate-ids');
@@ -670,6 +670,17 @@ describe('mermaid-lint CLI', () => {
       expect(r.status).toBe(0);
       expect(readFileSync(file, 'utf8')).toBe(
         '```mermaid\nflowchart LR\n  A --> B\n```\n',
+      );
+    });
+
+    it('fixes a frontmatter-prefixed diagram without touching the YAML', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+      const file = join(dir, 'test.mmd');
+      writeFileSync(file, '---\ntitle: A -> B\n---\nflowchart LR\n  A -> B\n');
+      const r = run(['--fix', file], dir);
+      expect(r.status).toBe(0);
+      expect(readFileSync(file, 'utf8')).toBe(
+        '---\ntitle: A -> B\n---\nflowchart LR\n  A --> B\n',
       );
     });
 

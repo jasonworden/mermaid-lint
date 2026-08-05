@@ -219,6 +219,16 @@ describe('@mermaid-lint/markdownlint — autofix (--fix)', () => {
     );
   });
 
+  it('fixes below frontmatter without rewriting the YAML', async () => {
+    // fixInfo maps edits back by line, so the frontmatter must survive
+    // byte-identical *and* keep the body's line numbering intact.
+    const input =
+      '```mermaid\n---\ntitle: A -> B\n---\nflowchart LR\n  A -> B\n```\n';
+    expect(await fix(input)).toBe(
+      '```mermaid\n---\ntitle: A -> B\n---\nflowchart LR\n  A --> B\n```\n',
+    );
+  });
+
   it('leaves a valid block untouched (no fixInfo)', async () => {
     const input = '```mermaid\nflowchart LR\n  A --> B\n```\n';
     const result = await lintWith(input, [rules.syntax]);
