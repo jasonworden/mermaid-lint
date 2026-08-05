@@ -511,8 +511,10 @@ interface ParsedWardley {
   components: WardleyDeclaration[];
   /** `anchor` rows; they become nodes too, so they count against an empty map. */
   anchors: WardleyDeclaration[];
-  /** Every name a reference may legally resolve to. */
-  declared: Set<string>;
+  /** Node ids exactly as `getNode` sees them — what an `evolve` must name. */
+  nodeIds: Set<string>;
+  /** Node ids plus the labels `resolveNodeId` falls back to — the link path. */
+  resolvableNames: Set<string>;
   references: WardleyReference[];
   /** Names reached by a link, an `evolve`, or a pipeline. */
   referenced: Set<string>;
@@ -564,16 +566,26 @@ const WARDLEY_PIPELINE_RE = /^pipeline\s+(.+?)\s*\{/;
  * and already falls under `WARDLEY_KEYWORD_RE` below.
  */
 const WARDLEY_ACC_DESCR_OPEN_RE = /^accDescr\s*\{/;
+/**
+ * The `\s*` between `accDescr` and its brace spans newlines, so the brace may
+ * sit on a later line and the block still opens. Matching that needs a
+ * lookahead from a bare `accDescr` row rather than a single-line pattern.
+ */
+const WARDLEY_ACC_DESCR_BARE_RE = /^accDescr$/;
 
 // Any row opening with a keyword is a statement, never a link. This is what
 // keeps `evolution Genesis -> Custom` from being read as a link to `Custom`.
 const WARDLEY_KEYWORD_RE =
   /^(?:component|anchor|note|evolve|evolution|pipeline|accelerator|deaccelerator|annotations?|size|title|accTitle|accDescr)\b/;
 
+// The three patterns below are sticky: they are only ever tried at positions
+// `execOutsideWardleyString` has cleared as being outside a quoted name.
+/** Mermaid's `SINGLE_LINE_COMMENT` opener. */
+const WARDLEY_COMMENT_RE = /%%/y;
 /** Longest-first, so `-->` never matches as `->` and `+'x'>` never as `>`. */
-const WARDLEY_LINK_SEP_RE = /\+'[^']*'(?:<>|<|>)|-\.->|-->|->|\+(?:<>|<|>)|>/;
+const WARDLEY_LINK_SEP_RE = /\+'[^']*'(?:<>|<|>)|-\.->|-->|->|\+(?:<>|<|>)|>/y;
 /** A `;`-prefixed link annotation runs to end of line. */
-const WARDLEY_LINK_LABEL_RE = /;.*$/;
+const WARDLEY_LINK_LABEL_RE = /;/y;
 /** A port may trail the target: `A -> B+<`. */
 const WARDLEY_TRAILING_PORT_RE = /\+(?:<>|<|>)$/;
 /**
@@ -605,14 +617,16 @@ function wardleyName(raw: string): string {
 }
 
 /**
- * Strip a trailing `%% comment` — mermaid's `SINGLE_LINE_COMMENT` is a hidden
- * terminal that can start anywhere on a line, not just in the opening column.
- * It only starts a comment when the `%%` is not inside a quoted name or a
- * `+'label'>` arrow annotation: there, the string terminal consumes the `%%`
- * as ordinary text before the comment terminal ever gets a chance to match.
- * So this tracks quote state rather than cutting at the first `%%` found.
+ * First match of a sticky pattern that begins outside a quoted name. Mermaid's
+ * `STRING` terminal is `"([^"\\]|\\.)*"`, so it swallows `%%`, `;`, `>` and
+ * every other structural character alike: inside quotes they are ordinary
+ * text, and none of them can be located with a plain scan over the whole line.
+ * Returns `null` when the pattern never matches outside a string.
  */
-function stripWardleyComment(raw: string): string {
+function execOutsideWardleyString(
+  pattern: RegExp,
+  raw: string,
+): RegExpExecArray | null {
   let quote: '"' | "'" | null = null;
   for (let i = 0; i < raw.length; i++) {
     const ch = raw[i];
@@ -620,20 +634,31 @@ function stripWardleyComment(raw: string): string {
       if (ch === quote) quote = null;
       continue;
     }
-    if (ch === '"' || ch === "'") {
-      quote = ch;
-      continue;
-    }
-    if (ch === '%' && raw[i + 1] === '%') return raw.slice(0, i);
+    // Tried before the quote opens, so a `+'label'>` arrow annotation matches
+    // whole rather than being mistaken for the start of a quoted name.
+    pattern.lastIndex = i;
+    const match = pattern.exec(raw);
+    if (match !== null) return match;
+    if (ch === '"' || ch === "'") quote = ch;
   }
-  return raw;
+  return null;
+}
+
+/**
+ * Strip a trailing `%% comment` — mermaid's `SINGLE_LINE_COMMENT` is a hidden
+ * terminal that can start anywhere on a line, not just in the opening column.
+ */
+function stripWardleyComment(raw: string): string {
+  const comment = execOutsideWardleyString(WARDLEY_COMMENT_RE, raw);
+  return comment === null ? raw : raw.slice(0, comment.index);
 }
 
 function parseWardleyLink(
   trimmed: string,
 ): { from: string; to: string } | null {
-  const body = trimmed.replace(WARDLEY_LINK_LABEL_RE, '');
-  const sep = WARDLEY_LINK_SEP_RE.exec(body);
+  const label = execOutsideWardleyString(WARDLEY_LINK_LABEL_RE, trimmed);
+  const body = label === null ? trimmed : trimmed.slice(0, label.index);
+  const sep = execOutsideWardleyString(WARDLEY_LINK_SEP_RE, body);
   // `index === 0` means the row opens with an arrow and has no source.
   if (sep === null || sep.index === 0) return null;
 
@@ -659,7 +684,8 @@ export function parseWardley(lines: string[]): ParsedWardley {
   const parsed: ParsedWardley = {
     components: [],
     anchors: [],
-    declared: new Set(),
+    nodeIds: new Set(),
+    resolvableNames: new Set(),
     references: [],
     referenced: new Set(),
     coordinates: [],
@@ -686,6 +712,15 @@ export function parseWardley(lines: string[]): ParsedWardley {
       continue;
     }
 
+    if (WARDLEY_ACC_DESCR_BARE_RE.test(trimmed)) {
+      // Only whitespace may separate the keyword from its brace, so anything
+      // else on the next non-blank line means this row never lexed as an
+      // `accDescr` at all and the following lines are ordinary statements.
+      const next = lines.slice(i + 1).find((later) => later.trim() !== '');
+      if (next?.trim().startsWith('{')) inAccDescr = true;
+      continue;
+    }
+
     if (pipelineParent !== null) {
       if (trimmed.startsWith('}')) {
         pipelineParent = null;
@@ -694,10 +729,14 @@ export function parseWardley(lines: string[]): ParsedWardley {
       const member = WARDLEY_PIPELINE_MEMBER_RE.exec(trimmed);
       if (member === null) continue;
       const name = wardleyName(member[1]);
-      // `resolveNodeId` tries the exact id first and falls back to a label
-      // scan, so both spellings are legal references to the same node.
-      parsed.declared.add(name);
-      parsed.declared.add(`${pipelineParent}_${name}`);
+      // A pipeline member is registered under the synthetic id alone, with the
+      // bare name kept only as its label. Links run through `resolveNodeId`,
+      // which falls back to a label scan, so both spellings reach it; an
+      // `evolve` runs through the bare `getNode`, which does not, so only the
+      // synthetic id resolves and `evolve <bare name>` is dropped in silence.
+      parsed.resolvableNames.add(name);
+      parsed.nodeIds.add(`${pipelineParent}_${name}`);
+      parsed.resolvableNames.add(`${pipelineParent}_${name}`);
       // A pipeline member is structurally attached to its parent, never orphaned.
       parsed.referenced.add(name);
       parsed.coordinates.push({ value: Number(member[2]), line });
@@ -718,7 +757,8 @@ export function parseWardley(lines: string[]): ParsedWardley {
     if (component !== null) {
       const name = wardleyName(component[1]);
       parsed.components.push({ name, line });
-      parsed.declared.add(name);
+      parsed.nodeIds.add(name);
+      parsed.resolvableNames.add(name);
       parsed.coordinates.push(
         { value: Number(component[2]), line },
         { value: Number(component[3]), line },
@@ -730,7 +770,8 @@ export function parseWardley(lines: string[]): ParsedWardley {
     if (anchor !== null) {
       const name = wardleyName(anchor[1]);
       parsed.anchors.push({ name, line });
-      parsed.declared.add(name);
+      parsed.nodeIds.add(name);
+      parsed.resolvableNames.add(name);
       parsed.coordinates.push(
         { value: Number(anchor[2]), line },
         { value: Number(anchor[3]), line },
@@ -750,6 +791,9 @@ export function parseWardley(lines: string[]): ParsedWardley {
     // Coordinate-only rows. The order between `annotations` and `annotation`
     // is arbitrary, not load-bearing: `WARDLEY_ANNOTATION_RE` requires a
     // digit right after the keyword, so it can never match `annotations`.
+    // Both annotation forms run through `toCoordinates` like any other row, so
+    // their bare integers are real coordinates and count toward the mixed
+    // scale — `annotations [1, 4]` is one fraction and one percentage.
     const placed =
       WARDLEY_NOTE_RE.exec(trimmed) ??
       WARDLEY_ACCELERATOR_RE.exec(trimmed) ??
@@ -788,7 +832,9 @@ const wardleyUndefinedComponent: Rule = {
     const findings: RuleFinding[] = [];
 
     for (const ref of parsed.references) {
-      if (parsed.declared.has(ref.name)) continue;
+      const resolvable =
+        ref.kind === 'evolve target' ? parsed.nodeIds : parsed.resolvableNames;
+      if (resolvable.has(ref.name)) continue;
       const dropped = ref.kind === 'evolve target' ? 'evolution arrow' : 'link';
       findings.push({
         message: `wardley-beta ${ref.kind} \`${ref.name}\` is not a declared component or anchor; Mermaid drops the ${dropped} silently rather than reporting an error.`,
@@ -853,7 +899,7 @@ const wardleyMixedCoordinateScale: Rule = {
 
     return [
       {
-        message: `wardley-beta mixes coordinate notations — ${decimal.length} in 0-1 decimal form and ${percentage.length} in 0-100 percentage form. Mermaid reads each value on its own, anything at or below 1 as a fraction and anything above it as a percentage, so \`${first.value}\` here is read as ${reading}. Use one notation for the whole map.`,
+        message: `wardley-beta mixes coordinate notations — ${decimal.length} in 0-1 decimal form and ${percentage.length} in 0-100 percentage form; \`${first.value}\` here is read as ${reading}, so use one notation for the whole map.`,
         line: first.line,
       },
     ];

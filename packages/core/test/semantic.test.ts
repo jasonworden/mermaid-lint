@@ -2787,6 +2787,46 @@ describe('wardley-undefined-component rule', () => {
     expect(only(b, 'wardley-undefined-component')).toEqual([]);
   });
 
+  // `populateDb` resolves a link with `resolveNodeId` (exact id, then a label
+  // scan) but an `evolve` with the bare `getNode`. A pipeline member's id is
+  // `parent_child` and only its label is the bare name, so mermaid drops
+  // `evolve Electric` without a diagnostic — confirmed against mermaid 11.15
+  // by inspecting the built trends.
+  it('flags an evolve naming a pipeline member by its bare name', () => {
+    const b = block(
+      [
+        'wardley-beta',
+        '  component Kettle [0.5, 0.6]',
+        '  pipeline Kettle {',
+        '    component Electric [0.63]',
+        '  }',
+        '  evolve Electric 0.8',
+      ].join('\n'),
+      'wardley-beta',
+    );
+    const warnings = only(b, 'wardley-undefined-component');
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].message).toContain('`Electric`');
+    expect(warnings[0].message).toContain('evolve target');
+    expect(warnings[0].line).toBe(6);
+  });
+
+  it('leaves an evolve on a pipeline parent or a synthetic id alone', () => {
+    const b = block(
+      [
+        'wardley-beta',
+        '  component Kettle [0.5, 0.6]',
+        '  pipeline Kettle {',
+        '    component Electric [0.63]',
+        '  }',
+        '  evolve Kettle 0.8',
+        '  evolve Kettle_Electric 0.7',
+      ].join('\n'),
+      'wardley-beta',
+    );
+    expect(only(b, 'wardley-undefined-component')).toEqual([]);
+  });
+
   it('leaves a pipeline parent alone, since mermaid already rejects it', () => {
     const b = block(
       [
@@ -2891,6 +2931,35 @@ describe('wardley-undefined-component rule', () => {
     expect(warnings[0].message).toContain('evolve target');
   });
 
+  // `STRING` is `"([^"\\]|\\.)*"`, so a quoted name may hold any structural
+  // character. Both maps below parse cleanly in mermaid 11.15; a scan that
+  // ignored quote state would report the halves of the name as undefined.
+  it('does not read a `>` inside a quoted name as a link separator', () => {
+    const b = block(
+      [
+        'wardley-beta',
+        '  component "Tea > Coffee" [0.9, 0.5]',
+        '  component Kettle [0.5, 0.6]',
+        '  "Tea > Coffee" -> Kettle',
+      ].join('\n'),
+      'wardley-beta',
+    );
+    expect(only(b, 'wardley-undefined-component')).toEqual([]);
+  });
+
+  it('does not read a `;` inside a quoted name as a link annotation', () => {
+    const b = block(
+      [
+        'wardley-beta',
+        '  component "Milk; Sugar" [0.9, 0.5]',
+        '  component Kettle [0.5, 0.6]',
+        '  "Milk; Sugar" -> Kettle',
+      ].join('\n'),
+      'wardley-beta',
+    );
+    expect(only(b, 'wardley-undefined-component')).toEqual([]);
+  });
+
   // `accDescr { ... }`'s brace form is a single lexer token spanning
   // newlines, so an arrow inside it is description text, not a link.
   it('does not read an arrow inside a braced accDescr block as a link', () => {
@@ -2901,6 +2970,23 @@ describe('wardley-undefined-component rule', () => {
         '  accDescr {',
         '    Kettle -> Power',
         '  }',
+      ].join('\n'),
+      'wardley-beta',
+    );
+    expect(only(b, 'wardley-undefined-component')).toEqual([]);
+  });
+
+  // `ACC_DESCR` separates the keyword from its brace with `\s*`, which spans a
+  // newline, so this is the same single token as the form above.
+  it('does not read an arrow inside an accDescr whose brace is on the next line', () => {
+    const b = block(
+      [
+        'wardley-beta',
+        '  accDescr',
+        '  {',
+        '    Kettle -> Power',
+        '  }',
+        '  component Kettle [0.5, 0.6]',
       ].join('\n'),
       'wardley-beta',
     );
@@ -2995,6 +3081,23 @@ describe('wardley-no-components rule', () => {
     );
     expect(only(b, 'wardley-no-components')).toEqual([]);
   });
+
+  // Notes, accelerators, and the annotations box are decorations placed on the
+  // grid, not nodes — `populateDb` never routes any of them through `addNode`.
+  it('still flags a map holding only decorations', () => {
+    const b = block(
+      [
+        'wardley-beta',
+        '  note "Some note" [0.4, 0.55]',
+        '  accelerator Public cloud [0.62, 0.35]',
+        '  annotations [0.1, 0.4]',
+      ].join('\n'),
+      'wardley-beta',
+    );
+    const warnings = only(b, 'wardley-no-components');
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].line).toBe(1);
+  });
 });
 
 describe('wardley-mixed-coordinate-scale rule', () => {
@@ -3013,6 +3116,12 @@ describe('wardley-mixed-coordinate-scale rule', () => {
     expect(warnings[0].severity).toBe('warn');
     // Reports on the minority spelling — the rows likely to be wrong.
     expect(warnings[0].line).toBe(4);
+    expect(warnings[0].message).toContain('4 in 0-1 decimal form');
+    expect(warnings[0].message).toContain('2 in 0-100 percentage form');
+    // The reading is a claim about mermaid, so it is pinned in both
+    // directions: a value above 1 is a percentage, one at or below it a
+    // fraction. See the decimal-minority case below for the other half.
+    expect(warnings[0].message).toContain('`50` here is read as a percentage');
   });
 
   it('stays silent on a map that uses one notation throughout', () => {
@@ -3042,6 +3151,41 @@ describe('wardley-mixed-coordinate-scale rule', () => {
     const warnings = only(b, 'wardley-mixed-coordinate-scale');
     expect(warnings).toHaveLength(1);
     expect(warnings[0].line).toBe(2);
+    expect(warnings[0].message).toContain('`0.9` here is read as a fraction');
+  });
+
+  // The only case where the selection expression's `<=` decides anything: with
+  // the partitions the same size it must pick the percentage one, since 0-1
+  // decimals are the canonical notation and the likelier intent.
+  it('reports the percentage row on an exact tie', () => {
+    const b = block(
+      [
+        'wardley-beta',
+        '  component A [0.9, 0.5]',
+        '  component B [50.0, 60.0]',
+      ].join('\n'),
+      'wardley-beta',
+    );
+    const warnings = only(b, 'wardley-mixed-coordinate-scale');
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].line).toBe(3);
+    expect(warnings[0].message).toContain('`50` here is read as a percentage');
+  });
+
+  // `annotations` and `annotation` accept a bare integer where every other row
+  // demands a decimal, and `populateDb` runs both through `toCoordinates` all
+  // the same — so an integer there is a real coordinate and mixes the scale of
+  // an otherwise-decimal map.
+  it('counts annotation coordinates, including their bare integers', () => {
+    const b = block(
+      'wardley-beta\n  component A [0.9, 0.5]\n  annotations [1, 4]',
+      'wardley-beta',
+    );
+    const warnings = only(b, 'wardley-mixed-coordinate-scale');
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].line).toBe(3);
+    expect(warnings[0].message).toContain('3 in 0-1 decimal form');
+    expect(warnings[0].message).toContain('`4` here is read as a percentage');
   });
 
   it('ignores label offsets and canvas size, which are not coordinates', () => {
