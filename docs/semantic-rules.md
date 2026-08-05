@@ -30,6 +30,10 @@ default to `error`, because neither leaves a judgment call to the reader:
 | `radar-no-curves` | `warn` | A `radar-beta` with no `curve` rows; parses but renders an empty grid | radar-beta |
 | `radar-curve-length-mismatch` | `warn` | A `radar-beta` positional `curve` whose value count does not match the declared axis count; renders a misaligned polygon | radar-beta |
 | `radar-duplicate-axis` | `warn` | A `radar-beta` with two axes rendering the same label | radar-beta |
+| `treemap-zero-value` | `warn` | A `treemap-beta` leaf with a value of `0`; renders as an invisible (zero-area) rectangle | treemap-beta |
+| `treemap-no-leaves` | `warn` | A `treemap-beta` with no row carrying a value; every rectangle is sized from leaf values, so it renders empty | treemap-beta |
+| `treemap-duplicate-sibling` | `warn` | Two `treemap-beta` rows with the same label under one parent; renders two identically labeled boxes | treemap-beta |
+| `treemap-branch-with-value` | `warn` | A `treemap-beta` row carrying a value with rows indented under it; Mermaid treats it as a leaf and silently re-parents those rows | treemap-beta |
 | `sankey-non-positive-value` | `warn` | A `sankey-beta` link with a value of `0` or below; the flow has no positive weight | sankey-beta |
 | `sankey-duplicate-link` | `warn` | The same `source,target` pair repeated, even with a different value; links stack and the duplicate is usually accidental | sankey-beta |
 | `sankey-self-loop` | `warn` | A `sankey-beta` link whose source and target are the same; usually a copy-paste mistake | sankey-beta |
