@@ -500,13 +500,28 @@ unclosed fence has no parseable body for a `%%` directive to live in, so
 indefinitely. `mermaid` suppression applies to diagrams the parser rejected,
 not to fences that never closed.
 
-Malformed and unknown directives are themselves reported, and so is a
-body-scope directive (`-disable-next-line`/`-disable`/`-disable-diagram`)
+Malformed and unknown directives are themselves reported, and so is a directive
 that suppressed nothing — see `suppression-malformed`,
 `suppression-unknown-rule`, and `suppression-unused` in
-[docs/semantic-rules.md](docs/semantic-rules.md). A stale file-scope
-(`<!-- -->`) directive is the one exception: it is not currently reported as
-unused. Disable everything for a run with `--no-semantic`.
+[docs/semantic-rules.md](docs/semantic-rules.md). A body-scope directive
+(`-disable-next-line`/`-disable`/`-disable-diagram`) is judged against its own
+diagram; a file-scope (`<!-- -->`) one against the whole document, and is
+reported once, at the comment's own line, only if no diagram in the file used
+it.
+
+File-scope directive diagnostics need a whole-document view, so today only the
+[VS Code extension](#vs-code-extension) surfaces them. The CLI, remark,
+textlint, and the test-runner adapters validate one diagram at a time and
+report body-scope directives only — they still *honor* a file directive, they
+just never tell you one is broken or stale.
+
+> **markdownlint caveat.** markdownlint blanks out the contents of HTML
+> comments before handing a document to custom rules, so the markdownlint
+> integration cannot see `<!-- -->` directives at all — a file-scope
+> suppression neither applies nor gets reported there. Use a `%%` body-scope
+> directive instead when linting through markdownlint.
+
+Disable everything for a run with `--no-semantic`.
 
 ## Diagram types
 
