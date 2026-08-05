@@ -352,8 +352,9 @@ export interface RuleMetadata {
  * — so nothing can land outside the unit square and still parse, and an
  * out-of-range rule has nothing to catch. What is left is the ambiguity: a map
  * that spells some coordinates one way and some the other has at least one
- * value that does not mean what its author intended. The finding points at the minority spelling, ties going to
- * the percentage form, since 0-1 decimals are the canonical Wardley notation.
+ * value that does not mean what its author intended. The finding points at
+ * the minority spelling, ties going to the percentage form, since 0-1
+ * decimals are the canonical Wardley notation.
  *
  * `frontmatter-must-be-first` is `error`, joining `duplicate-ids` as the only
  * non-advisory rules: a diagram whose frontmatter is preceded by anything does

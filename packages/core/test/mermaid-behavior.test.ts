@@ -208,6 +208,15 @@ describe('mermaid behavior contracts', () => {
         )
       ).ok,
     ).toBe(false);
+    // Bare integers lex for `annotations`, but [1, 4] passes the range check
+    // while [1, 200] fails it. Together, these pin that bare integers do lex.
+    expect(
+      (
+        await validateWithMermaidJS(
+          'wardley-beta\n  component A [0.9, 0.5]\n  annotations [1, 4]',
+        )
+      ).ok,
+    ).toBe(true);
     expect(
       (await validateWithMermaidJS('wardley-beta\n  component A [0.0, 1.0]'))
         .ok,
