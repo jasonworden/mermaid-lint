@@ -209,6 +209,11 @@ const RULE_DESCRIPTIONS: Record<RuleId, string> = {
   'xychart-no-series': 'Mermaid: an XY chart has no data series',
   'xychart-series-length-mismatch':
     'Mermaid: XY chart series lengths do not agree',
+  'radar-no-curves': 'Mermaid: a radar chart has no curves',
+  'radar-curve-length-mismatch':
+    'Mermaid: a radar curve has a different value count than the axes',
+  'radar-duplicate-axis':
+    'Mermaid: a radar chart declares the same axis label twice',
   'sankey-non-positive-value':
     'Mermaid: a sankey link has a non-positive value',
   'sankey-duplicate-link': 'Mermaid: a sankey link is defined more than once',

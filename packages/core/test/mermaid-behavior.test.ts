@@ -86,6 +86,47 @@ describe('mermaid behavior contracts', () => {
     }
   }, 30_000);
 
+  it('accepts positional radar-beta curves whose length does not match the axes', async () => {
+    // The premise of `radar-curve-length-mismatch`: Mermaid renders a
+    // misaligned polygon instead of erroring, in both directions. If a bump
+    // makes either reject, the parser catches it and the rule is redundant.
+    const axes = 'radar-beta\n  axis a, b, c\n';
+    expect((await validateWithMermaidJS(`${axes}  curve x{1, 2}`)).ok).toBe(
+      true,
+    );
+    expect(
+      (await validateWithMermaidJS(`${axes}  curve x{1, 2, 3, 4}`)).ok,
+    ).toBe(true);
+  }, 30_000);
+
+  it('rejects an incomplete keyed radar-beta curve, which is why the length rule skips them', async () => {
+    // `radar-curve-length-mismatch` deliberately ignores the `{axis: value}`
+    // form because Mermaid validates it ("Missing entry for axis b"). If this
+    // starts passing, the rule should widen to cover keyed curves too.
+    const result = await validateWithMermaidJS(
+      'radar-beta\n  axis a, b, c\n  curve x{a: 1}',
+    );
+    expect(result.ok).toBe(false);
+  }, 30_000);
+
+  it('accepts a trailing colon only on the radar-beta header', async () => {
+    // Radar's grammar uniquely allows `radar-beta:`, so the type string keeps
+    // the colon and every `-beta` suffix test has to tolerate it. Pinned so a
+    // bump that adds or drops the form surfaces here.
+    expect(
+      (await validateWithMermaidJS('radar-beta:\n  axis a, b\n  curve x{1, 2}'))
+        .ok,
+    ).toBe(true);
+    expect(detectDiagramType('radar-beta:\n  axis a, b')).toBe('radar-beta:');
+    expect(
+      (
+        await validateWithMermaidJS(
+          'xychart-beta:\n  x-axis [a, b]\n  line [1, 2]',
+        )
+      ).ok,
+    ).toBe(false);
+  }, 30_000);
+
   it('detects the diagram type past YAML frontmatter', () => {
     // Regression pin for
     // https://github.com/jasonworden/mermaid-lint/issues/122: this returned

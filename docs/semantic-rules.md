@@ -27,6 +27,9 @@ default to `error`, because neither leaves a judgment call to the reader:
 | `xychart-missing-y-axis` | `warn` | An `xychart-beta` with one or more series but no `y-axis`; the vertical scale or units are implicit | xychart-beta |
 | `xychart-no-series` | `warn` | An `xychart-beta` with no `line [...]` or `bar [...]` series; parses but renders empty | xychart-beta |
 | `xychart-series-length-mismatch` | `warn` | An `xychart-beta` whose series lengths do not match each other or a categorical `x-axis` label count | xychart-beta |
+| `radar-no-curves` | `warn` | A `radar-beta` with no `curve` rows; parses but renders an empty grid | radar-beta |
+| `radar-curve-length-mismatch` | `warn` | A `radar-beta` positional `curve` whose value count does not match the declared axis count; renders a misaligned polygon | radar-beta |
+| `radar-duplicate-axis` | `warn` | A `radar-beta` with two axes rendering the same label | radar-beta |
 | `sankey-non-positive-value` | `warn` | A `sankey-beta` link with a value of `0` or below; the flow has no positive weight | sankey-beta |
 | `sankey-duplicate-link` | `warn` | The same `source,target` pair repeated, even with a different value; links stack and the duplicate is usually accidental | sankey-beta |
 | `sankey-self-loop` | `warn` | A `sankey-beta` link whose source and target are the same; usually a copy-paste mistake | sankey-beta |
