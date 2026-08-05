@@ -301,6 +301,15 @@ const RULE_DESCRIPTIONS: Record<RuleId, string> = {
     'Mermaid: a C4 element style references an undefined id',
   'c4-undefined-relationship-style-endpoint':
     'Mermaid: a C4 relationship style references an undefined endpoint',
+  'wardley-undefined-component':
+    'Mermaid: a Wardley link or evolve names an undeclared component',
+  'wardley-orphan-component':
+    'Mermaid: a Wardley component is never referenced',
+  'wardley-no-components': 'Mermaid: a Wardley map has no components',
+  'wardley-mixed-coordinate-scale':
+    'Mermaid: a Wardley map mixes decimal and percentage coordinates',
+  'wardley-duplicate-component':
+    'Mermaid: a Wardley component or anchor name is declared twice',
   'frontmatter-must-be-first':
     'Mermaid: something precedes the YAML frontmatter, so the diagram will not render',
   'suppression-unknown-rule':

@@ -91,6 +91,11 @@ default to `error`, because neither leaves a judgment call to the reader:
 | `c4-undefined-relationship-endpoint` | `warn` | A C4 relationship whose source or target id is not declared | C4Context |
 | `c4-undefined-element-style` | `warn` | An `UpdateElementStyle` override that references an undeclared C4 element or boundary id | C4Context |
 | `c4-undefined-relationship-style-endpoint` | `warn` | An `UpdateRelStyle` override whose source or target id is not declared | C4Context |
+| `wardley-undefined-component` | `warn` | A `wardley-beta` link endpoint or `evolve` target naming a component that was never declared; Mermaid drops it silently | wardley-beta |
+| `wardley-orphan-component` | `off` | A `wardley-beta` component that no link, `evolve`, or pipeline references; renders as an isolated dot | wardley-beta |
+| `wardley-no-components` | `warn` | A `wardley-beta` with no `component` or `anchor` rows; parses but renders an empty map | wardley-beta |
+| `wardley-mixed-coordinate-scale` | `warn` | A `wardley-beta` mixing 0-1 decimal and 0-100 percentage coordinates; Mermaid reads each value independently, so one of them is misplaced | wardley-beta |
+| `wardley-duplicate-component` | `warn` | A `wardley-beta` component or anchor name declared more than once; Mermaid merges them into one node and the last coordinates win | wardley-beta |
 | `frontmatter-must-be-first` | `error` | A `%%` comment or blank line before the YAML frontmatter; Mermaid parses it but the diagram fails to render | all |
 | `suppression-unknown-rule` | `warn` | A suppression directive naming a rule id that does not exist; the directive silently suppresses nothing | all |
 | `suppression-unused` | `warn` | A well-formed suppression directive that suppressed no finding; usually a stale directive left behind after a fix | all |

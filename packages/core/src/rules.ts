@@ -106,6 +106,11 @@ export type RuleId =
   | 'c4-undefined-relationship-endpoint'
   | 'c4-undefined-element-style'
   | 'c4-undefined-relationship-style-endpoint'
+  | 'wardley-undefined-component'
+  | 'wardley-orphan-component'
+  | 'wardley-no-components'
+  | 'wardley-mixed-coordinate-scale'
+  | 'wardley-duplicate-component'
   | 'frontmatter-must-be-first'
   | 'suppression-unknown-rule'
   | 'suppression-unused'
@@ -154,6 +159,7 @@ export type RuleDocsScope =
   | 'stateDiagram'
   | 'timeline'
   | 'treemap-beta'
+  | 'wardley-beta'
   | 'xychart-beta';
 
 /**
@@ -336,6 +342,46 @@ export interface RuleMetadata {
  * the sankey rules catch non-positive link values and self-loops; and the
  * block/packet/architecture rules flag parser-valid diagrams that otherwise
  * render empty.
+ *
+ * The wardley-beta rules cover the coordinate space and reference integrity,
+ * the two things a Wardley map can get wrong while still parsing.
+ * `wardley-undefined-component` (`warn`) catches a link endpoint or `evolve`
+ * target naming a component that was never declared — mermaid drops both
+ * silently, the renderer filtering links whose endpoints have no position and
+ * populateDb skipping an unresolvable `evolve`. It deliberately ignores the
+ * `pipeline <parent>` reference, which mermaid validates itself.
+ *
+ * `wardley-orphan-component` (`off`) reports a component no link, `evolve`, or
+ * pipeline reaches. It defaults to `off` for the same reason as
+ * `no-orphan-nodes`: an isolated component is a legitimate thing to put on a
+ * Wardley map. Anchors are excluded — they are user-need markers that stand
+ * alone by design.
+ *
+ * `wardley-no-components` (`warn`) is the analogue of `radar-no-curves`: a map
+ * with neither a `component` nor an `anchor` renders as an empty grid. Notes
+ * and accelerators do not count — components and anchors are the two rows that
+ * become nodes.
+ *
+ * `wardley-mixed-coordinate-scale` (`warn`) replaces the coordinate rule issue
+ * #129 proposed. Mermaid's `toPercent` reads a value at or below 1 as a 0-1
+ * fraction and anything above it as a 0-100 percentage, throwing past 100, and
+ * its coordinate terminals reject a sign outright and accept a bare integer
+ * only for `annotations` / `annotation`, where that same range check catches it
+ * — so nothing can land outside the unit square and still parse, and an
+ * out-of-range rule has nothing to catch. What is left is the ambiguity: a map
+ * that spells some coordinates one way and some the other has at least one
+ * value that does not mean what its author intended. The finding points at
+ * the minority spelling, ties going to the percentage form, since 0-1
+ * decimals are the canonical Wardley notation.
+ *
+ * `wardley-duplicate-component` (`warn`) keys on the shared component/anchor
+ * namespace, because that is the namespace Mermaid itself uses: both register
+ * through `addNode` under their bare name, and the builder merges by id, so a
+ * repeated name collapses into one node with the last coordinates winning.
+ * Pipeline members are exempt — their id is synthetic (`parent_child`), so they
+ * cannot collide with a top-level component. `warn` rather than `error`,
+ * since a restatement is occasionally deliberate and the last-wins behavior is
+ * well defined even when it surprises.
  *
  * `frontmatter-must-be-first` is `error`, joining `duplicate-ids` as the only
  * non-advisory rules: a diagram whose frontmatter is preceded by anything does
@@ -715,6 +761,31 @@ export const RULE_METADATA = {
     defaultSeverity: 'warn',
     docsScope: 'C4Context',
     readmeDiagramKeywords: ['C4Context'],
+  },
+  'wardley-undefined-component': {
+    defaultSeverity: 'warn',
+    docsScope: 'wardley-beta',
+    readmeDiagramKeywords: ['wardley-beta'],
+  },
+  'wardley-orphan-component': {
+    defaultSeverity: 'off',
+    docsScope: 'wardley-beta',
+    readmeDiagramKeywords: ['wardley-beta'],
+  },
+  'wardley-no-components': {
+    defaultSeverity: 'warn',
+    docsScope: 'wardley-beta',
+    readmeDiagramKeywords: ['wardley-beta'],
+  },
+  'wardley-mixed-coordinate-scale': {
+    defaultSeverity: 'warn',
+    docsScope: 'wardley-beta',
+    readmeDiagramKeywords: ['wardley-beta'],
+  },
+  'wardley-duplicate-component': {
+    defaultSeverity: 'warn',
+    docsScope: 'wardley-beta',
+    readmeDiagramKeywords: ['wardley-beta'],
   },
   // Document-shape rule. Like the directive-correctness rules below it
   // describes the body rather than any one diagram type, so it carries no
