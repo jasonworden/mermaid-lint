@@ -673,6 +673,17 @@ describe('mermaid-lint CLI', () => {
       );
     });
 
+    it('fixes a frontmatter-prefixed diagram without touching the YAML', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+      const file = join(dir, 'test.mmd');
+      writeFileSync(file, '---\ntitle: A -> B\n---\nflowchart LR\n  A -> B\n');
+      const r = run(['--fix', file], dir);
+      expect(r.status).toBe(0);
+      expect(readFileSync(file, 'utf8')).toBe(
+        '---\ntitle: A -> B\n---\nflowchart LR\n  A --> B\n',
+      );
+    });
+
     it('exits 0 when file was already valid (nothing to fix)', () => {
       const dir = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
       const file = join(dir, 'test.md');

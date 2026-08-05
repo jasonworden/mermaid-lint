@@ -4,37 +4,66 @@ import {
   makeFenceCloseRe,
   makeFenceOpenRe,
 } from './fences.js';
+import { locateFrontmatter } from './header.js';
+import { detectDiagramType } from './type-detect.js';
 
 type DiagramType = 'flowchart' | 'graph' | 'sequenceDiagram' | 'other';
 
+/**
+ * Narrow a diagram to the three types with mechanical fixes, or `'other'` to
+ * decline. Types off {@link detectDiagramType} rather than scanning for the
+ * header again — an independent scan here is what made `--fix` skip every
+ * frontmatter-prefixed diagram.
+ */
 function detectBlockType(body: string): DiagramType {
-  for (const line of body.split('\n')) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('%%')) continue;
-    const keyword = trimmed.split(/\s+/)[0] ?? '';
-    if (keyword === 'flowchart') return 'flowchart';
-    if (keyword === 'graph') return 'graph';
-    if (keyword === 'sequenceDiagram') return 'sequenceDiagram';
-    return 'other';
-  }
+  const keyword = detectDiagramType(body);
+  if (keyword === 'flowchart') return 'flowchart';
+  if (keyword === 'graph') return 'graph';
+  if (keyword === 'sequenceDiagram') return 'sequenceDiagram';
   return 'other';
 }
 
-function normalizeFlowchartArrows(body: string): string {
-  return body
-    .split('\n')
-    .map((line) => {
+/**
+ * Apply a line-level rewrite across a diagram body, leaving alone the lines the
+ * rewrites must not touch: `%%` comments and every line of a leading
+ * frontmatter block.
+ *
+ * The frontmatter skip is what makes typing the block off its real header safe.
+ * Both rewrites below are whole-body passes, and YAML values readily contain
+ * arrow- and message-shaped text (`title: A -> B`) that they would happily
+ * rewrite. Corrupting a user's YAML during `--fix` is strictly worse than
+ * declining to fix at all.
+ *
+ * Rewrites map one line to one line, so this preserves the line count that
+ * `fixBlockBody` guarantees to its callers.
+ */
+function rewriteDiagramLines(
+  body: string,
+  rewrite: (line: string) => string,
+): string {
+  const lines = body.split('\n');
+  const frontmatter = locateFrontmatter(lines);
+  const bodyStart = frontmatter ? frontmatter.end + 1 : 0;
+  return lines
+    .map((line, i) => {
+      if (i < bodyStart) return line;
       if (line.trimStart().startsWith('%%')) return line;
-      // Split on quoted segments; only replace in unquoted parts
-      const parts = line.split(/(["'][^"']*["'])/);
-      return parts
-        .map((part, i) => {
-          if (i % 2 === 1) return part; // quoted — leave alone
-          return part.replace(/(?<![=\-.])->(?![>-])/g, '-->');
-        })
-        .join('');
+      return rewrite(line);
     })
     .join('\n');
+}
+
+function normalizeFlowchartArrows(body: string): string {
+  return rewriteDiagramLines(body, (line) => {
+    // Split on quoted segments; only replace in unquoted parts
+    const parts = line.split(/(["'][^"']*["'])/);
+    return parts
+      .map((part, i) => {
+        if (i % 2 === 1) return part; // quoted — leave alone
+        return part.replace(/(?<![=\-.])->(?![>-])/g, '-->');
+      })
+      .join('');
+  });
 }
 
 // Matches sequence message lines missing a colon:
@@ -51,16 +80,12 @@ const SEQ_MISSING_COLON_RE =
   /^(\s*)([\w][\w ]*)((?:-->>|-->|->>|->|-x|--x)\s*(?:[+-]\s*)?)(\w+)\s+([^:\s].*)$/;
 
 function fixSequenceColons(body: string): string {
-  return body
-    .split('\n')
-    .map((line) => {
-      if (line.trimStart().startsWith('%%')) return line;
-      const m = SEQ_MISSING_COLON_RE.exec(line);
-      if (!m) return line;
-      // m[1]=indent, m[2]=from, m[3]=arrow, m[4]=to, m[5]=message
-      return `${m[1]}${m[2]}${m[3]}${m[4]}: ${m[5]}`;
-    })
-    .join('\n');
+  return rewriteDiagramLines(body, (line) => {
+    const m = SEQ_MISSING_COLON_RE.exec(line);
+    if (!m) return line;
+    // m[1]=indent, m[2]=from, m[3]=arrow, m[4]=to, m[5]=message
+    return `${m[1]}${m[2]}${m[3]}${m[4]}: ${m[5]}`;
+  });
 }
 
 function fixBody(body: string, type: DiagramType): string {
@@ -147,7 +172,8 @@ function fixMmd(src: string): string {
  *
  * It applies only the body-local rewrites — normalizing flowchart arrows (`->`
  * to `-->`) and inserting missing sequence-message colons — re-running until the
- * output stabilizes (max 10 passes). Unlike {@link fixText} it does no
+ * output stabilizes (max 10 passes). `%%` comments and a leading YAML
+ * frontmatter block are left byte-identical. Unlike {@link fixText} it does no
  * fence-level work (closing unclosed fences is a document-structure concern, not
  * a diagram-body one), so it never changes the number of lines: the returned
  * body has exactly as many lines as the input, which lets callers map each
@@ -196,6 +222,7 @@ export interface FixOptions {
  * Applies safe rewrites inside Mermaid blocks only — normalizing flowchart
  * arrows (`->` to `-->`), inserting missing sequence-message colons, and closing
  * unclosed fences — re-running until the output stabilizes (max 10 passes).
+ * `%%` comments and a leading YAML frontmatter block are left byte-identical.
  *
  * @param src - Original document contents.
  * @param opts - Path and fence options (see {@link FixOptions}).
