@@ -162,4 +162,85 @@ describe('mermaid behavior contracts', () => {
     );
     expect(result.ok).toBe(false);
   }, 20_000);
+
+  it('rejects wardley-beta coordinates above 100, which is why there is no out-of-range rule', async () => {
+    // `toPercent` in mermaid's wardleyParser reads a value at or below 1 as a
+    // 0-1 fraction and anything above it as a 0-100 percentage, then throws
+    // past 100. So no coordinate can sit outside the unit square and still
+    // parse, and issue #129's `wardley-coordinate-out-of-range` has nothing
+    // left to catch. `wardley-mixed-coordinate-scale` covers the real gap —
+    // the silent ambiguity between the two notations. If a bump makes 100.1
+    // parse, an out-of-range rule becomes worth having again.
+    expect(
+      (await validateWithMermaidJS('wardley-beta\n  component A [0.9, 100.0]'))
+        .ok,
+    ).toBe(true);
+    expect(
+      (await validateWithMermaidJS('wardley-beta\n  component A [0.9, 100.1]'))
+        .ok,
+    ).toBe(false);
+    // 1.5 is not "out of range" — it is 1.5%, which is exactly the ambiguity.
+    expect(
+      (await validateWithMermaidJS('wardley-beta\n  component A [0.9, 1.5]'))
+        .ok,
+    ).toBe(true);
+  }, 20_000);
+
+  it('rejects negative and bare-integer wardley-beta coordinates at the lexer', async () => {
+    // `WARDLEY_NUMBER` is /[0-9]+\.[0-9]+/, so a sign or a bare integer never
+    // reaches the range check above. This is the other half of why an
+    // out-of-range rule is unimplementable, and why the mixed-scale rule only
+    // has to classify values as "at or below 1" versus "above 1".
+    expect(
+      (await validateWithMermaidJS('wardley-beta\n  component A [-0.2, 0.5]'))
+        .ok,
+    ).toBe(false);
+    expect(
+      (await validateWithMermaidJS('wardley-beta\n  component A [0, 0]')).ok,
+    ).toBe(false);
+    expect(
+      (await validateWithMermaidJS('wardley-beta\n  component A [0.0, 1.0]'))
+        .ok,
+    ).toBe(true);
+  }, 20_000);
+
+  it('accepts wardley-beta links and evolves naming an undeclared component', async () => {
+    // The premise of `wardley-undefined-component`. Mermaid parses both, then
+    // drops them without a diagnostic: the renderer filters links whose
+    // endpoints have no position, and populateDb skips an `evolve` whose
+    // component it cannot find. If either starts rejecting, the parser covers
+    // it and the rule is redundant.
+    const base = 'wardley-beta\n  component User [0.9, 0.5]\n';
+    expect((await validateWithMermaidJS(`${base}  User -> Ghost`)).ok).toBe(
+      true,
+    );
+    expect((await validateWithMermaidJS(`${base}  Ghost -> User`)).ok).toBe(
+      true,
+    );
+    expect((await validateWithMermaidJS(`${base}  evolve Ghost 0.8`)).ok).toBe(
+      true,
+    );
+  }, 20_000);
+
+  it('rejects a wardley-beta pipeline whose parent is undeclared, which is why the rule skips pipeline parents', async () => {
+    // `wardley-undefined-component` deliberately ignores the `pipeline <parent>`
+    // reference because mermaid validates it itself ("must reference an
+    // existing component with coordinates"). If this starts passing, the rule
+    // should widen to cover pipeline parents too.
+    const result = await validateWithMermaidJS(
+      'wardley-beta\n  component Kettle [0.5, 0.6]\n  pipeline Ghost {\n    component Electric [0.63]\n  }',
+    );
+    expect(result.ok).toBe(false);
+  }, 20_000);
+
+  it('rejects a trailing colon on the wardley-beta header, unlike radar-beta', async () => {
+    // Radar uniquely allows `radar-beta:`. Wardley does not, so `isWardley`
+    // does not strictly need `stripHeaderColon` — it routes through it anyway
+    // so the block would not silently fall out of the wardley rules if a bump
+    // added the form. Pinned so that bump surfaces here.
+    expect(
+      (await validateWithMermaidJS('wardley-beta:\n  component A [0.9, 0.5]'))
+        .ok,
+    ).toBe(false);
+  }, 20_000);
 });
