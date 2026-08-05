@@ -2525,7 +2525,20 @@ describe('header-line anchoring', () => {
   });
 
   it('anchors the header past YAML frontmatter', () => {
-    const b = block('---\ntitle: T\n---\ngraph LR\n  A --> B', 'graph');
+    // Goes through the real extractor (not `block()`, which hardcodes
+    // `type` and bypasses `detectDiagramType` entirely) so this fails
+    // loudly if frontmatter-skipping type detection regresses.
+    const md = [
+      '```mermaid',
+      '---',
+      'title: T',
+      '---',
+      'graph LR',
+      '  A --> B',
+      '```',
+    ].join('\n');
+    const [b] = extractMermaidBlocks('test.md', md);
+    expect(b.type).toBe('graph');
     expect(only(b, 'prefer-flowchart')[0]?.line).toBe(4);
   });
 
@@ -2550,18 +2563,26 @@ describe('header-line anchoring', () => {
   });
 
   it('reports duplicate-ids identically with and without frontmatter', () => {
+    // Both blocks come from the real extractor (not `block()`, which
+    // hardcodes `type` and bypasses `detectDiagramType`), so this fails
+    // loudly if type detection regresses for either variant.
     const body = 'flowchart LR\n  A[Start] --> B\n  A[Begin] --> C';
-    const plain = only(block(body), 'duplicate-ids');
-    const withFm = only(block(`---\ntitle: T\n---\n${body}`), 'duplicate-ids');
+    const plainMd = ['```mermaid', body, '```'].join('\n');
+    const withFmMd = ['```mermaid', '---', 'title: T', '---', body, '```'].join(
+      '\n',
+    );
+    const [plainBlock] = extractMermaidBlocks('test.md', plainMd);
+    const [withFmBlock] = extractMermaidBlocks('test.md', withFmMd);
+    expect(plainBlock.type).toBe('flowchart');
+    expect(withFmBlock.type).toBe('flowchart');
+
+    const plain = only(plainBlock, 'duplicate-ids');
+    const withFm = only(withFmBlock, 'duplicate-ids');
     expect(withFm).toHaveLength(plain.length);
-    // Line numbers in the message are body-relative (not header-anchored),
-    // so the 3-line frontmatter block shifts them by exactly 3; normalize
-    // that shift out to confirm the finding is otherwise identical.
-    expect(
-      withFm[0].message.replace(
-        /line (\d+)/g,
-        (_m, n) => `line ${Number(n) - 3}`,
-      ),
-    ).toBe(plain[0].message);
+    // `duplicate-ids` line numbers are body-relative (not header-anchored),
+    // so the frontmatter block shifts them; normalize both sides to a
+    // placeholder and compare only the non-positional content.
+    const stripLines = (s: string) => s.replace(/line \d+/g, 'line N');
+    expect(stripLines(withFm[0].message)).toBe(stripLines(plain[0].message));
   });
 });
