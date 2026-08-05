@@ -186,17 +186,27 @@ describe('mermaid behavior contracts', () => {
     ).toBe(true);
   }, 20_000);
 
-  it('rejects negative and bare-integer wardley-beta coordinates at the lexer', async () => {
-    // `WARDLEY_NUMBER` is /[0-9]+\.[0-9]+/, so a sign or a bare integer never
-    // reaches the range check above. This is the other half of why an
-    // out-of-range rule is unimplementable, and why the mixed-scale rule only
-    // has to classify values as "at or below 1" versus "above 1".
+  it('rejects negative and bare-integer wardley-beta coordinates', async () => {
+    // `WARDLEY_NUMBER` is /[0-9]+\.[0-9]+/, so a sign never lexes as a
+    // coordinate anywhere. A bare integer does lex for `annotations` /
+    // `annotation`, whose `CoordinateValue` also accepts an `INT` — it just
+    // lands on the range check above instead, which rejects it all the same.
+    // This is the other half of why an out-of-range rule is unimplementable,
+    // and why the mixed-scale rule only has to classify values as "at or
+    // below 1" versus "above 1".
     expect(
       (await validateWithMermaidJS('wardley-beta\n  component A [-0.2, 0.5]'))
         .ok,
     ).toBe(false);
     expect(
       (await validateWithMermaidJS('wardley-beta\n  component A [0, 0]')).ok,
+    ).toBe(false);
+    expect(
+      (
+        await validateWithMermaidJS(
+          'wardley-beta\n  component A [0.9, 0.5]\n  annotations [1, 200]',
+        )
+      ).ok,
     ).toBe(false);
     expect(
       (await validateWithMermaidJS('wardley-beta\n  component A [0.0, 1.0]'))

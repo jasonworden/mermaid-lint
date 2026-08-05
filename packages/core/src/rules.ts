@@ -347,11 +347,12 @@ export interface RuleMetadata {
  * `wardley-mixed-coordinate-scale` (`warn`) replaces the coordinate rule issue
  * #129 proposed. Mermaid's `toPercent` reads a value at or below 1 as a 0-1
  * fraction and anything above it as a 0-100 percentage, throwing past 100, and
- * its coordinate terminal rejects signs and bare integers — so nothing can land
- * outside the unit square and still parse, and an out-of-range rule has nothing
- * to catch. What is left is the ambiguity: a map that spells some coordinates
- * one way and some the other has at least one value that does not mean what its
- * author intended. The finding points at the minority spelling, ties going to
+ * its coordinate terminals reject a sign outright and accept a bare integer
+ * only for `annotations` / `annotation`, where that same range check catches it
+ * — so nothing can land outside the unit square and still parse, and an
+ * out-of-range rule has nothing to catch. What is left is the ambiguity: a map
+ * that spells some coordinates one way and some the other has at least one
+ * value that does not mean what its author intended. The finding points at the minority spelling, ties going to
  * the percentage form, since 0-1 decimals are the canonical Wardley notation.
  *
  * `frontmatter-must-be-first` is `error`, joining `duplicate-ids` as the only
