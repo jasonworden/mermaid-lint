@@ -540,7 +540,7 @@ measure of how much analysis a given type gets beyond "does it parse".
 | Architecture | `architecture-beta` | ✅ | `no-experimental`, `architecture-no-elements`, `architecture-no-edges`, `architecture-duplicate-edge` | Experimental |
 | Kanban | `kanban` | ✅ | - | No dedicated semantic rules yet |
 | Event modeling | `eventmodeling` | ✅ | - | No dedicated semantic rules yet |
-| Radar | `radar-beta` | ✅ | `no-experimental` | Experimental; no dedicated semantic rules yet |
+| Radar | `radar-beta` | ✅ | `no-experimental`, `radar-no-curves`, `radar-curve-length-mismatch`, `radar-duplicate-axis` | Experimental |
 | Treemap | `treemap-beta` | ✅ | `no-experimental` | Experimental; no dedicated semantic rules yet |
 | Venn | `venn-beta` | ✅ | `no-experimental` | Experimental; no dedicated semantic rules yet |
 | Ishikawa | `ishikawa-beta` | ✅ | `no-experimental` | Experimental; no dedicated semantic rules yet |

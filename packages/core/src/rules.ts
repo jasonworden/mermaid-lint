@@ -42,6 +42,9 @@ export type RuleId =
   | 'xychart-missing-y-axis'
   | 'xychart-no-series'
   | 'xychart-series-length-mismatch'
+  | 'radar-no-curves'
+  | 'radar-curve-length-mismatch'
+  | 'radar-duplicate-axis'
   | 'sankey-non-positive-value'
   | 'sankey-duplicate-link'
   | 'sankey-self-loop'
@@ -140,6 +143,7 @@ export type RuleDocsScope =
   | 'packet-beta'
   | 'pie'
   | 'quadrantChart'
+  | 'radar-beta'
   | 'requirementDiagram'
   | 'sankey-beta'
   | 'sequenceDiagram'
@@ -290,6 +294,16 @@ export interface RuleMetadata {
  * and `xychart-series-length-mismatch` (a categorical x-axis list whose label
  * count does not match a bar/line series item count).
  *
+ * The radar-beta rules are all advisory `warn`: `radar-no-curves` (axes but no
+ * `curve` rows — renders an empty grid, the analogue of `xychart-no-series`),
+ * `radar-curve-length-mismatch` (a positional curve whose value count does not
+ * match the declared axis count, which renders a misaligned polygon), and
+ * `radar-duplicate-axis` (two spokes rendering the same label). The length rule
+ * deliberately skips the keyed `{axis: value}` curve form: Mermaid rejects an
+ * incomplete keyed curve as a parse error, so there is nothing left to warn
+ * about. A negative curve value is likewise not a rule — Mermaid's lexer
+ * rejects it.
+ *
  * The quadrantChart rules are all advisory `warn`: `quadrant-duplicate-point`
  * (two data points with the same label — renders overlapping markers, usually
  * a copy-paste mistake), `quadrant-no-points` (a quadrantChart with axis or
@@ -364,6 +378,21 @@ export const RULE_METADATA = {
     defaultSeverity: 'warn',
     docsScope: 'xychart-beta',
     readmeDiagramKeywords: ['xychart-beta'],
+  },
+  'radar-no-curves': {
+    defaultSeverity: 'warn',
+    docsScope: 'radar-beta',
+    readmeDiagramKeywords: ['radar-beta'],
+  },
+  'radar-curve-length-mismatch': {
+    defaultSeverity: 'warn',
+    docsScope: 'radar-beta',
+    readmeDiagramKeywords: ['radar-beta'],
+  },
+  'radar-duplicate-axis': {
+    defaultSeverity: 'warn',
+    docsScope: 'radar-beta',
+    readmeDiagramKeywords: ['radar-beta'],
   },
   'sankey-non-positive-value': {
     defaultSeverity: 'warn',
