@@ -111,6 +111,9 @@ export type RuleId =
   | 'wardley-no-components'
   | 'wardley-mixed-coordinate-scale'
   | 'wardley-duplicate-component'
+  | 'eventmodeling-undefined-frame'
+  | 'eventmodeling-duplicate-frame-id'
+  | 'eventmodeling-invalid-flow'
   | 'frontmatter-must-be-first'
   | 'suppression-unknown-rule'
   | 'suppression-unused'
@@ -143,6 +146,7 @@ export type RuleDocsScope =
   | 'classDiagram'
   | 'C4Context'
   | 'erDiagram'
+  | 'eventmodeling'
   | 'flowchart / graph'
   | 'gantt'
   | 'gitGraph'
@@ -173,6 +177,7 @@ export type ReadmeDiagramKeyword =
   | 'C4Context'
   | 'classDiagram'
   | 'erDiagram'
+  | 'eventmodeling'
   | 'flowchart'
   | 'gantt'
   | 'gitGraph'
@@ -786,6 +791,21 @@ export const RULE_METADATA = {
     defaultSeverity: 'warn',
     docsScope: 'wardley-beta',
     readmeDiagramKeywords: ['wardley-beta'],
+  },
+  'eventmodeling-undefined-frame': {
+    defaultSeverity: 'error',
+    docsScope: 'eventmodeling',
+    readmeDiagramKeywords: ['eventmodeling'],
+  },
+  'eventmodeling-duplicate-frame-id': {
+    defaultSeverity: 'warn',
+    docsScope: 'eventmodeling',
+    readmeDiagramKeywords: ['eventmodeling'],
+  },
+  'eventmodeling-invalid-flow': {
+    defaultSeverity: 'warn',
+    docsScope: 'eventmodeling',
+    readmeDiagramKeywords: ['eventmodeling'],
   },
   // Document-shape rule. Like the directive-correctness rules below it
   // describes the body rather than any one diagram type, so it carries no

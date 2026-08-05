@@ -318,6 +318,12 @@ const RULE_DESCRIPTIONS: Record<RuleId, string> = {
     'Mermaid: a Wardley map mixes decimal and percentage coordinates',
   'wardley-duplicate-component':
     'Mermaid: a Wardley component or anchor name is declared twice',
+  'eventmodeling-undefined-frame':
+    'Mermaid: an event modeling frame is sourced from an undeclared frame id',
+  'eventmodeling-duplicate-frame-id':
+    'Mermaid: an event modeling frame id is declared twice',
+  'eventmodeling-invalid-flow':
+    'Mermaid: an event modeling frame is sourced from a type it may not receive from',
   'frontmatter-must-be-first':
     'Mermaid: something precedes the YAML frontmatter, so the diagram will not render',
   'suppression-unknown-rule':

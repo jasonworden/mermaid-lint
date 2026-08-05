@@ -1222,6 +1222,10 @@ interface EventModelingToken {
   line: number;
 }
 
+function isEventModeling(block: Block): boolean {
+  return block.type === 'eventmodeling';
+}
+
 /** Frame openers, mapped onto the kind they declare. */
 const EVENTMODELING_FRAME_KEYWORDS = new Map<string, 'tf' | 'rf'>([
   ['tf', 'tf'],
@@ -1471,6 +1475,125 @@ export function parseEventModeling(
 
   return parsed;
 }
+
+/**
+ * Which source types a frame of each type may draw from, transcribed from
+ * mermaid's own `EventModelingValidator`. That validator ships but never runs:
+ * `parse` skips validation entirely, so every flow below is enforced here or
+ * nowhere. `cmd` is the only target with two legal sources.
+ *
+ * A `Record` rather than a `Map` because the key is a closed union — every type
+ * has an entry and `tsc` says so, which spares the lookup an unreachable
+ * `undefined` branch.
+ */
+const EVENTMODELING_ALLOWED_SOURCES: Record<
+  EventModelingEntityType,
+  readonly EventModelingEntityType[]
+> = {
+  cmd: ['ui', 'pcr'],
+  evt: ['cmd'],
+  rmo: ['evt'],
+  pcr: ['rmo'],
+  ui: ['rmo'],
+};
+
+/**
+ * How a type is named in a message. Four of the five have a long spelling too
+ * and `parseEventModeling` folds both onto the short one, so a message echoing
+ * only what it parsed would read as though it were correcting an author who
+ * wrote `command`. Naming both spellings keeps the message about the type
+ * rather than about the token.
+ */
+const EVENTMODELING_TYPE_LABELS: Record<EventModelingEntityType, string> = {
+  ui: 'ui',
+  cmd: 'cmd/command',
+  evt: 'evt/event',
+  rmo: 'rmo/readmodel',
+  pcr: 'pcr/processor',
+};
+
+const eventmodelingUndefinedFrame: Rule = {
+  id: 'eventmodeling-undefined-frame',
+  appliesTo: isEventModeling,
+  evaluate: ({ lines, headerLine }) => {
+    const { frames, references } = parseEventModeling(lines, headerLine);
+    const declared = new Set(frames.map((frame) => frame.id));
+
+    return references
+      .filter((ref) => !declared.has(ref.sourceId))
+      .map((ref) => ({
+        message: `eventmodeling frame \`${ref.frameId}\` names \`${ref.sourceId}\` as a source but no frame declares that id; Mermaid drops the relation silently rather than reporting an error, so the arrow never renders.`,
+        line: ref.line,
+      }));
+  },
+};
+
+// `tf` and `rf` declare into one shared id namespace — `tf 1` followed by
+// `rf 1` parses — so a mixed pair collides just as two `tf`s would, and the
+// rule keys on the id alone rather than on the id and kind together.
+const eventmodelingDuplicateFrameId: Rule = {
+  id: 'eventmodeling-duplicate-frame-id',
+  appliesTo: isEventModeling,
+  evaluate: ({ lines, headerLine, fileLine }) => {
+    const { frames } = parseEventModeling(lines, headerLine);
+    // `parseEventModeling` walks the body front to back, so the frames arrive
+    // in source order and the first one seen for an id is the first declared.
+    const seen = new Map<string, number>();
+    const findings: RuleFinding[] = [];
+
+    for (const frame of frames) {
+      const first = seen.get(frame.id);
+      if (first === undefined) {
+        seen.set(frame.id, frame.line);
+        continue;
+      }
+      findings.push({
+        message: `eventmodeling frame id \`${frame.id}\` is declared by more than one \`tf\` or \`rf\` frame (first on line ${fileLine(first)}); Mermaid accepts both without reporting the clash, so a later \`->> ${frame.id}\` no longer says which frame it means.`,
+        line: frame.line,
+      });
+    }
+
+    return findings;
+  },
+};
+
+const eventmodelingInvalidFlow: Rule = {
+  id: 'eventmodeling-invalid-flow',
+  appliesTo: isEventModeling,
+  evaluate: ({ lines, headerLine }) => {
+    const { frames, references } = parseEventModeling(lines, headerLine);
+
+    // First declaration wins, matching langium's scope lookup. That an id was
+    // declared twice at all is `eventmodeling-duplicate-frame-id`'s finding.
+    const declaredTypes = new Map<string, EventModelingEntityType>();
+    for (const frame of frames) {
+      if (!declaredTypes.has(frame.id)) declaredTypes.set(frame.id, frame.type);
+    }
+
+    const findings: RuleFinding[] = [];
+
+    for (const ref of references) {
+      const sourceType = declaredTypes.get(ref.sourceId);
+      // An undeclared source is `eventmodeling-undefined-frame`'s finding, and
+      // there is no type to judge the flow against anyway.
+      if (sourceType === undefined) continue;
+
+      const allowed = EVENTMODELING_ALLOWED_SOURCES[ref.frameType];
+      if (allowed.includes(sourceType)) continue;
+
+      const target = EVENTMODELING_TYPE_LABELS[ref.frameType];
+      const legal = allowed
+        .map((type) => EVENTMODELING_TYPE_LABELS[type])
+        .join(' or ');
+      findings.push({
+        message: `eventmodeling frame \`${ref.frameId}\` (${target}) is sourced from frame \`${ref.sourceId}\` (${EVENTMODELING_TYPE_LABELS[sourceType]}), but ${target} may only be sourced from ${legal}; Mermaid's own validator forbids this flow and never runs, so the relation renders unchecked.`,
+        line: ref.line,
+      });
+    }
+
+    return findings;
+  },
+};
 
 interface SankeyLink {
   source: string;
@@ -3926,6 +4049,9 @@ const RULES: Rule[] = [
   wardleyNoComponents,
   wardleyMixedCoordinateScale,
   wardleyDuplicateComponent,
+  eventmodelingUndefinedFrame,
+  eventmodelingDuplicateFrameId,
+  eventmodelingInvalidFlow,
 ];
 
 // ---------------------------------------------------------------------------
