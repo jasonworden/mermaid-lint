@@ -836,6 +836,30 @@ const wardleyNoComponents: Rule = {
   },
 };
 
+const wardleyMixedCoordinateScale: Rule = {
+  id: 'wardley-mixed-coordinate-scale',
+  appliesTo: isWardley,
+  evaluate: ({ lines }) => {
+    const { coordinates } = parseWardley(lines);
+    const decimal = coordinates.filter((coord) => coord.value <= 1);
+    const percentage = coordinates.filter((coord) => coord.value > 1);
+    if (decimal.length === 0 || percentage.length === 0) return [];
+
+    // Point at the minority spelling: those are the rows most likely to be the
+    // mistake. A tie goes to the percentage form because 0-1 decimals are the
+    // canonical Wardley notation and what Mermaid's own examples use.
+    const [first] = percentage.length <= decimal.length ? percentage : decimal;
+    const reading = first.value <= 1 ? 'a fraction' : 'a percentage';
+
+    return [
+      {
+        message: `wardley-beta mixes coordinate notations — ${decimal.length} in 0-1 decimal form and ${percentage.length} in 0-100 percentage form. Mermaid reads each value on its own, anything at or below 1 as a fraction and anything above it as a percentage, so \`${first.value}\` here is read as ${reading}. Use one notation for the whole map.`,
+        line: first.line,
+      },
+    ];
+  },
+};
+
 interface SankeyLink {
   source: string;
   target: string;
@@ -3291,6 +3315,7 @@ const RULES: Rule[] = [
   wardleyUndefinedComponent,
   wardleyOrphanComponent,
   wardleyNoComponents,
+  wardleyMixedCoordinateScale,
 ];
 
 // ---------------------------------------------------------------------------

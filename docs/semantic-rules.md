@@ -90,6 +90,7 @@ default to `error`, because neither leaves a judgment call to the reader:
 | `wardley-undefined-component` | `warn` | A `wardley-beta` link endpoint or `evolve` target naming a component that was never declared; Mermaid drops it silently | wardley-beta |
 | `wardley-orphan-component` | `off` | A `wardley-beta` component no link, `evolve`, or pipeline references; renders as an isolated dot | wardley-beta |
 | `wardley-no-components` | `warn` | A `wardley-beta` with no `component` or `anchor` rows; parses but renders an empty map | wardley-beta |
+| `wardley-mixed-coordinate-scale` | `warn` | A `wardley-beta` mixing 0-1 decimal and 0-100 percentage coordinates; Mermaid reads each value independently, so one of them is misplaced | wardley-beta |
 | `frontmatter-must-be-first` | `error` | A `%%` comment or blank line before the YAML frontmatter; Mermaid parses it but the diagram fails to render | all |
 | `suppression-unknown-rule` | `warn` | A suppression directive naming a rule id that does not exist; the directive silently suppresses nothing | all |
 | `suppression-unused` | `warn` | A well-formed suppression directive that suppressed no finding; usually a stale directive left behind after a fix | all |

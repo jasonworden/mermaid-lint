@@ -2997,6 +2997,67 @@ describe('wardley-no-components rule', () => {
   });
 });
 
+describe('wardley-mixed-coordinate-scale rule', () => {
+  it('flags a map mixing 0-1 decimal and 0-100 percentage coordinates', () => {
+    const b = block(
+      [
+        'wardley-beta',
+        '  component Search [0.9, 0.5]',
+        '  component Profile [0.8, 0.4]',
+        '  component Payments [50.0, 60.0]',
+      ].join('\n'),
+      'wardley-beta',
+    );
+    const warnings = only(b, 'wardley-mixed-coordinate-scale');
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].severity).toBe('warn');
+    // Reports on the minority spelling — the rows likely to be wrong.
+    expect(warnings[0].line).toBe(4);
+  });
+
+  it('stays silent on a map that uses one notation throughout', () => {
+    const decimals = block(
+      'wardley-beta\n  component A [0.9, 0.5]\n  component B [0.3, 0.2]',
+      'wardley-beta',
+    );
+    expect(only(decimals, 'wardley-mixed-coordinate-scale')).toEqual([]);
+
+    const percentages = block(
+      'wardley-beta\n  component A [90.0, 50.0]\n  component B [30.0, 20.0]',
+      'wardley-beta',
+    );
+    expect(only(percentages, 'wardley-mixed-coordinate-scale')).toEqual([]);
+  });
+
+  it('reports the decimal row when percentages are the majority', () => {
+    const b = block(
+      [
+        'wardley-beta',
+        '  component A [0.9, 0.5]',
+        '  component B [30.0, 20.0]',
+        '  component C [40.0, 60.0]',
+      ].join('\n'),
+      'wardley-beta',
+    );
+    const warnings = only(b, 'wardley-mixed-coordinate-scale');
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].line).toBe(2);
+  });
+
+  it('ignores label offsets and canvas size, which are not coordinates', () => {
+    const b = block(
+      [
+        'wardley-beta',
+        '  size [800, 600]',
+        '  component A [0.9, 0.5] label [10, -20]',
+        '  component B [0.3, 0.2]',
+      ].join('\n'),
+      'wardley-beta',
+    );
+    expect(only(b, 'wardley-mixed-coordinate-scale')).toEqual([]);
+  });
+});
+
 describe('parseWardley', () => {
   it('collects the coordinate value from every construct, discarding the annotation index and any trailing label', () => {
     const parsed = parseWardley([

@@ -300,6 +300,8 @@ const RULE_DESCRIPTIONS: Record<RuleId, string> = {
   'wardley-orphan-component':
     'Mermaid: a Wardley component is never referenced',
   'wardley-no-components': 'Mermaid: a Wardley map has no components',
+  'wardley-mixed-coordinate-scale':
+    'Mermaid: a Wardley map mixes decimal and percentage coordinates',
   'frontmatter-must-be-first':
     'Mermaid: something precedes the YAML frontmatter, so the diagram will not render',
   'suppression-unknown-rule':

@@ -105,6 +105,7 @@ export type RuleId =
   | 'wardley-undefined-component'
   | 'wardley-orphan-component'
   | 'wardley-no-components'
+  | 'wardley-mixed-coordinate-scale'
   | 'frontmatter-must-be-first'
   | 'suppression-unknown-rule'
   | 'suppression-unused'
@@ -342,6 +343,16 @@ export interface RuleMetadata {
  * with neither a `component` nor an `anchor` renders as an empty grid. Notes
  * and accelerators do not count — components and anchors are the two rows that
  * become nodes.
+ *
+ * `wardley-mixed-coordinate-scale` (`warn`) replaces the coordinate rule issue
+ * #129 proposed. Mermaid's `toPercent` reads a value at or below 1 as a 0-1
+ * fraction and anything above it as a 0-100 percentage, throwing past 100, and
+ * its coordinate terminal rejects signs and bare integers — so nothing can land
+ * outside the unit square and still parse, and an out-of-range rule has nothing
+ * to catch. What is left is the ambiguity: a map that spells some coordinates
+ * one way and some the other has at least one value that does not mean what its
+ * author intended. The finding points at the minority spelling, ties going to
+ * the percentage form, since 0-1 decimals are the canonical Wardley notation.
  *
  * `frontmatter-must-be-first` is `error`, joining `duplicate-ids` as the only
  * non-advisory rules: a diagram whose frontmatter is preceded by anything does
@@ -713,6 +724,11 @@ export const RULE_METADATA = {
     readmeDiagramKeywords: ['wardley-beta'],
   },
   'wardley-no-components': {
+    defaultSeverity: 'warn',
+    docsScope: 'wardley-beta',
+    readmeDiagramKeywords: ['wardley-beta'],
+  },
+  'wardley-mixed-coordinate-scale': {
     defaultSeverity: 'warn',
     docsScope: 'wardley-beta',
     readmeDiagramKeywords: ['wardley-beta'],
