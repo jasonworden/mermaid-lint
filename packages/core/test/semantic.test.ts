@@ -2606,3 +2606,136 @@ describe('header-line anchoring', () => {
     expect(findings[0]?.line).toBe(6);
   });
 });
+
+// https://github.com/jasonworden/mermaid-lint/issues/123. Every case here goes
+// through the real extractor rather than `block()`: the rule gates on
+// `block.type === '---'`, so hardcoding the type would assert the rule's body
+// while assuming away the type detection the rule depends on.
+describe('frontmatter-must-be-first rule', () => {
+  function fenced(...body: string[]): Block {
+    const [b] = extractMermaidBlocks(
+      'test.md',
+      ['```mermaid', ...body, '```'].join('\n'),
+    );
+    return b;
+  }
+
+  it('returns [] when frontmatter opens the diagram', () => {
+    const b = fenced('---', 'title: T', '---', 'flowchart LR', '  A --> B');
+    expect(b.type).toBe('flowchart');
+    expect(only(b, 'frontmatter-must-be-first')).toEqual([]);
+  });
+
+  it('returns [] when the diagram has no frontmatter at all', () => {
+    const b = fenced('%% a note', 'flowchart LR', '  A --> B');
+    expect(only(b, 'frontmatter-must-be-first')).toEqual([]);
+  });
+
+  it('reports a %% comment before the frontmatter', () => {
+    const b = fenced(
+      '%% a note',
+      '---',
+      'title: T',
+      '---',
+      'flowchart LR',
+      '  A --> B',
+    );
+    expect(b.type).toBe('---');
+    const findings = only(b, 'frontmatter-must-be-first');
+    expect(findings).toHaveLength(1);
+    expect(findings[0].severity).toBe('error');
+    expect(findings[0].line).toBe(2);
+    expect(findings[0].message).toContain('`%%` comment');
+    expect(findings[0].message).toContain('move the comment');
+  });
+
+  it('reports a single blank line before the frontmatter', () => {
+    // The issue text says "a non-empty line precedes", but its own repro shows
+    // a bare blank line breaks rendering too — so the rule fires on anything.
+    const b = fenced('', '---', 'title: T', '---', 'flowchart LR', '  A --> B');
+    expect(b.type).toBe('---');
+    const findings = only(b, 'frontmatter-must-be-first');
+    expect(findings).toHaveLength(1);
+    expect(findings[0].line).toBe(2);
+    expect(findings[0].message).toContain('a blank line precedes');
+  });
+
+  it('anchors to the frontmatter line, not body line 1', () => {
+    const b = fenced(
+      '',
+      '',
+      '---',
+      'title: T',
+      '---',
+      'flowchart LR',
+      '  A --> B',
+    );
+    const findings = only(b, 'frontmatter-must-be-first');
+    expect(findings).toHaveLength(1);
+    expect(findings[0].line).toBe(3);
+  });
+
+  it('converges in two passes when a comment and a blank line both precede', () => {
+    // The comment remedy wins when both are present, so following it leaves
+    // the blank line and the rule fires again with the other remedy. That is
+    // deliberate: each message names one concrete edit. Do not collapse this
+    // into a single message that claims to fix both — it would be wrong for
+    // the far more common single-cause cases.
+    const first = fenced(
+      '%% a note',
+      '',
+      '---',
+      'title: T',
+      '---',
+      'flowchart LR',
+    );
+    const a = only(first, 'frontmatter-must-be-first');
+    expect(a).toHaveLength(1);
+    expect(a[0].message).toContain('`%%` comment');
+
+    // What the reader is left with after applying that remedy.
+    const second = fenced(
+      '',
+      '---',
+      'title: T',
+      '---',
+      '%% a note',
+      'flowchart LR',
+    );
+    const b = only(second, 'frontmatter-must-be-first');
+    expect(b).toHaveLength(1);
+    expect(b[0].message).toContain('a blank line precedes');
+  });
+
+  it('stays silent on unterminated frontmatter, which the parser already rejects', () => {
+    // `locateHeader` leaves an unterminated block alone, so the type is still
+    // '---' and `appliesTo` passes — but nothing precedes the `---`, and
+    // mermaid already errors with "Diagrams beginning with --- are not valid".
+    // Reporting here would say the same thing twice.
+    const b = fenced('---', 'title: T', 'flowchart LR', '  A --> B');
+    expect(b.type).toBe('---');
+    expect(only(b, 'frontmatter-must-be-first')).toEqual([]);
+  });
+
+  it('honors an off override', () => {
+    const b = fenced('%% a note', '---', 'title: T', '---', 'flowchart LR');
+    const rules: ResolvedRules = {
+      ...RULE_DEFAULTS,
+      'frontmatter-must-be-first': 'off',
+    };
+    expect(only(b, 'frontmatter-must-be-first', rules)).toEqual([]);
+  });
+
+  it('fires the same way on a standalone .mmd file', () => {
+    const [b] = extractMermaidBlocks(
+      'test.mmd',
+      ['%% a note', '---', 'title: T', '---', 'flowchart LR', '  A --> B'].join(
+        '\n',
+      ),
+    );
+    expect(b.type).toBe('---');
+    const findings = only(b, 'frontmatter-must-be-first');
+    expect(findings).toHaveLength(1);
+    expect(findings[0].line).toBe(2);
+  });
+});

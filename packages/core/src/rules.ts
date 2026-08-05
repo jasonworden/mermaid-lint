@@ -99,6 +99,7 @@ export type RuleId =
   | 'c4-undefined-relationship-endpoint'
   | 'c4-undefined-element-style'
   | 'c4-undefined-relationship-style-endpoint'
+  | 'frontmatter-must-be-first'
   | 'suppression-unknown-rule'
   | 'suppression-unused'
   | 'suppression-malformed';
@@ -304,6 +305,10 @@ export interface RuleMetadata {
  * the sankey rules catch non-positive link values and self-loops; and the
  * block/packet/architecture rules flag parser-valid diagrams that otherwise
  * render empty.
+ *
+ * `frontmatter-must-be-first` is `error`, joining `duplicate-ids` as the only
+ * non-advisory rules: a diagram whose frontmatter is preceded by anything does
+ * not render at all, so there is no judgment call to defer to the user.
  *
  * @internal
  */
@@ -644,6 +649,14 @@ export const RULE_METADATA = {
     defaultSeverity: 'warn',
     docsScope: 'C4Context',
     readmeDiagramKeywords: ['C4Context'],
+  },
+  // Document-shape rule. Like the directive-correctness rules below it
+  // describes the body rather than any one diagram type, so it carries no
+  // README diagram keywords.
+  'frontmatter-must-be-first': {
+    defaultSeverity: 'error',
+    docsScope: 'all',
+    readmeDiagramKeywords: [],
   },
   // Directive-correctness rules. They describe the suppression comments
   // themselves rather than any diagram type, so they carry no README diagram

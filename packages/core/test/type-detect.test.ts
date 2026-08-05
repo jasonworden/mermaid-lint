@@ -86,4 +86,14 @@ describe('detectDiagramType', () => {
     // single-vs-double-preprocessing distinction.
     expect(detectDiagramType('\n---\ntitle: T\n---\nflowchart LR')).toBe('---');
   });
+
+  it('returns --- for frontmatter preceded by a %% comment', () => {
+    // The sibling of the blank-line case above, and issue #123's primary
+    // repro. Pinned for the same reason: `frontmatter-must-be-first` gates on
+    // `type === '---'`, so widening the skip to scan past a misplaced block
+    // would silently disable that rule rather than fail a test.
+    expect(
+      detectDiagramType('%% a note\n---\ntitle: T\n---\nflowchart LR'),
+    ).toBe('---');
+  });
 });

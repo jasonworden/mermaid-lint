@@ -132,7 +132,8 @@ export default {
   semantic: true,
 
   // Per-rule severity ('off' | 'warn' | 'error'), layered over the defaults.
-  // Most rules default to 'warn'; 'duplicate-ids' defaults to 'error'.
+  // Most rules default to 'warn'; 'duplicate-ids' and
+  // 'frontmatter-must-be-first' default to 'error'.
   rules: {
     'prefer-flowchart': 'warn',  // legacy `graph` keyword → prefer `flowchart`
     'require-direction': 'warn', // `flowchart`/`graph` with no direction (defaults to TD)
@@ -478,6 +479,12 @@ title: My Diagram
 flowchart LR
   A[Start] --> B[End]
 ```
+
+The `frontmatter-must-be-first` rule catches this placement mistake for you.
+Note that it cannot be suppressed with a `%%` directive above the frontmatter —
+that comment is itself the thing that breaks rendering. Use a file-scope
+`<!-- mermaid-lint-disable-file frontmatter-must-be-first: reason -->`, which
+sits outside the diagram body.
 
 `all` covers semantic rules only, and never the three suppression meta-rules
 below — `suppression-unknown-rule`, `suppression-unused`, and
