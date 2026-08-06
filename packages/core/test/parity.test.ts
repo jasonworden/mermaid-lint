@@ -2,8 +2,10 @@ import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import type { Block } from '../src/extract.js';
 import { isMermanUnsupported, validateWithMerman } from '../src/merman.js';
-import { validateWithMermaidJS } from '../src/validate.js';
+import { detectDiagramType } from '../src/type-detect.js';
+import { validateBlock, validateWithMermaidJS } from '../src/validate.js';
 
 const FIXTURES_DIR = join(
   fileURLToPath(import.meta.url),
@@ -109,6 +111,42 @@ describe('parity: invalid fixtures — mermaid.js must reject all', () => {
     expect(
       missed,
       `Invalid fixtures accepted by mermaid.js (review these fixtures):\n${missed.join('\n')}`,
+    ).toHaveLength(0);
+  });
+
+  // The false-positive check in the "valid fixtures" block above cannot fail:
+  // it asks whether merman accepted something mermaid.js rejected, but every
+  // fixture it reads is one mermaid.js accepts. A false positive is only
+  // observable on input that is genuinely broken, which is here.
+  //
+  // This asserts on validateBlock rather than validateWithMerman on purpose.
+  // merman still returns MERMAN_OK for a broken eventmodeling body and that is
+  // not ours to fix; what we control is whether the pipeline lets that verdict
+  // through. The pipeline verdict is also the one users actually see.
+  it('the pipeline rejects every invalid fixture (merman OK must not leak)', async () => {
+    const fixtures = await loadFixtures('invalid');
+    const leaked: string[] = [];
+
+    for (const [file, body] of fixtures) {
+      const block: Block = {
+        path: file,
+        line: 1,
+        col: 1,
+        body,
+        type: detectDiagramType(body),
+      };
+      const result = await validateBlock(block);
+      if (result.ok) {
+        const merman = await validateWithMerman(body);
+        leaked.push(
+          `${file}: validateBlock said ok (merman=${merman.code_name})`,
+        );
+      }
+    }
+
+    expect(
+      leaked,
+      `Broken diagrams reported as clean — merman accepted them and the fast path skipped mermaid.js. See #153:\n${leaked.join('\n')}`,
     ).toHaveLength(0);
   });
 });

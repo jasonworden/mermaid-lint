@@ -1,9 +1,11 @@
 import type { Block } from './extract.js';
+import { locateHeader } from './header.js';
 import { validateWithMerman } from './merman.js';
 import { parsedLineToBodyLine } from './preprocess.js';
 import { RULE_DEFAULTS, type ResolvedRules } from './rules.js';
 import { type SemanticWarning, checkSemantics } from './semantic.js';
 import type { SuppressionIndex } from './suppress.js';
+import { detectDiagramType } from './type-detect.js';
 
 export type { SemanticWarning };
 
@@ -484,10 +486,94 @@ export async function validateWithMermaidJS(
 }
 
 /**
+ * Diagram types whose `MERMAN_OK` verdict is not trustworthy, so the fast path
+ * must not act on it.
+ *
+ * merman reports these as valid without truly parsing the body: `eventmodeling`
+ * accepts anything at all, and `kanban` accepts some malformed bodies (it does
+ * catch others, e.g. an unterminated `@{` metadata block). Taking the fast path
+ * on that verdict skips mermaid.js entirely, so a broken diagram yields *zero*
+ * diagnostics rather than a late one — a correctness bug, not a latency one.
+ * See #153.
+ *
+ * A merman false *negative* needs no such list: rejecting a valid diagram only
+ * costs the fallback, which then overrules it. Only false positives escape.
+ *
+ * This list cannot cover a type nobody has noticed yet, so it is a floor rather
+ * than a guarantee. The invalid parity fixtures are what turn the next such
+ * regression into a CI failure instead of silence — see `parity.test.ts`.
+ */
+const MERMAN_UNTRUSTED_TYPES = new Set(['eventmodeling', 'kanban']);
+
+/**
+ * Direction tokens mermaid's flowchart grammar accepts, case-sensitively.
+ *
+ * merman accepts *any* token in the direction slot — `ZZZZ`, `TB2`, and the
+ * lowercase spellings all pass — while mermaid rejects each with a lexer error.
+ * Same failure shape as {@link MERMAN_UNTRUSTED_TYPES}, but it can't be handled
+ * the same way: denylisting `flowchart` and `graph` would put the two most
+ * common diagram types on the slow path, which is most of the fast path's
+ * value. So the header is checked instead, and only a bad direction defects.
+ *
+ * Deliberately *not* `semantic.ts`'s `DIRECTION_RE`, which omits `v ^ < >`.
+ * That regex answers a style question — did the author state a conventional
+ * direction — and this set answers a grammar one. Merging them would either
+ * push valid `flowchart v` onto the slow path or let `require-direction` start
+ * accepting arrows as directions.
+ */
+const FLOWCHART_DIRECTIONS = new Set([
+  'TB',
+  'TD',
+  'BT',
+  'RL',
+  'LR',
+  'v',
+  '^',
+  '<',
+  '>',
+]);
+
+/**
+ * Decide whether merman's `valid` verdict is strong enough to skip mermaid.js.
+ *
+ * Only false *positives* matter here — a merman rejection already falls through
+ * to mermaid.js, which overrules it. Every check below is therefore a known way
+ * merman claims valid for something mermaid cannot parse. When in doubt, return
+ * false: the cost is one mermaid.js call, and the cost of a wrong `true` is a
+ * broken diagram reported as clean.
+ *
+ * @param body - Raw diagram source.
+ * @returns `true` when the fast path may accept on merman's word alone.
+ */
+function mermanVerdictIsTrustworthy(body: string): boolean {
+  // Read the type off the body rather than the caller's `block.type`: hand-built
+  // blocks from the remark and textlint adapters don't always populate it, and a
+  // guard that fails open on a missing field is the bug it exists to prevent.
+  const type = detectDiagramType(body);
+
+  if (MERMAN_UNTRUSTED_TYPES.has(type)) return false;
+
+  if (type === 'flowchart' || type === 'graph') {
+    // Omitting the direction entirely is valid, so only a present-and-unknown
+    // token defects. Anything past the direction is the grammar's problem.
+    const [, direction] = locateHeader(body.split('\n')).text.split(/\s+/);
+    if (direction !== undefined && !FLOWCHART_DIRECTIONS.has(direction)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/**
  * Validate an extracted {@link Block} end to end: structural checks (unclosed /
  * empty fence), semantic warnings, then the fast Rust (`merman`) parser with a
  * mermaid.js fallback for anything merman rejects. mermaid.js is treated as
  * authoritative on the final verdict.
+ *
+ * Bodies that fail `mermanVerdictIsTrustworthy` skip the fast path and always
+ * consult mermaid.js, because merman claims to accept input it never really
+ * parsed.
  *
  * @param block - The block to validate.
  * @param rules - Resolved per-rule severities for the semantic pass. Defaults
@@ -526,7 +612,7 @@ export async function validateBlock(
 
   const mermanResult = await validateWithMerman(body);
 
-  if (mermanResult.valid) {
+  if (mermanResult.valid && mermanVerdictIsTrustworthy(body)) {
     // Fast path: merman confirmed valid — skip mermaid.js entirely
     return { ok: true, warnings };
   }
