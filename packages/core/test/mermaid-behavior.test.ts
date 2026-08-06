@@ -609,4 +609,27 @@ describe('mermaid behavior contracts', () => {
       'card B=B',
     ]);
   }, 20_000);
+
+  it('accepts an empty kanban, which is why kanban-no-columns exists', async () => {
+    // Issue #149 ruled that rule out on the grounds that an empty kanban is
+    // already a parse error. It is not: a bare keyword, a body of blank
+    // lines, and a body of only comments all parse clean and produce no
+    // nodes, so nothing but a semantic rule reports them. If a bump makes
+    // any of these reject, the rule is redundant and should go.
+    for (const body of ['kanban\n', 'kanban\n\n\n', 'kanban\n  %% nothing\n']) {
+      expect((await validateWithMermaidJS(body)).ok, body).toBe(true);
+      expect(await kanbanNodes(body)).toEqual([]);
+    }
+
+    // The one spelling that does fail, and why the rule cannot lean on it:
+    // jison wants a NEWLINE, which every fenced block and `.mmd` file has.
+    expect((await validateWithMermaidJS('kanban')).ok).toBe(false);
+
+    // Kanban's grammar has no `title` token, so this is a column named
+    // `title Board` rather than a title — the board is not empty, and
+    // `kanban-no-columns` must stay silent on it.
+    expect(await kanbanNodes('kanban\n  title Board\n')).toEqual([
+      'column title Board=title Board',
+    ]);
+  }, 20_000);
 });

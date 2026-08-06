@@ -117,6 +117,7 @@ export type RuleId =
   | 'kanban-duplicate-column'
   | 'kanban-duplicate-task-id'
   | 'kanban-empty-column'
+  | 'kanban-no-columns'
   | 'frontmatter-must-be-first'
   | 'suppression-unknown-rule'
   | 'suppression-unused'
@@ -444,6 +445,17 @@ export interface RuleMetadata {
  * `kanban-empty-column` (`warn`) catches a column with no cards, which renders
  * as a header over empty space — the kanban counterpart of
  * `gantt-empty-section` and `journey-empty-section`.
+ *
+ * `kanban-no-columns` (`warn`) catches a board with no columns at all, which
+ * renders as an empty diagram — the counterpart of `mindmap-no-nodes` and
+ * `wardley-no-components`. #149 ruled this rule out on the grounds that an
+ * empty kanban is already a parse error; it is not. `kanban\n` parses clean,
+ * as do a body of blank lines and one of only `%%` comments. Only `kanban`
+ * with no trailing newline fails, which is a jison artifact no fenced or
+ * `.mmd` diagram produces. Note that kanban's grammar has no `title` token,
+ * so `title Board` declares an ordinary column and this rule stays silent on
+ * it — pinned in `mermaid-behavior.test.ts`, since a bump that added the
+ * keyword would turn that into a false negative.
  *
  * `frontmatter-must-be-first` is `error`, joining `duplicate-ids` and
  * `eventmodeling-undefined-frame` as the only non-advisory rules: a diagram
@@ -876,6 +888,11 @@ export const RULE_METADATA = {
     readmeDiagramKeywords: ['kanban'],
   },
   'kanban-empty-column': {
+    defaultSeverity: 'warn',
+    docsScope: 'kanban',
+    readmeDiagramKeywords: ['kanban'],
+  },
+  'kanban-no-columns': {
     defaultSeverity: 'warn',
     docsScope: 'kanban',
     readmeDiagramKeywords: ['kanban'],
