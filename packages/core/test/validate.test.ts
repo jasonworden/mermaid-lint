@@ -394,3 +394,82 @@ describe('validateWithMermaidJS', () => {
     if (!result.ok) expect(result.error.message).toBeTruthy();
   });
 });
+
+describe('validateBlock: types merman accepts without parsing', () => {
+  // merman returns MERMAN_OK for these bodies, so the fast path would return
+  // early and mermaid.js — the authoritative parser — would never see them.
+  // See #153.
+  it('rejects an eventmodeling body with a stray token', async () => {
+    const result = await validateBlock(
+      makeBlock('eventmodeling\n  tf 1 ui A\n  @@@@'),
+    );
+    expect(result.ok).toBe(false);
+    expect(result).toHaveProperty('error.message');
+  });
+
+  it('rejects an eventmodeling frame with a trailing arrow', async () => {
+    const result = await validateBlock(
+      makeBlock('eventmodeling\n  tf 1 ui A "x" ->> 1'),
+    );
+    expect(result.ok).toBe(false);
+    expect(result).toHaveProperty('error.message');
+  });
+
+  it('rejects a kanban body with unrecognized text', async () => {
+    const result = await validateBlock(makeBlock('kanban\n  @@@@ !!!! ####'));
+    expect(result.ok).toBe(false);
+    expect(result).toHaveProperty('error.message');
+  });
+
+  it('still accepts a valid eventmodeling diagram', async () => {
+    const result = await validateBlock(
+      makeBlock('eventmodeling\n  tf 1 ui Screen'),
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it('still accepts a valid kanban diagram', async () => {
+    const result = await validateBlock(
+      makeBlock('kanban\n  Todo\n    id1[Task]'),
+    );
+    expect(result.ok).toBe(true);
+  });
+});
+
+describe('validateBlock: flowchart directions merman does not check', () => {
+  // merman accepts any direction token; mermaid's grammar accepts only a fixed
+  // set, case-sensitively. Taking the fast path on merman's verdict means a
+  // diagram that cannot render reports no syntax error at all. See #153.
+  it('rejects an unrecognized flowchart direction', async () => {
+    const result = await validateBlock(makeBlock('flowchart ZZZZ\n  A --> B'));
+    expect(result.ok).toBe(false);
+    expect(result).toHaveProperty('error.message');
+  });
+
+  it('rejects a lowercase flowchart direction', async () => {
+    const result = await validateBlock(makeBlock('flowchart lr\n  A --> B'));
+    expect(result.ok).toBe(false);
+    expect(result).toHaveProperty('error.message');
+  });
+
+  it('rejects an unrecognized graph direction', async () => {
+    const result = await validateBlock(makeBlock('graph td\n  A --> B'));
+    expect(result.ok).toBe(false);
+    expect(result).toHaveProperty('error.message');
+  });
+
+  it.each(['TB', 'TD', 'BT', 'RL', 'LR', 'v', '^', '<', '>'])(
+    'still accepts the %s direction',
+    async (dir) => {
+      const result = await validateBlock(
+        makeBlock(`flowchart ${dir}\n  A --> B`),
+      );
+      expect(result.ok).toBe(true);
+    },
+  );
+
+  it('still accepts a flowchart with no direction', async () => {
+    const result = await validateBlock(makeBlock('flowchart\n  A --> B'));
+    expect(result.ok).toBe(true);
+  });
+});
