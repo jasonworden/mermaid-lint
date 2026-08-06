@@ -705,6 +705,52 @@ describe('checkSemantics', () => {
       expect(only(b, 'treemap-no-leaves')).toEqual([]);
     });
 
+    it('ignores a treemap-beta accDescr whose brace opens on a later line', () => {
+      // `ACC_DESCR`'s `\s*` spans newlines, so the block opens from a bare
+      // `accDescr` too and its interior is still prose. Without the lookahead
+      // the interior row lexes as a real row here, and `"X": 0` raises a
+      // `treemap-zero-value` on a diagram mermaid draws nothing for.
+      const b = block(
+        [
+          'treemap-beta',
+          '  accDescr',
+          '  {',
+          '  "X": 0',
+          '  }',
+          '  "A"',
+          '    "B": 10',
+        ].join('\n'),
+        'treemap-beta',
+      );
+      expect(only(b, 'treemap-zero-value')).toEqual([]);
+      expect(only(b, 'treemap-duplicate-sibling')).toEqual([]);
+    });
+
+    it('reads a treemap-beta row after an accDescr block closes on its line', () => {
+      // `ACC_DESCR` stops at the first `}` and the rest of the line keeps
+      // lexing, so `accDescr { d } "A"` declares a row indented by the gap
+      // after the brace — one column (probe, mermaid 11.15.0). Skipping the
+      // line loses the row, and with it every finding that depends on it.
+      const b = block(
+        [
+          'treemap-beta',
+          '  accDescr { d } "A"',
+          '    "B": 10',
+          ' "A"',
+          '    "C": 5',
+        ].join('\n'),
+        'treemap-beta',
+      );
+      // Both `"A"` rows sit at indent 1, so the second re-parents to the root
+      // beside the first and duplicates it.
+      const dup = only(b, 'treemap-duplicate-sibling');
+      expect(dup).toHaveLength(1);
+      expect(dup[0].line).toBe(4);
+      expect(dup[0].message).toContain('line 2');
+      // And the tail row is a section, not a leaf, so it carries no value.
+      expect(only(b, 'treemap-branch-with-value')).toEqual([]);
+    });
+
     it('flags sankey-beta with a non-positive link value', () => {
       const b = block('sankey-beta\n  A,B,0\n  B,C,-1', 'sankey-beta');
       const warnings = only(b, 'sankey-non-positive-value');
@@ -3289,6 +3335,52 @@ describe('wardley-orphan-component rule', () => {
     );
     expect(only(b, 'wardley-orphan-component', enabled)).toEqual([]);
   });
+});
+
+describe('accDescr block scanning', () => {
+  // `scanAccDescr`'s bare-keyword branch has to look ahead for the `{` that may
+  // open on a later line. Spelled `lines.slice(i + 1).find(…)` — as wardley and
+  // eventmodeling both had it — that copies the whole remaining body once per
+  // bare `accDescr`: ~10ms at 8 000 lines, ~537ms at 32 000, ~8s at 128 000, a
+  // clean 4x per doubling. Walking an index stops at the first non-blank line,
+  // which in this body is the next `accDescr`. Diagram bodies are user input
+  // and `checkSemantics` runs ahead of any parse, so a body that never becomes
+  // a valid diagram still reaches this.
+  const BARE = Array.from({ length: 60_000 }, () => '  accDescr');
+
+  it(
+    'looks ahead from a bare accDescr in linear time, in wardley',
+    { timeout: 60_000 },
+    () => {
+      const b = block(['wardley-beta', ...BARE].join('\n'), 'wardley-beta');
+      const start = performance.now();
+      // No `{` ever opens, so nothing declares a component.
+      expect(only(b, 'wardley-no-components').map((f) => f.line)).toEqual([1]);
+      expect(performance.now() - start).toBeLessThan(500);
+    },
+  );
+
+  it(
+    'looks ahead from a bare accDescr in linear time, in eventmodeling',
+    { timeout: 60_000 },
+    () => {
+      const b = block(['eventmodeling', ...BARE].join('\n'), 'eventmodeling');
+      const start = performance.now();
+      expect(only(b, 'eventmodeling-undefined-frame')).toEqual([]);
+      expect(performance.now() - start).toBeLessThan(500);
+    },
+  );
+
+  it(
+    'looks ahead from a bare accDescr in linear time, in treemap',
+    { timeout: 60_000 },
+    () => {
+      const b = block(['treemap-beta', ...BARE].join('\n'), 'treemap-beta');
+      const start = performance.now();
+      expect(only(b, 'treemap-no-leaves').map((f) => f.line)).toEqual([1]);
+      expect(performance.now() - start).toBeLessThan(500);
+    },
+  );
 });
 
 describe('wardley-no-components rule', () => {

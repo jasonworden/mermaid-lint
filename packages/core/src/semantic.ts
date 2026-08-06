@@ -102,6 +102,103 @@ function indentWidth(line: string): number {
   return n;
 }
 
+/**
+ * Count the whitespace run immediately *before* `start`. Mermaid's indentation
+ * terminals match wherever they sit rather than only at a line's start, so a
+ * statement that follows something else on its line is indented by the gap in
+ * between — `accDescr { d } "A"` indents `"A"` by one. For a token that does
+ * open its line this is {@link indentWidth}; the two only diverge mid-line.
+ */
+function precedingIndent(line: string, start: number): number {
+  let n = start;
+  while (n > 0 && (line[n - 1] === ' ' || line[n - 1] === '\t')) n--;
+  return start - n;
+}
+
+/** Mutable cursor for {@link scanAccDescr}, one per body scan. */
+interface AccDescrState {
+  /** True while inside a block whose `}` has not arrived yet. */
+  open: boolean;
+}
+
+/** The opening line of an `accDescr { … }` block. */
+const ACC_DESCR_OPEN_RE = /^accDescr\s*\{/;
+
+/** A bare `accDescr` whose `{` opens on a later line. */
+const ACC_DESCR_BARE_RE = /^accDescr$/;
+
+/**
+ * What a caller should do with a line, once the `accDescr` scan has seen it.
+ * `null` means the line is not part of a block and should be handled normally;
+ * {@link CONSUME_LINE} means skip it entirely; any other number is an offset
+ * into the raw line at which real statements resume.
+ */
+const CONSUME_LINE = -1;
+
+/**
+ * Advance an `accDescr { … }` block scan by one line, and say what is left of
+ * that line to read.
+ *
+ * Four diagram types need this and none of them can share a single answer,
+ * because their grammars differ in one respect: whether a statement may follow
+ * the block's closing `}` on the same line. `treemap-beta` and `treeView-beta`
+ * allow it — `accDescr { d } "A"` declares a row — so they pass
+ * `statementMayFollow` and resume at the returned offset. `wardley-beta` and
+ * `eventmodeling` reject two statements on one line outright, so nothing can
+ * follow the brace and they consume the whole line. All four were probed
+ * against mermaid 11.15.0 and are pinned in `mermaid-behavior.test.ts`.
+ *
+ * The lookahead for the bare form walks an index rather than
+ * `lines.slice(i + 1).find(…)`: the slice copies the whole remaining body, so a
+ * body of nothing but bare `accDescr` lines re-copies it once per line —
+ * quadratic, and reachable, since `checkSemantics` runs ahead of any parse.
+ */
+function scanAccDescr(
+  state: AccDescrState,
+  lines: string[],
+  i: number,
+  statementMayFollow: boolean,
+): number | null {
+  const raw = lines[i];
+  const trimmed = raw.trim();
+  // Offset of `trimmed` within `raw`, so an index found in the former maps
+  // back onto the latter.
+  const lead = raw.length - raw.trimStart().length;
+
+  const resumeAfter = (closeInTrimmed: number): number =>
+    statementMayFollow ? lead + closeInTrimmed + 1 : CONSUME_LINE;
+
+  if (state.open) {
+    const close = trimmed.indexOf('}');
+    if (close === -1) return CONSUME_LINE;
+    state.open = false;
+    return resumeAfter(close);
+  }
+
+  if (ACC_DESCR_OPEN_RE.test(trimmed)) {
+    const close = trimmed.indexOf('}', trimmed.indexOf('{'));
+    if (close === -1) {
+      state.open = true;
+      return CONSUME_LINE;
+    }
+    return resumeAfter(close);
+  }
+
+  if (ACC_DESCR_BARE_RE.test(trimmed)) {
+    // Only whitespace may separate the keyword from its brace, so anything
+    // else on the next non-blank line means this never lexed as an `accDescr`
+    // and the lines after it are ordinary statements.
+    let next = i + 1;
+    while (next < lines.length && lines[next].trim() === '') next++;
+    if (next < lines.length && lines[next].trim().startsWith('{')) {
+      state.open = true;
+    }
+    return CONSUME_LINE;
+  }
+
+  return null;
+}
+
 function parseCsvCells(raw: string): string[] | null {
   if (raw === '') return [];
 
@@ -544,9 +641,6 @@ const radarDuplicateAxis: Rule = {
 const TREEMAP_ROW_RE =
   /^(?:"([^"]*)"|'([^']*)')(?:\s*[:,]\s*([\d_.,]+))?(?::{3}[a-zA-Z_]\w*)?\s*(?:%%.*)?$/;
 
-/** The opening line of a multi-line `accDescr { … }` block. */
-const TREEMAP_ACC_DESCR_RE = /^accDescr\s*\{/;
-
 /**
  * Read a raw treemap value the way Mermaid does: drop the digit-group commas,
  * then `parseFloat`, which stops at the first `_`. So `1,000` is 1000 while
@@ -588,31 +682,35 @@ function isTreemap(block: Block): boolean {
  * re-parent to the section above it instead. `treemap-branch-with-value` is the
  * rule for that; reproducing the same stack here keeps every other rule's idea
  * of "sibling" matching what actually renders.
+ *
+ * An `accDescr { … }` block is prose and Mermaid reads no rows out of it, but
+ * it ends at the first `}` and the rest of that line goes on lexing:
+ * `accDescr { d } "A"` declares a row, indented by the gap after the brace
+ * (probe, mermaid 11.15.0). So the scan resumes at an offset rather than
+ * skipping the line, and takes the row's indent from that offset.
  */
 function parseTreemapRows(lines: string[], headerLine: number): TreemapRow[] {
   const rows: TreemapRow[] = [];
   const stack: { indent: number; line: number }[] = [];
-  let inAccDescr = false;
+  const accDescr: AccDescrState = { open: false };
 
   for (let i = headerLine; i < lines.length; i++) {
-    const trimmed = lines[i].trim();
-    if (trimmed === '' || trimmed.startsWith('%%')) continue;
+    const raw = lines[i];
+    if (raw.trim() === '' || raw.trim().startsWith('%%')) continue;
 
-    // An `accDescr { … }` block is prose. Mermaid does not read rows out of it,
-    // so neither should we.
-    if (inAccDescr) {
-      if (trimmed.endsWith('}')) inAccDescr = false;
-      continue;
-    }
-    if (TREEMAP_ACC_DESCR_RE.test(trimmed)) {
-      inAccDescr = !trimmed.endsWith('}');
-      continue;
-    }
+    const verdict = scanAccDescr(accDescr, lines, i, true);
+    if (verdict === CONSUME_LINE) continue;
+    const scanFrom = verdict ?? 0;
 
+    const rest = raw.slice(scanFrom);
+    const trimmed = rest.trim();
     const match = TREEMAP_ROW_RE.exec(trimmed);
     if (match === null) continue;
 
-    const indent = indentWidth(lines[i]);
+    // Where the row token itself starts, so its indent is the run before it —
+    // the line's own indent for an ordinary row, the gap after `}` for a tail.
+    const start = scanFrom + (rest.length - rest.trimStart().length);
+    const indent = precedingIndent(raw, start);
     while (stack.length > 0 && stack[stack.length - 1].indent >= indent) {
       stack.pop();
     }
@@ -781,21 +879,6 @@ const WARDLEY_EVOLVE_RE = new RegExp(
   `^evolve\\s+(.+?)\\s+(${WARDLEY_NUMBER})\\s*$`,
 );
 const WARDLEY_PIPELINE_RE = /^pipeline\s+(.+?)\s*\{/;
-/**
- * `ACC_DESCR`'s brace form spans newlines as a single lexer token, so every
- * line up to the matching `}` is opaque description text — never statements
- * — the same way a pipeline body is a different parsing context. Only the
- * brace form needs tracking; the colon form (`accDescr: text`) is one line
- * and already falls under `WARDLEY_KEYWORD_RE` below.
- */
-const WARDLEY_ACC_DESCR_OPEN_RE = /^accDescr\s*\{/;
-/**
- * The `\s*` between `accDescr` and its brace spans newlines, so the brace may
- * sit on a later line and the block still opens. Matching that needs a
- * lookahead from a bare `accDescr` row rather than a single-line pattern.
- */
-const WARDLEY_ACC_DESCR_BARE_RE = /^accDescr$/;
-
 // Any row opening with a keyword is a statement, never a link. This is what
 // keeps `evolution Genesis -> Custom` from being read as a link to `Custom`.
 const WARDLEY_KEYWORD_RE =
@@ -921,35 +1004,21 @@ export function parseWardley(lines: string[]): ParsedWardley {
     coordinates: [],
   };
   let pipelineParent: string | null = null;
-  let inAccDescr = false;
+  const accDescr: AccDescrState = { open: false };
+  // The `accDescr` scan reads comment-stripped lines, the same text the rest of
+  // this loop sees: a bare `accDescr %% note` is still a bare `accDescr`, and
+  // the block's own lookahead must agree with that.
+  const stripped = lines.map(stripWardleyComment);
 
   for (let i = 0; i < lines.length; i++) {
     const line = i + 1;
-    const trimmed = stripWardleyComment(lines[i]).trim();
+    const trimmed = stripped[i].trim();
     if (trimmed === '') continue;
 
-    if (inAccDescr) {
-      if (trimmed.includes('}')) inAccDescr = false;
-      continue;
-    }
-
-    const accDescrOpen = WARDLEY_ACC_DESCR_OPEN_RE.exec(trimmed);
-    if (accDescrOpen !== null) {
-      // A same-line `accDescr { ... }` closes immediately; otherwise every
-      // following line is interior text until the matching `}` shows up.
-      const openIdx = trimmed.indexOf('{');
-      if (trimmed.indexOf('}', openIdx) === -1) inAccDescr = true;
-      continue;
-    }
-
-    if (WARDLEY_ACC_DESCR_BARE_RE.test(trimmed)) {
-      // Only whitespace may separate the keyword from its brace, so anything
-      // else on the next non-blank line means this row never lexed as an
-      // `accDescr` at all and the following lines are ordinary statements.
-      const next = lines.slice(i + 1).find((later) => later.trim() !== '');
-      if (next?.trim().startsWith('{')) inAccDescr = true;
-      continue;
-    }
+    // Wardley takes one statement per line — `component A […] component B […]`
+    // is a parse error — so nothing can follow a block's closing `}` and the
+    // whole line is always consumed.
+    if (scanAccDescr(accDescr, stripped, i, false) !== null) continue;
 
     if (pipelineParent !== null) {
       if (trimmed.startsWith('}')) {
@@ -1410,13 +1479,6 @@ const EVENTMODELING_TOKEN_RE = /[-]>>|[A-Za-z_][\w.]*|[0-9]+/g;
 const EVENTMODELING_ID_RE = /^[0-9]+$/;
 
 /**
- * `accDescr`'s brace form is a single terminal spanning newlines, so every
- * line up to the matching `}` is description text and never a statement.
- */
-const EVENTMODELING_ACC_DESCR_OPEN_RE = /^accDescr\s*\{/;
-/** The brace may sit on a later line, which only a lookahead can see. */
-const EVENTMODELING_ACC_DESCR_BARE_RE = /^accDescr$/;
-/**
  * Metadata rows are whole-line terminals, so their text never reaches the
  * token stream. None of the three parsed in any form tried against mermaid
  * 11.15 — this is a defensive skip, not a supported path.
@@ -1498,33 +1560,15 @@ function stripEventModelingComments(
  */
 function tokenizeEventModeling(lines: string[]): EventModelingToken[] {
   const tokens: EventModelingToken[] = [];
-  let inAccDescr = false;
+  const accDescr: AccDescrState = { open: false };
 
   for (let i = 0; i < lines.length; i++) {
     const trimmed = lines[i].trim();
     if (trimmed === '') continue;
 
-    if (inAccDescr) {
-      if (trimmed.includes('}')) inAccDescr = false;
-      continue;
-    }
-
-    if (EVENTMODELING_ACC_DESCR_OPEN_RE.test(trimmed)) {
-      // A same-line `accDescr { ... }` closes immediately; otherwise the block
-      // runs until the matching `}` shows up.
-      const openIdx = trimmed.indexOf('{');
-      if (trimmed.indexOf('}', openIdx) === -1) inAccDescr = true;
-      continue;
-    }
-
-    if (EVENTMODELING_ACC_DESCR_BARE_RE.test(trimmed)) {
-      // Only whitespace may separate the keyword from its brace, so anything
-      // else on the next non-blank line means this row never lexed as an
-      // `accDescr` and the lines after it are ordinary statements.
-      const next = lines.slice(i + 1).find((later) => later.trim() !== '');
-      if (next?.trim().startsWith('{')) inAccDescr = true;
-      continue;
-    }
+    // eventmodeling takes one statement per line, so nothing can follow a
+    // block's closing `}` and the whole line is always consumed.
+    if (scanAccDescr(accDescr, lines, i, false) !== null) continue;
 
     if (EVENTMODELING_META_RE.test(trimmed)) continue;
 
@@ -4096,12 +4140,6 @@ const vennDuplicateUnion: Rule = {
  */
 const TREEVIEW_META_RE = /^(?:title(?=[\t ]|$)|(?:accTitle|accDescr)(?![\w-]))/;
 
-/** The opening line of a multi-line `accDescr { … }` block. */
-const TREEVIEW_ACC_DESCR_OPEN_RE = /^accDescr\s*\{/;
-
-/** A bare `accDescr` whose `{` opens on a later line. */
-const TREEVIEW_ACC_DESCR_BARE_RE = /^accDescr$/;
-
 /**
  * The `treeView-beta` keyword that opens the body, with any indent before it.
  * Matched to find where to *resume* scanning, not to validate: mermaid's
@@ -4118,24 +4156,13 @@ const TREEVIEW_HEADER_RE = /^[\t ]*treeView-beta/;
  *
  * Groups: exactly one of [1] (double-quoted) or [2] (single-quoted) holds the
  * label. The whitespace before a label is what mermaid measures as its indent,
- * but it is counted by {@link treeViewIndent} rather than captured here: a
+ * but it is counted by {@link precedingIndent} rather than captured here: a
  * leading `([ \t]*)` re-scans the whole run at every start position it fails
  * from, which is quadratic on a line of nothing but spaces — 80 000 of them
  * took ~2.8s. Diagram bodies are user input and `checkSemantics` runs ahead of
  * any parse, so an unparseable body still reaches this.
  */
 const TREEVIEW_LABEL_RE = /"([^"]*)"|'([^']*)'/g;
-
-/**
- * Count the whitespace immediately before a label. Mermaid's `INDENTATION`
- * terminal matches wherever it sits, so this is a node's indent whether the
- * label opens its line or follows another on the same one.
- */
-function treeViewIndent(line: string, start: number): number {
-  let n = start;
-  while (n > 0 && (line[n - 1] === ' ' || line[n - 1] === '\t')) n--;
-  return start - n;
-}
 
 interface TreeViewNode {
   /** Label text, quotes stripped. */
@@ -4178,15 +4205,11 @@ function parseTreeViewNodes(
 ): TreeViewNode[] {
   const nodes: TreeViewNode[] = [];
   const stack: { indent: number; index: number }[] = [];
-  let inAccDescr = false;
+  const accDescr: AccDescrState = { open: false };
 
   for (let i = headerLine - 1; i < lines.length; i++) {
     const raw = lines[i];
     const trimmed = raw.trim();
-    // Offset of `trimmed` within `raw`, so an index found in the former can be
-    // mapped back onto the latter — the label scan and the indent count both
-    // need real column positions.
-    const lead = raw.length - raw.trimStart().length;
     // Where the rest of this line starts lexing as nodes. Zero for an ordinary
     // node line; past the keyword or a closing `}` for the mid-line cases.
     let scanFrom = 0;
@@ -4199,42 +4222,18 @@ function parseTreeViewNodes(
     } else {
       if (trimmed === '' || trimmed.startsWith('%%')) continue;
 
-      // An `accDescr { … }` block is prose; mermaid reads no nodes out of it,
-      // but it stops at the first `}` and keeps lexing what follows.
-      if (inAccDescr) {
-        const close = trimmed.indexOf('}');
-        if (close === -1) continue;
-        inAccDescr = false;
-        scanFrom = lead + close + 1;
-      } else if (TREEVIEW_ACC_DESCR_OPEN_RE.test(trimmed)) {
-        const close = trimmed.indexOf('}', trimmed.indexOf('{'));
-        if (close === -1) {
-          inAccDescr = true;
-          continue;
-        }
-        scanFrom = lead + close + 1;
-      } else if (TREEVIEW_ACC_DESCR_BARE_RE.test(trimmed)) {
-        // Only whitespace may separate the keyword from its brace, so anything
-        // else on the next non-blank line means this was never an `accDescr`.
-        // Walked with an index rather than `lines.slice(i + 1).find(…)`: the
-        // slice copies the whole remaining body, so a diagram that is nothing
-        // but bare `accDescr` lines re-copies it once per line — quadratic, and
-        // reachable, since `checkSemantics` runs ahead of any parse.
-        let next = i + 1;
-        while (next < lines.length && lines[next].trim() === '') next++;
-        if (next < lines.length && lines[next].trim().startsWith('{')) {
-          inAccDescr = true;
-        }
-        continue;
-      } else if (TREEVIEW_META_RE.test(trimmed)) {
-        continue;
-      }
+      // treeView takes a label right after a block's closing `}`, so the scan
+      // resumes at the offset rather than dropping the line.
+      const verdict = scanAccDescr(accDescr, lines, i, true);
+      if (verdict === CONSUME_LINE) continue;
+      if (verdict !== null) scanFrom = verdict;
+      else if (TREEVIEW_META_RE.test(trimmed)) continue;
     }
 
     TREEVIEW_LABEL_RE.lastIndex = scanFrom;
     let match = TREEVIEW_LABEL_RE.exec(raw);
     while (match !== null) {
-      const indent = treeViewIndent(raw, match.index);
+      const indent = precedingIndent(raw, match.index);
       while (stack.length > 0 && stack[stack.length - 1].indent >= indent) {
         stack.pop();
       }
