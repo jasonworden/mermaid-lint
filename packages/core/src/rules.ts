@@ -114,6 +114,9 @@ export type RuleId =
   | 'eventmodeling-undefined-frame'
   | 'eventmodeling-duplicate-frame-id'
   | 'eventmodeling-invalid-flow'
+  | 'kanban-duplicate-column'
+  | 'kanban-duplicate-task-id'
+  | 'kanban-empty-column'
   | 'frontmatter-must-be-first'
   | 'suppression-unknown-rule'
   | 'suppression-unused'
@@ -152,6 +155,7 @@ export type RuleDocsScope =
   | 'gitGraph'
   | 'graph'
   | 'journey'
+  | 'kanban'
   | 'mindmap'
   | 'packet-beta'
   | 'pie'
@@ -184,6 +188,7 @@ export type ReadmeDiagramKeyword =
   | 'graph'
   | 'ishikawa-beta'
   | 'journey'
+  | 'kanban'
   | 'mindmap'
   | 'packet-beta'
   | 'pie'
@@ -413,6 +418,32 @@ export interface RuleMetadata {
  * `rmo`/`readmodel`; and `ui` from `rmo`/`readmodel`. Mermaid ships that
  * validator but never runs it at parse time, so nothing reports the
  * violation without this rule.
+ *
+ * The kanban rules key on the single id namespace mermaid gives the type:
+ * columns and cards both register through `addNode` and both surface their id
+ * as a DOM id, `<svg-id>-<node-id>`. A node's id is its explicit id
+ * (`t1[Card]`), or the text itself when written bare — never its label, so two
+ * columns *labelled* `Todo` under distinct ids do not collide.
+ *
+ * The two duplicate rules split that namespace by the *offending* declaration
+ * rather than by the pair of kinds involved, so all four collision directions
+ * land with exactly one rule: `kanban-duplicate-column` (`warn`) reports any
+ * column whose id is already taken, `kanban-duplicate-task-id` (`warn`) any
+ * card. Both nodes always render — nothing in a kanban references a node id, so
+ * no relation is lost — and the shared consequence is a document carrying one
+ * DOM id twice, which breaks `getElementById`, `#id` selectors, fragment links,
+ * and click handlers.
+ *
+ * Two *columns* is the severe case, and the only one whose damage goes past the
+ * id: `getData` gives each colliding column every card whose `parentId`
+ * matches, and the renderer then re-filters that already-duplicated list per
+ * column, so every card is drawn many times over and appears in columns its
+ * author never put it in (render probe, mermaid 11.15.0: two `Todo` columns
+ * holding one card each draw four copies of each card).
+ *
+ * `kanban-empty-column` (`warn`) catches a column with no cards, which renders
+ * as a header over empty space — the kanban counterpart of
+ * `gantt-empty-section` and `journey-empty-section`.
  *
  * `frontmatter-must-be-first` is `error`, joining `duplicate-ids` and
  * `eventmodeling-undefined-frame` as the only non-advisory rules: a diagram
@@ -833,6 +864,21 @@ export const RULE_METADATA = {
     defaultSeverity: 'warn',
     docsScope: 'eventmodeling',
     readmeDiagramKeywords: ['eventmodeling'],
+  },
+  'kanban-duplicate-column': {
+    defaultSeverity: 'warn',
+    docsScope: 'kanban',
+    readmeDiagramKeywords: ['kanban'],
+  },
+  'kanban-duplicate-task-id': {
+    defaultSeverity: 'warn',
+    docsScope: 'kanban',
+    readmeDiagramKeywords: ['kanban'],
+  },
+  'kanban-empty-column': {
+    defaultSeverity: 'warn',
+    docsScope: 'kanban',
+    readmeDiagramKeywords: ['kanban'],
   },
   // Document-shape rule. Like the directive-correctness rules below it
   // describes the body rather than any one diagram type, so it carries no

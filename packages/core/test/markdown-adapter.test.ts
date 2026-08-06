@@ -245,6 +245,37 @@ describe('line citations in messages', () => {
     expect(found[0].message).toContain('(line 6)');
   });
 
+  it('cites file lines from both kanban rules that name one', async () => {
+    // The kanban rules run on `.mmd` fixtures in semantic.test.ts, where body
+    // and file lines coincide; only a fence can tell whether `fileLine` was
+    // applied — and applied to the right variable, which the source scan there
+    // cannot check.
+    const text = [
+      '# Board',
+      '',
+      'Prose.',
+      '',
+      '```mermaid',
+      'kanban',
+      '  Todo',
+      '    t1[A]',
+      '  Todo',
+      '    t1[B]',
+      '```',
+    ].join('\n');
+    const diags = await lintMarkdown('board.md', text);
+
+    const column = diags.filter((d) => d.ruleId === 'kanban-duplicate-column');
+    expect(column).toHaveLength(1);
+    expect(column[0].line).toBe(9);
+    expect(column[0].message).toContain('line 7');
+
+    const task = diags.filter((d) => d.ruleId === 'kanban-duplicate-task-id');
+    expect(task).toHaveLength(1);
+    expect(task[0].line).toBe(10);
+    expect(task[0].message).toContain('line 8');
+  });
+
   it('omits the citation for a same-row duplicate, fenced or not', async () => {
     // `radar-duplicate-axis` drops the clause when the first sighting is the
     // row it is already reporting. That comparison is body-vs-body; mapping
