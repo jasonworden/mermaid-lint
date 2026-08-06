@@ -324,6 +324,11 @@ const RULE_DESCRIPTIONS: Record<RuleId, string> = {
     'Mermaid: an event modeling frame id is declared twice',
   'eventmodeling-invalid-flow':
     'Mermaid: an event modeling frame is sourced from a type it may not receive from',
+  'kanban-duplicate-column':
+    'Mermaid: a Kanban column id is already used by another column or a card',
+  'kanban-duplicate-task-id':
+    'Mermaid: a Kanban card id is already used by another card or a column',
+  'kanban-empty-column': 'Mermaid: a Kanban column has no cards',
   'frontmatter-must-be-first':
     'Mermaid: something precedes the YAML frontmatter, so the diagram will not render',
   'suppression-unknown-rule':

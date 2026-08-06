@@ -100,6 +100,9 @@ and `frontmatter-must-be-first` (Mermaid does not render the diagram at all).
 | `eventmodeling-undefined-frame` | `error` | An `eventmodeling` `->>` naming a frame id that no frame declares; Mermaid drops the relation silently and the arrow never renders | eventmodeling |
 | `eventmodeling-duplicate-frame-id` | `warn` | Two `eventmodeling` `tf`/`rf` frames sharing an id; Mermaid renders both and draws a duplicate arrow per matching frame | eventmodeling |
 | `eventmodeling-invalid-flow` | `warn` | An `eventmodeling` frame sourced from a type Mermaid's own validator forbids; the validator ships but never runs, so nothing else reports it | eventmodeling |
+| `kanban-duplicate-column` | `warn` | A `kanban` column whose id is already taken; against another column Mermaid also hands every card under either one to both, so cards render many times over and in the wrong column | kanban |
+| `kanban-duplicate-task-id` | `warn` | A `kanban` card whose id is already taken by another card or a column; both render, but the document ends up with two elements carrying one DOM id | kanban |
+| `kanban-empty-column` | `warn` | A `kanban` column with no cards; renders as a header over empty space | kanban |
 | `frontmatter-must-be-first` | `error` | A `%%` comment or blank line before the YAML frontmatter; Mermaid parses it but the diagram fails to render | all |
 | `suppression-unknown-rule` | `warn` | A suppression directive naming a rule id that does not exist; the directive silently suppresses nothing | all |
 | `suppression-unused` | `warn` | A well-formed suppression directive that suppressed no finding; usually a stale directive left behind after a fix | all |

@@ -50,16 +50,43 @@ interface ProbeNode {
 }
 
 /**
- * Build a treemap-beta diagram and hand back the hierarchy Mermaid derived from
- * it. `validateWithMermaidJS` only reports a verdict, and the treemap rules
- * depend on *shape* — so this reaches past it to the diagram's own db. The
- * leading call is what installs the jsdom window mermaid needs at import time.
+ * Reach past the verdict to a diagram's own db. `validateWithMermaidJS` reports
+ * only whether a body parsed, and several rules below turn on the *shape*
+ * Mermaid derived from it instead. The leading call is load-bearing beyond its
+ * assertion: it is what installs the jsdom window mermaid needs at import time,
+ * so it must stay ahead of the dynamic import.
  */
-async function treemapRoot(body: string): Promise<ProbeNode> {
+async function probeDb<T>(body: string): Promise<T> {
   expect((await validateWithMermaidJS(body)).ok).toBe(true);
   const { default: mermaid } = await import('mermaid');
   const diagram = await mermaid.mermaidAPI.getDiagramFromText(body);
-  return (diagram.db as { getRoot(): ProbeNode }).getRoot();
+  return diagram.db as T;
+}
+
+/** The hierarchy Mermaid derived from a treemap-beta body. */
+async function treemapRoot(body: string): Promise<ProbeNode> {
+  return (await probeDb<{ getRoot(): ProbeNode }>(body)).getRoot();
+}
+
+interface ProbeKanbanNode {
+  id: string;
+  label?: string;
+  isGroup: boolean;
+}
+
+/**
+ * Build a kanban diagram and hand back the node list its renderer is driven
+ * from. The kanban rules turn on *which* nodes mermaid emits and under which
+ * ids, and `getData` is where both are decided — a verdict alone would say
+ * nothing, since every body below parses clean.
+ */
+async function kanbanNodes(body: string): Promise<string[]> {
+  const db = await probeDb<{ getData(): { nodes: ProbeKanbanNode[] } }>(body);
+  return db
+    .getData()
+    .nodes.map(
+      (n) => `${n.isGroup ? 'column' : 'card'} ${n.id}=${n.label ?? ''}`,
+    );
 }
 
 describe('mermaid behavior contracts', () => {
@@ -484,5 +511,102 @@ describe('mermaid behavior contracts', () => {
         )
       ).ok,
     ).toBe(false);
+  }, 20_000);
+
+  it('gives every card of a duplicated kanban column to all of them', async () => {
+    // The whole claim of `kanban-duplicate-column`, and the reason it is the
+    // most consequential of the three rather than the least. `getData` walks
+    // the sections and, for each, filters *all* nodes by `parentId ===
+    // section.id` — so two columns sharing an id each collect the other's
+    // cards. The renderer then re-filters that already-duplicated list per
+    // section, which squares it again. Only the `getData` half is asserted
+    // below — mermaid's renderer needs CSSOM jsdom does not provide, the same
+    // limit the frontmatter case above runs into — so the squaring is a probe
+    // result quoted in `rules.ts`, not something this file pins. The six nodes
+    // asserted here are the duplication it stands on. Distinct ids under one
+    // label do not collide, which is why the rule keys on the id, not the
+    // label.
+    expect(
+      await kanbanNodes('kanban\n  Todo\n    t1[A]\n  Todo\n    t2[B]'),
+    ).toEqual([
+      'column Todo=Todo',
+      'card t1=A',
+      'card t2=B',
+      'column Todo=Todo',
+      'card t1=A',
+      'card t2=B',
+    ]);
+    expect(
+      await kanbanNodes('kanban\n  c1[Todo]\n    t1[A]\n  c2[Todo]\n    t2[B]'),
+    ).toEqual(['column c1=Todo', 'card t1=A', 'column c2=Todo', 'card t2=B']);
+  }, 20_000);
+
+  it('renders both kanban cards that share a task id, and an empty column', async () => {
+    // `kanban-duplicate-task-id` is *not* about a broken reference — nothing
+    // references a card id, so both cards render and their metadata stays put.
+    // What collides is the DOM id the renderer derives (`<svg-id>-<node-id>`).
+    // The same holds for a card colliding with its column, which is why the
+    // rule reads columns and cards as one namespace.
+    expect(await kanbanNodes('kanban\n  Todo\n    t1[A]\n    t1[B]')).toEqual([
+      'column Todo=Todo',
+      'card t1=A',
+      'card t1=B',
+    ]);
+    expect(await kanbanNodes('kanban\n  t1[Todo]\n    t1[A]')).toEqual([
+      'column t1=Todo',
+      'card t1=A',
+    ]);
+    // `kanban-empty-column`: the column survives into the node list with no
+    // children, so mermaid draws its header over empty space.
+    expect(await kanbanNodes('kanban\n  Todo\n    t1[A]\n  Doing')).toEqual([
+      'column Todo=Todo',
+      'card t1=A',
+      'column Doing=Doing',
+    ]);
+  }, 20_000);
+
+  it('derives kanban ids the way kanbanNodeId does', async () => {
+    // Every corner `kanbanNodeId` has to reproduce, pinned against mermaid
+    // itself. A bare node is its own id; a wrapped node with no id takes its
+    // label; `]` is legal inside an id while `@` is not; and neither
+    // whitespace nor a trailing `%%` is stripped from a bare node — so
+    // `t1 [B]` really is a different node from `t1`, and normalizing either
+    // here would invent collisions mermaid does not have.
+    expect(await kanbanNodes('kanban\n  Todo\n    t1[A]\n    t1 [B]')).toEqual([
+      'column Todo=Todo',
+      'card t1=A',
+      'card t1 =B',
+    ]);
+    expect(await kanbanNodes('kanban\n  Todo\n    [A]\n    a]b[C]')).toEqual([
+      'column Todo=Todo',
+      'card A=A',
+      'card a]b=C',
+    ]);
+    // Every wrapper an id-less node can carry, not just the square one:
+    // `kanbanWrappedLabel` scans the delimiters as runs rather than matching
+    // them as pairs, and the cloud and bang shapes invert the parentheses, so
+    // the open and close sets are deliberately not mirror images. Without
+    // these, that claim rests on the `[…]` case alone.
+    expect(
+      await kanbanNodes(
+        'kanban\n  Todo\n    ((B))\n    {{C}}\n    ))D((\n    )E(\n    (F)',
+      ),
+    ).toEqual([
+      'column Todo=Todo',
+      'card B=B',
+      'card C=C',
+      'card D=D',
+      'card E=E',
+      'card F=F',
+    ]);
+    expect(
+      await kanbanNodes(
+        "kanban\n  Todo\n    A card %% note\n    B@{ icon: 'x' }",
+      ),
+    ).toEqual([
+      'column Todo=Todo',
+      'card A card %% note=A card %% note',
+      'card B=B',
+    ]);
   }, 20_000);
 });
