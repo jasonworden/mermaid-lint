@@ -865,4 +865,87 @@ describe('mermaid behavior contracts', () => {
       await treeViewEdges('treeView-beta\n  "root"\n    "a" "b"\n'),
     ).toEqual(['/ > root', 'root > a', '/ > b']);
   }, 20_000);
+
+  it('differs by type on what may follow an accDescr block', async () => {
+    // `scanAccDescr` is shared by four scanners and takes one parameter,
+    // `statementMayFollow`. This is the evidence for how each is set: whether
+    // a statement may sit after a block's closing `}` on the same line.
+    //
+    // treemap and treeView: yes.
+    expect(
+      (await validateWithMermaidJS('treemap-beta\n  accDescr { d } "A"\n')).ok,
+    ).toBe(true);
+    expect(
+      (await validateWithMermaidJS('treeView-beta\n  accDescr { d } "A"\n')).ok,
+    ).toBe(true);
+    // wardley: no — and not because of `accDescr`. Wardley takes one statement
+    // per line at all, so there is never a tail to resume into.
+    expect(
+      (
+        await validateWithMermaidJS(
+          'wardley-beta\n  accDescr { d } component A [0.9, 0.5]\n',
+        )
+      ).ok,
+    ).toBe(false);
+    expect(
+      (
+        await validateWithMermaidJS(
+          'wardley-beta\n  component A [0.9, 0.5] component B [0.1, 0.1]\n',
+        )
+      ).ok,
+    ).toBe(false);
+    // The block on its own line is what wardley does accept.
+    expect(
+      (
+        await validateWithMermaidJS(
+          'wardley-beta\n  accDescr { d }\n  component A [0.9, 0.5]\n',
+        )
+      ).ok,
+    ).toBe(true);
+  }, 20_000);
+
+  it('opens an accDescr block from a bare keyword, except in eventmodeling', async () => {
+    // The `\s*` between `accDescr` and its brace spans newlines, so the brace
+    // may sit on a later line and the block still opens. Only a lookahead can
+    // see that, which is why `scanAccDescr` carries one.
+    const bare = (type: string, tail: string) =>
+      `${type}\n  accDescr\n  {\n  d\n  }\n${tail}`;
+    expect(
+      (await validateWithMermaidJS(bare('treemap-beta', '  "A"\n'))).ok,
+    ).toBe(true);
+    expect(
+      (await validateWithMermaidJS(bare('treeView-beta', '  "A"\n'))).ok,
+    ).toBe(true);
+    expect(
+      (
+        await validateWithMermaidJS(
+          bare('wardley-beta', '  component A [0.9, 0.5]\n'),
+        )
+      ).ok,
+    ).toBe(true);
+  }, 20_000);
+
+  it('accepts no metadata at all in eventmodeling', async () => {
+    // Why `tokenizeEventModeling`'s metadata skip never fires on a diagram
+    // that renders: eventmodeling has no `title`, `accTitle`, or `accDescr`
+    // statement in any form or position. The skip is kept because it only
+    // ever sees bodies the syntax pass has already rejected, and dropping it
+    // would newly emit semantic findings on them — but if a bump adds the
+    // keywords, this test fails and the skip becomes load-bearing for real.
+    const tail = '\n  tf 1\n  ui Screen ->> 1\n';
+    for (const meta of [
+      '  title T',
+      '  accTitle: T',
+      '  accDescr: D',
+      '  accDescr { D }',
+    ]) {
+      expect(
+        (await validateWithMermaidJS(`eventmodeling\n${meta}${tail}`)).ok,
+        meta,
+      ).toBe(false);
+    }
+    // The same body without the metadata line is valid, so the rejections
+    // above are about the metadata and nothing else.
+    expect((await validateWithMermaidJS(`eventmodeling${tail}`)).ok).toBe(true);
+  }, 20_000);
 });
