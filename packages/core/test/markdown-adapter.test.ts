@@ -327,6 +327,30 @@ describe('line citations in messages', () => {
     expect(found[0].message).toContain('line 7');
   });
 
+  it('cites a file line from venn-duplicate-union', async () => {
+    // The second venn rule that names a line, and the same trap: `fileLine`
+    // maps the citation while `Diagnostic.line` is mapped for it.
+    const text = [
+      '# Sets',
+      '',
+      'Prose.',
+      '',
+      '```mermaid',
+      'venn-beta',
+      '  set A',
+      '  set B',
+      '  union A, B',
+      '  union B, A',
+      '```',
+    ].join('\n');
+    const diags = await lintMarkdown('sets.md', text);
+
+    const found = diags.filter((d) => d.ruleId === 'venn-duplicate-union');
+    expect(found).toHaveLength(1);
+    expect(found[0].line).toBe(10);
+    expect(found[0].message).toContain('line 9');
+  });
+
   it('cites a file line from treeview-duplicate-sibling', async () => {
     // Same reason as the kanban case above: the treeView rules run on `.mmd`
     // fixtures where body and file lines coincide, so only a fence can tell

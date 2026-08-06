@@ -122,6 +122,8 @@ export type RuleId =
   | 'venn-non-positive-size'
   | 'venn-single-set'
   | 'venn-self-union'
+  | 'venn-no-sets'
+  | 'venn-duplicate-union'
   | 'treeview-no-nodes'
   | 'treeview-duplicate-sibling'
   | 'ishikawa-no-causes'
@@ -490,9 +492,10 @@ export interface RuleMetadata {
  * the same follow-up treatment kanban got rather than widened into here;
  * `mermaid-behavior.test.ts` pins the parse so the exclusion stays a choice.
  *
- * The venn-beta rules are all advisory `warn`. Two of the four turn on the one
- * thing `vennDB` does not do: `addSubsetData` pushes onto `subsets` without
- * ever deduplicating, either across statements or within one identifier list.
+ * The venn-beta rules are advisory `warn` apart from `venn-no-sets`. Three of
+ * the six turn on the one thing `vennDB` does not do: `addSubsetData` pushes
+ * onto `subsets` without ever deduplicating, either across statements or
+ * within one identifier list.
  *
  * `venn-duplicate-set` catches the same set declared twice. The second push
  * adds a circle rather than replacing the first — render probe, mermaid
@@ -528,6 +531,32 @@ export interface RuleMetadata {
  * validates in source order, so a forward reference is already an error too —
  * both are the syntax pass's, not ours.
  *
+ * `venn-no-sets` catches a body declaring no `set` at all — `venn-beta` alone,
+ * or carrying only a `title`, a `style`, or comments. It is the only no-data
+ * rule whose subject does not render: `pie-no-data`, `treemap-no-leaves`,
+ * `quadrant-no-points`, and `packet-no-fields` each render an empty frame,
+ * whereas venn's renderer reaches into an undefined layout and throws
+ * `Cannot read properties of undefined (reading 'set')` — render probe,
+ * mermaid 11.15.0. That is the `error` criterion below, so this rule is
+ * `error`. A body with a `union` but no `set` never gets here:
+ * `validateUnionIdentifiers` throws `unknown set identifier: …` in the syntax
+ * pass, so "no sets" and "no statements" coincide.
+ *
+ * `venn-duplicate-union` catches the same intersection declared twice, and is
+ * the venn counterpart of `sankey-duplicate-link`. `addSubsetData` sorts each
+ * identifier list but never deduplicates across statements, so `union B, A`
+ * collides with `union A, B` as surely as a verbatim repeat does — render
+ * probe: a two-set diagram goes from 3 regions to 4 either way, the extra one
+ * drawn over the original. As with `venn-duplicate-set` the label is where it
+ * bites, and it is the last *label-bearing* declaration that wins: both
+ * regions draw it, so `union A, B["First"]` followed by `union A, B["Second"]`
+ * renders `Second` twice and `First` nowhere. Sizes do not merge either — two
+ * `: value`s for one region both reach the layout solver as constraints on the
+ * same area. Identifiers are compared after `normalizeText` (so `union "A", B`
+ * collides with `union A, B`) but are case-sensitive, since mermaid never
+ * folds case: `set a` and `set A` are two sets, and the unions over them are
+ * two unions.
+ *
  * The treeView-beta rules are both advisory `warn`. `treeview-no-nodes` flags
  * a bare `treeView-beta` header, which parses clean and renders the synthetic
  * `/` root and nothing else. It is not the only reachable empty-diagram case
@@ -551,10 +580,10 @@ export interface RuleMetadata {
  * jump against, so a rule would have to infer one from the rest of the body —
  * which the mindmap, treemap, and kanban rules all decline to do.
  *
- * `frontmatter-must-be-first` is `error`, joining `duplicate-ids` and
- * `eventmodeling-undefined-frame` as the only non-advisory rules: a diagram
- * whose frontmatter is preceded by anything does not render at all, so there
- * is no judgment call to defer to the user.
+ * `frontmatter-must-be-first` is `error`, joining `duplicate-ids`,
+ * `eventmodeling-undefined-frame`, and `venn-no-sets` as the only
+ * non-advisory rules: a diagram whose frontmatter is preceded by anything does
+ * not render at all, so there is no judgment call to defer to the user.
  *
  * @internal
  */
@@ -1007,6 +1036,16 @@ export const RULE_METADATA = {
     readmeDiagramKeywords: ['venn-beta'],
   },
   'venn-self-union': {
+    defaultSeverity: 'warn',
+    docsScope: 'venn-beta',
+    readmeDiagramKeywords: ['venn-beta'],
+  },
+  'venn-no-sets': {
+    defaultSeverity: 'error',
+    docsScope: 'venn-beta',
+    readmeDiagramKeywords: ['venn-beta'],
+  },
+  'venn-duplicate-union': {
     defaultSeverity: 'warn',
     docsScope: 'venn-beta',
     readmeDiagramKeywords: ['venn-beta'],

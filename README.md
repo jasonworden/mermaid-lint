@@ -557,7 +557,7 @@ measure of how much analysis a given type gets beyond "does it parse".
 | Event modeling | `eventmodeling` | ✅ | `eventmodeling-undefined-frame`, `eventmodeling-duplicate-frame-id`, `eventmodeling-invalid-flow` | |
 | Radar | `radar-beta` | ✅ | `no-experimental`, `radar-no-curves`, `radar-curve-length-mismatch`, `radar-duplicate-axis` | Experimental |
 | Treemap | `treemap-beta` | ✅ | `no-experimental`, `treemap-zero-value`, `treemap-no-leaves`, `treemap-duplicate-sibling`, `treemap-branch-with-value` | Experimental |
-| Venn | `venn-beta` | ✅ | `no-experimental`, `venn-duplicate-set`, `venn-non-positive-size`, `venn-single-set`, `venn-self-union` | Experimental; `set`/`union` declarations are never deduplicated |
+| Venn | `venn-beta` | ✅ | `no-experimental`, `venn-duplicate-set`, `venn-non-positive-size`, `venn-single-set`, `venn-self-union`, `venn-no-sets`, `venn-duplicate-union` | Experimental; `set`/`union` declarations are never deduplicated |
 | Ishikawa | `ishikawa-beta` | ✅ | `no-experimental`, `ishikawa-no-causes`, `ishikawa-empty-category`, `ishikawa-deep-nesting`, `ishikawa-duplicate-sibling` | Experimental; one problem node, and every later line nests under it |
 | Wardley map | `wardley-beta` | ✅ | `no-experimental`, `wardley-undefined-component`, `wardley-orphan-component`, `wardley-no-components`, `wardley-mixed-coordinate-scale`, `wardley-duplicate-component` | Experimental; not covered by the Rust fast path — always falls back to mermaid.js |
 | Tree view | `treeView-beta` | ✅ | `no-experimental`, `treeview-no-nodes`, `treeview-duplicate-sibling` | Experimental; node labels must be quoted |
