@@ -4216,6 +4216,57 @@ describe('kanban-empty-column rule', () => {
   });
 });
 
+describe('kanban-no-columns rule', () => {
+  it('flags a board with no columns, anchored at the header', () => {
+    const findings = only(kb(), 'kanban-no-columns');
+    expect(findings).toHaveLength(1);
+    expect(findings[0].severity).toBe('warn');
+    expect(findings[0].line).toBe(1);
+  });
+
+  it('flags a body of only blank lines and comments', () => {
+    // Mermaid skips both, so these render exactly as an empty board does.
+    // `kanban-empty-column` cannot cover this: with no column there is
+    // nothing for it to report against.
+    for (const body of [kb('', '  ', ''), kb('  %% nothing here yet')]) {
+      expect(only(body, 'kanban-no-columns')).toHaveLength(1);
+      expect(only(body, 'kanban-empty-column')).toEqual([]);
+    }
+  });
+
+  it('stays silent on a `title` row, which kanban reads as a column', () => {
+    // Kanban's grammar has no `title` token — unlike gantt, journey, or
+    // timeline — so this declares an ordinary column named `title Board`
+    // and the board is not empty. Reading it as a title would make this
+    // rule fire on a diagram that renders content.
+    const b = kb('  title Board');
+    expect(only(b, 'kanban-no-columns')).toEqual([]);
+    expect(only(b, 'kanban-empty-column').map((f) => f.line)).toEqual([2]);
+  });
+
+  it('returns [] once the board has a column', () => {
+    expect(only(kb('  Todo', '    t1[A]'), 'kanban-no-columns')).toEqual([]);
+    // A column with no cards is still a column — that is the empty-column
+    // rule's finding, not this one's.
+    expect(only(kb('  Todo'), 'kanban-no-columns')).toEqual([]);
+  });
+
+  it('anchors past frontmatter rather than at body line 1', () => {
+    // `headerLine` locates the `kanban` keyword, so a frontmatter block
+    // neither counts as a column nor shifts the reported line.
+    const b = block('---\ntitle: Board\n---\nkanban\n', 'kanban');
+    const findings = only(b, 'kanban-no-columns');
+    expect(findings).toHaveLength(1);
+    expect(findings[0].line).toBe(4);
+  });
+
+  it('does not apply to another indentation-based type', () => {
+    expect(only(block('mindmap\n', 'mindmap'), 'kanban-no-columns')).toEqual(
+      [],
+    );
+  });
+});
+
 describe('kanban id extraction', () => {
   it(
     'reads an unclosed wrapper in linear time (ReDoS regression)',

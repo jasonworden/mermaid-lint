@@ -103,6 +103,7 @@ and `frontmatter-must-be-first` (Mermaid does not render the diagram at all).
 | `kanban-duplicate-column` | `warn` | A `kanban` column whose id is already taken; against another column Mermaid also hands every card under either one to both, so cards render many times over and in the wrong column | kanban |
 | `kanban-duplicate-task-id` | `warn` | A `kanban` card whose id is already taken by another card or a column; both render, but the document ends up with two elements carrying one DOM id | kanban |
 | `kanban-empty-column` | `warn` | A `kanban` column with no cards; renders as a header over empty space | kanban |
+| `kanban-no-columns` | `warn` | A `kanban` with no columns at all; parses but renders an empty diagram | kanban |
 | `frontmatter-must-be-first` | `error` | A `%%` comment or blank line before the YAML frontmatter; Mermaid parses it but the diagram fails to render | all |
 | `suppression-unknown-rule` | `warn` | A suppression directive naming a rule id that does not exist; the directive silently suppresses nothing | all |
 | `suppression-unused` | `warn` | A well-formed suppression directive that suppressed no finding; usually a stale directive left behind after a fix | all |

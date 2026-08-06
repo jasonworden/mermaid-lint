@@ -3763,6 +3763,21 @@ const kanbanEmptyColumn: Rule = {
       })),
 };
 
+const kanbanNoColumns: Rule = {
+  id: 'kanban-no-columns',
+  appliesTo: isKanban,
+  evaluate: ({ lines, headerLine }) => {
+    if (parseKanban(lines, headerLine).length > 0) return [];
+    return [
+      {
+        message:
+          'kanban has no columns; it parses but renders as an empty diagram.',
+        line: headerLine,
+      },
+    ];
+  },
+};
+
 // ---------------------------------------------------------------------------
 // Timeline helpers and rules
 // ---------------------------------------------------------------------------
@@ -4496,6 +4511,7 @@ const RULES: Rule[] = [
   kanbanDuplicateColumn,
   kanbanDuplicateTaskId,
   kanbanEmptyColumn,
+  kanbanNoColumns,
 ];
 
 // ---------------------------------------------------------------------------

@@ -329,6 +329,7 @@ const RULE_DESCRIPTIONS: Record<RuleId, string> = {
   'kanban-duplicate-task-id':
     'Mermaid: a Kanban card id is already used by another card or a column',
   'kanban-empty-column': 'Mermaid: a Kanban column has no cards',
+  'kanban-no-columns': 'Mermaid: a Kanban board has no columns',
   'frontmatter-must-be-first':
     'Mermaid: something precedes the YAML frontmatter, so the diagram will not render',
   'suppression-unknown-rule':

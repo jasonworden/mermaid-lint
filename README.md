@@ -553,7 +553,7 @@ measure of how much analysis a given type gets beyond "does it parse".
 | Block | `block-beta` | ✅ | `no-experimental`, `block-no-blocks` | Experimental |
 | Packet | `packet-beta` | ✅ | `no-experimental`, `packet-no-fields`, `packet-empty-labels` | Experimental |
 | Architecture | `architecture-beta` | ✅ | `no-experimental`, `architecture-no-elements`, `architecture-no-edges`, `architecture-duplicate-edge` | Experimental |
-| Kanban | `kanban` | ✅ | `kanban-duplicate-column`, `kanban-duplicate-task-id`, `kanban-empty-column` | Columns and cards share one id namespace |
+| Kanban | `kanban` | ✅ | `kanban-duplicate-column`, `kanban-duplicate-task-id`, `kanban-empty-column`, `kanban-no-columns` | Columns and cards share one id namespace |
 | Event modeling | `eventmodeling` | ✅ | `eventmodeling-undefined-frame`, `eventmodeling-duplicate-frame-id`, `eventmodeling-invalid-flow` | |
 | Radar | `radar-beta` | ✅ | `no-experimental`, `radar-no-curves`, `radar-curve-length-mismatch`, `radar-duplicate-axis` | Experimental |
 | Treemap | `treemap-beta` | ✅ | `no-experimental`, `treemap-zero-value`, `treemap-no-leaves`, `treemap-duplicate-sibling`, `treemap-branch-with-value` | Experimental |
