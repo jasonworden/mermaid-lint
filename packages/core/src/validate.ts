@@ -1,5 +1,6 @@
 import type { Block } from './extract.js';
 import { validateWithMerman } from './merman.js';
+import { parsedLineToBodyLine } from './preprocess.js';
 import { RULE_DEFAULTS, type ResolvedRules } from './rules.js';
 import { type SemanticWarning, checkSemantics } from './semantic.js';
 import type { SuppressionIndex } from './suppress.js';
@@ -237,6 +238,43 @@ export function mapParserMessageLines(
   );
 }
 
+/**
+ * Sharpen the reported column against the line it lands on.
+ *
+ * jison sets `first_column` from where the *previous* token ended, so it points
+ * at the whitespace before the defect — or, when tokens run together, at the
+ * token before it. It also sometimes names a column past the end of the line
+ * entirely. `hash.text` carries the offending token itself, so searching for it
+ * from the reported column lands on the real thing; only jison sets it, which
+ * is why Langium's already-exact columns pass through untouched.
+ *
+ * Falls back to the first non-blank column rather than a column that does not
+ * exist on the line — a caret on the first real character beats one past the
+ * end, or none at all.
+ */
+function refineColumn(
+  body: string,
+  bodyLine: number | undefined,
+  reported: number | undefined,
+  jisonFirstColumn: number | undefined,
+  err: Record<string, unknown>,
+): number | undefined {
+  if (bodyLine === undefined) return reported;
+  const text = body.split('\n')[bodyLine - 1];
+  if (text === undefined) return reported;
+
+  const token = err.hash as Record<string, unknown> | undefined;
+  const raw = typeof token?.text === 'string' ? token.text : '';
+  if (raw.trim().length > 0) {
+    const at = text.indexOf(raw, jisonFirstColumn ?? 0);
+    if (at >= 0) return at + 1;
+  }
+
+  if (reported !== undefined && reported <= text.length) return reported;
+  const firstNonBlank = text.search(/\S/);
+  return firstNonBlank >= 0 ? firstNonBlank + 1 : reported;
+}
+
 async function runMermaidValidation(
   body: string,
 ): Promise<{ ok: true } | { ok: false; error: ValidationError }> {
@@ -248,46 +286,44 @@ async function runMermaidValidation(
     return { ok: true as const };
   } catch (err: unknown) {
     const e = err as Record<string, unknown>;
-    const message = typeof e?.message === 'string' ? e.message : String(err);
+    const raw = typeof e?.message === 'string' ? e.message : String(err);
     const hash = e?.hash as Record<string, unknown> | undefined;
     const loc = hash?.loc as Record<string, unknown> | undefined;
 
-    // Four signals, in descending order of how directly each names the defect.
+    // Three signals, in descending order of how directly each names the defect.
     //
     // `loc` is jison's offending token, which is what a diagnostic position
     // should mean, so it wins. `result` is the same thing for Langium grammars,
-    // as data rather than prose. The cited number is the fallback for grammars
-    // that publish neither, and is read from wording rather than structure —
-    // last resort by design, and on an unclosed delimiter it names the line the
-    // lexer gave up on rather than the one that opened it. `hash.line` sits
-    // below all of them because for most jison grammars it is a 0-indexed
-    // cursor one line above the defect; it is kept only for the few grammars
-    // that set nothing else.
+    // as data rather than prose. The cited number is the last resort, read from
+    // wording rather than structure, for grammars that publish neither — and on
+    // an unclosed delimiter it names the line the lexer gave up on rather than
+    // the one that opened it.
     const jisonLine = coord(loc?.first_line);
     const jisonCol = coord(loc?.first_column);
     const found: CitedPosition | undefined =
       jisonLine === undefined
-        ? (structuredPosition(e) ?? citedPosition(message))
+        ? (structuredPosition(e) ?? citedPosition(raw))
         : // jison counts columns from 0; every other signal is 1-indexed.
           {
             line: jisonLine,
             col: jisonCol === undefined ? undefined : jisonCol + 1,
           };
 
-    // An unterminated construct (`subgraph`/`loop`/`alt` with no `end`) fails
-    // on the EOF token, and every signal that names it points one line past the
-    // body: at the closing fence in Markdown, or at nothing at all in a `.mmd`.
-    // A diagnostic has to land inside the diagram it describes, and the last
-    // body line is where the missing terminator belongs.
-    const lastLine = body.split('\n').length;
-    const line = found?.line ?? coord(hash?.line);
+    // Every number above counts lines in mermaid's *preprocessed* copy, not the
+    // body — see `parsedLineToBodyLine`. Mapping here keeps `ValidationError`
+    // wholly body-relative, so the adapters' body→file step stays the only
+    // other hop. It also lands an unterminated construct (`subgraph`/`loop`
+    // with no `end`, which fails on the EOF token one line past the end) back
+    // on the last real line, where the missing terminator belongs.
+    const toBody = (n: number) => parsedLineToBodyLine(body, n);
+    const line = found?.line === undefined ? undefined : toBody(found.line);
 
     return {
       ok: false as const,
       error: {
-        message,
-        line: line === undefined ? undefined : Math.min(line, lastLine),
-        col: found?.col,
+        message: mapParserMessageLines(raw, toBody),
+        line,
+        col: refineColumn(body, line, found?.col, coord(loc?.first_column), e),
       },
     };
   }

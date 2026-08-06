@@ -41,6 +41,8 @@ core's `extractMermaidBlocks`.
 
 - `extract.ts` / `fences.ts` — find Mermaid fenced blocks (CommonMark fences).
 - `validate.ts` + `merman.ts` — the two-tier parser (WASM → mermaid.js).
+- `preprocess.ts` — maps a line mermaid reports back to its body line, undoing
+  the whole-line deletions mermaid makes before parsing.
 - `semantic.ts` — opt-in semantic warnings.
 - `markdown-adapter.ts` — `blockToDiagnostics` / `lintMarkdown` (the shared API).
 - `config.ts` — `.mermaidlintrc` / config-file loading.
@@ -131,17 +133,32 @@ ESLint** — and run the repo's pinned binaries rather than `npx`; see
   text "Parse error on line 9". Keep any new pattern anchored, and leave
   `ValidationError.message` body-relative so the mapping stays in one place.
 - **Syntax-error positions come from `loc.first_line`, not `hash.line`.**
-  mermaid offers three signals and none is reliable alone, so `validate.ts`
+  mermaid offers several signals and none is reliable alone, so `validate.ts`
   falls back in this order: the offending token's own start line
-  (`hash.loc.first_line`), then the number cited in the error prose, then
-  `hash.line`. `hash.line` is last because for most jison grammars it is a
-  0-indexed cursor one line above the defect; the cited number is what rescues
-  the Langium-based types (pie, packet, gitGraph, architecture, treemap,
-  eventmodeling), which
-  throw with no `hash` at all. Some cases still resolve to nothing — radar-beta
-  prints a literal `on line ?` — and those fall back to the block opener. When
-  touching this, check both a bad-token defect and an unclosed-delimiter one:
-  the signals disagree in opposite directions between the two.
+  (`hash.loc.first_line`), then Langium's structured `err.result`, then the
+  number cited in the error prose. `hash.line` is deliberately *not* in the
+  chain — for most jison grammars it is a 0-indexed cursor one line above the
+  defect, and no error was found that publishes it and nothing better.
+  `err.result` is what rescues the Langium-based types (pie, packet, gitGraph,
+  architecture, treemap,
+  eventmodeling), which throw with no `hash` at all. Some cases still
+  resolve to nothing — radar-beta prints a literal `on line ?` — and those fall
+  back to the block opener. When touching this, check both a bad-token defect
+  and an unclosed-delimiter one: the signals disagree in opposite directions
+  between the two.
+- **mermaid counts lines in a *preprocessed* copy, so map through
+  `parsedLineToBodyLine` before anything else.** `preprocessDiagram` deletes
+  whole lines before the parser runs — a leading frontmatter block, `%%{...}%%`
+  directives, `%%` comments, and (via `cleanupComments`' trailing `trimStart`)
+  whatever blank lines are left at the top. Every line mermaid then reports,
+  in both the position and the message prose, indexes the survivors. `preprocess.ts`
+  replicates those deletions to map back; `validate.ts` applies it so
+  `ValidationError` stays wholly body-relative and the adapters' body→file step
+  remains the only other hop. This matters here more than most projects because
+  our own suppression directives are `%%` comments. `validate.test.ts` carries a
+  drift guard that asks mermaid for the shift rather than hardcoding it — if
+  upstream changes what it strips, that test fails rather than the numbers
+  quietly rotting.
 - **Don't skip hooks** (`--no-verify`); if husky/lint-staged blocks, fix the cause.
 - **API docs (Cloudflare Pages):** keep `"router": "structure"` in
   `packages/core/typedoc.json`. The default `kind` router emits a top-level
