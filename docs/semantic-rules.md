@@ -104,6 +104,10 @@ and `frontmatter-must-be-first` (Mermaid does not render the diagram at all).
 | `kanban-duplicate-task-id` | `warn` | A `kanban` card whose id is already taken by another card or a column; both render, but the document ends up with two elements carrying one DOM id | kanban |
 | `kanban-empty-column` | `warn` | A `kanban` column with no cards; renders as a header over empty space | kanban |
 | `kanban-no-columns` | `warn` | A `kanban` with no columns at all; parses but renders an empty diagram | kanban |
+| `venn-duplicate-set` | `warn` | A `venn-beta` set declared twice; Mermaid adds a second circle coincident with the first rather than replacing it, and both draw the last label, so an earlier one never renders | venn-beta |
+| `venn-non-positive-size` | `warn` | A `venn-beta` set or union with an explicit size of zero or less; a zero-sized set erases itself and every intersection over it, and a negative one distorts the layout, or throws out of it entirely for a `union` | venn-beta |
+| `venn-single-set` | `warn` | A `venn-beta` diagram declaring one distinct set; it renders as a single circle, with nothing to intersect | venn-beta |
+| `venn-self-union` | `warn` | A `venn-beta` `union` naming the same set twice; the list is never deduplicated, so the set is intersected with itself and draws a spurious extra region | venn-beta |
 | `frontmatter-must-be-first` | `error` | A `%%` comment or blank line before the YAML frontmatter; Mermaid parses it but the diagram fails to render | all |
 | `suppression-unknown-rule` | `warn` | A suppression directive naming a rule id that does not exist; the directive silently suppresses nothing | all |
 | `suppression-unused` | `warn` | A well-formed suppression directive that suppressed no finding; usually a stale directive left behind after a fix | all |

@@ -276,6 +276,30 @@ describe('line citations in messages', () => {
     expect(task[0].message).toContain('line 8');
   });
 
+  it('cites a file line from venn-duplicate-set', async () => {
+    // Same reason as the kanban case above: `venn-duplicate-set` is the one
+    // venn rule that names a line, and only a fence separates body lines from
+    // file lines.
+    const text = [
+      '# Sets',
+      '',
+      'Prose.',
+      '',
+      '```mermaid',
+      'venn-beta',
+      '  set A',
+      '  set B',
+      '  set A',
+      '```',
+    ].join('\n');
+    const diags = await lintMarkdown('sets.md', text);
+
+    const found = diags.filter((d) => d.ruleId === 'venn-duplicate-set');
+    expect(found).toHaveLength(1);
+    expect(found[0].line).toBe(9);
+    expect(found[0].message).toContain('line 7');
+  });
+
   it('omits the citation for a same-row duplicate, fenced or not', async () => {
     // `radar-duplicate-axis` drops the clause when the first sighting is the
     // row it is already reporting. That comparison is body-vs-body; mapping

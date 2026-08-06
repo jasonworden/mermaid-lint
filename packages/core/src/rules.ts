@@ -118,6 +118,10 @@ export type RuleId =
   | 'kanban-duplicate-task-id'
   | 'kanban-empty-column'
   | 'kanban-no-columns'
+  | 'venn-duplicate-set'
+  | 'venn-non-positive-size'
+  | 'venn-single-set'
+  | 'venn-self-union'
   | 'frontmatter-must-be-first'
   | 'suppression-unknown-rule'
   | 'suppression-unused'
@@ -168,6 +172,7 @@ export type RuleDocsScope =
   | 'stateDiagram'
   | 'timeline'
   | 'treemap-beta'
+  | 'venn-beta'
   | 'wardley-beta'
   | 'xychart-beta';
 
@@ -456,6 +461,44 @@ export interface RuleMetadata {
  * so `title Board` declares an ordinary column and this rule stays silent on
  * it — pinned in `mermaid-behavior.test.ts`, since a bump that added the
  * keyword would turn that into a false negative.
+ *
+ * The venn-beta rules are all advisory `warn`. Two of the four turn on the one
+ * thing `vennDB` does not do: `addSubsetData` pushes onto `subsets` without
+ * ever deduplicating, either across statements or within one identifier list.
+ *
+ * `venn-duplicate-set` catches the same set declared twice. The second push
+ * adds a circle rather than replacing the first — render probe, mermaid
+ * 11.15.0: a two-set diagram goes from 3 regions to 4, the extra one drawn
+ * coincident with the original, so nothing looks wrong until the styling or
+ * the label does. The label is where it bites: `addSubsetData` records each
+ * declaration's own label, but both circles draw the *last* one, so
+ * `set A["First"]` followed by `set A["Second"]` renders `Second` twice and
+ * `First` nowhere. Identifiers are compared after `normalizeText`, which
+ * strips surrounding double quotes, so `set "A"` and `set A` collide.
+ *
+ * `venn-non-positive-size` catches an explicit `: value` of zero or less, on
+ * either a `set` or a `union` — the venn counterpart of `pie-zero-value` and
+ * `sankey-non-positive-value`. Unlike treemap, a sign survives the lexer
+ * (`NUMERIC` is `[+-]?…`), so both halves are reachable, and each of the four
+ * cases is a defect: a zero-sized set erases itself *and* every union over it
+ * (3 regions to 1, logging `area A,B not represented on screen`); a
+ * zero-sized union parks its label off-canvas; a negative set size distorts
+ * the geometry; and a negative union size throws out of the layout, so
+ * nothing renders at all.
+ *
+ * `venn-single-set` catches a diagram declaring one distinct set. It renders —
+ * one circle, correctly — but a Venn diagram with nothing to intersect states
+ * nothing a label could not, so this is advisory in the spirit of
+ * `er-standalone-entity`.
+ *
+ * `venn-self-union` catches an identifier repeated inside one `union`, as in
+ * `union A, A`. The list is sorted but never deduplicated, so the pair reaches
+ * the layout as a genuine two-element subset and draws a spurious extra region
+ * over the set's own circle. It is the venn counterpart of `sankey-self-loop`.
+ * A union naming an *undeclared* set is deliberately not a rule here:
+ * `vennDB.validateUnionIdentifiers` throws `unknown set identifier: …`, and it
+ * validates in source order, so a forward reference is already an error too —
+ * both are the syntax pass's, not ours.
  *
  * `frontmatter-must-be-first` is `error`, joining `duplicate-ids` and
  * `eventmodeling-undefined-frame` as the only non-advisory rules: a diagram
@@ -896,6 +939,26 @@ export const RULE_METADATA = {
     defaultSeverity: 'warn',
     docsScope: 'kanban',
     readmeDiagramKeywords: ['kanban'],
+  },
+  'venn-duplicate-set': {
+    defaultSeverity: 'warn',
+    docsScope: 'venn-beta',
+    readmeDiagramKeywords: ['venn-beta'],
+  },
+  'venn-non-positive-size': {
+    defaultSeverity: 'warn',
+    docsScope: 'venn-beta',
+    readmeDiagramKeywords: ['venn-beta'],
+  },
+  'venn-single-set': {
+    defaultSeverity: 'warn',
+    docsScope: 'venn-beta',
+    readmeDiagramKeywords: ['venn-beta'],
+  },
+  'venn-self-union': {
+    defaultSeverity: 'warn',
+    docsScope: 'venn-beta',
+    readmeDiagramKeywords: ['venn-beta'],
   },
   // Document-shape rule. Like the directive-correctness rules below it
   // describes the body rather than any one diagram type, so it carries no
