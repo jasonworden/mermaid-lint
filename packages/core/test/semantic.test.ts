@@ -3987,6 +3987,37 @@ describe('parseEventModeling', () => {
     expect(parsed.references[0].sourceId).toBe('00');
   });
 
+  it(
+    'scans an unterminated payload delimiter in linear time',
+    // Only the failing path is slow: the quadratic scan has to run to
+    // completion (~18s idle, more on a loaded runner) before the assertion can
+    // report it, and a timeout would hide which check failed. Passing costs
+    // ~8ms, so this ceiling never applies on a green run.
+    { timeout: 60_000 },
+    () => {
+      // An opener with no closer never lexed as a payload, so every position on
+      // the line has to be examined. A draft looked the closer up with
+      // `lastIndexOf` at each of them, which is quadratic in line length and
+      // paid twice per line — once by the comment stripper, once by the
+      // tokenizer. Diagram bodies come from users, so that is a real
+      // denial-of-service vector, the same one `parseFileDirectives` was fixed
+      // for. Hoisting the lookup to one pass per line puts the two complexity
+      // classes ~2100x apart at this size: 8ms against 17,750ms.
+      const pathological = `  tf 1 ui A ${'{'.repeat(200_000)}`;
+
+      const start = performance.now();
+      const parsed = parseEventModeling(['eventmodeling', pathological], 1);
+      const elapsed = performance.now() - start;
+
+      // The delimiters are text, so the frame still reads normally.
+      expect(parsed.frames.map((f) => f.name)).toEqual(['A']);
+      // ~60x above the real cost and still ~35x below the quadratic scan this
+      // guards against. Reaching it under load alone would take a 60x stall on
+      // an 8ms operation; the algorithm changing is far likelier.
+      expect(elapsed).toBeLessThan(500);
+    },
+  );
+
   it('ignores frontmatter above the header line', () => {
     // Mermaid strips frontmatter before its lexer runs, so the `/*` in this
     // title is title text and must not open a block comment over the diagram.

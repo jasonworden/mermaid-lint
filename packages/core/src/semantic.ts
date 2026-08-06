@@ -1270,8 +1270,35 @@ const EVENTMODELING_DATA_CLOSERS = new Map([
 ]);
 
 /**
+ * Where each payload closer last appears on a line, keyed by the opener that
+ * wants it.
+ *
+ * The closer that matters is the *last* one, not the first: every branch of
+ * `EM_DATA_INLINE` closes on a greedy `.*`, so a payload runs to the final
+ * closer and a second pair does not start a second payload.
+ *
+ * Hoisted to three `lastIndexOf` calls per line rather than being recomputed at
+ * every scan position, which is what an earlier draft did. `lastIndexOf` does
+ * not depend on where the scan has got to, and calling it per character made
+ * both payload scans quadratic in line length: a line of unterminated `{` cost
+ * ~9s at 200k characters, and the cost is paid twice per line, by the comment
+ * stripper and by the tokenizer. Diagram bodies come from users, so that is the
+ * same denial-of-service shape `parseFileDirectives` was fixed for. One pass per
+ * line also restores the parallel to `execOutsideWardleyString`, which is a
+ * single linear walk.
+ */
+function eventModelingDataEnds(raw: string): ReadonlyMap<string, number> {
+  const ends = new Map<string, number>();
+  for (const [opener, closer] of EVENTMODELING_DATA_CLOSERS) {
+    ends.set(opener, raw.lastIndexOf(closer));
+  }
+  return ends;
+}
+
+/**
  * Index of the closer of the inline data payload opening at `raw[i]`, or `-1`
- * when no payload opens there.
+ * when no payload opens there. `ends` comes from `eventModelingDataEnds` for
+ * this same line.
  *
  * A payload's contents are free text, so nothing inside one is code: not a
  * comment opener, and not a frame statement either. An earlier pass held that
@@ -1279,18 +1306,17 @@ const EVENTMODELING_DATA_CLOSERS = new Map([
  * parse. `note` indeed does not — but inline data does, and it is the carrier.
  * Do not re-derive the older conclusion from `note`.
  *
- * The closer is the *last* one on the line, not the first: every branch of
- * `EM_DATA_INLINE` closes on a greedy `.*`, so a payload runs to the final
- * closer and a second pair does not start a second payload. The terminal also
- * cannot span a newline, so an opener with no closer after it never lexed as a
- * payload at all — for the quote forms that is the unpaired-quote case, where
- * the last closer is the opener itself.
+ * `EM_DATA_INLINE` cannot span a newline, so an opener with no closer after it
+ * never lexed as a payload at all — for the quote forms that is the
+ * unpaired-quote case, where the line's last closer is the opener itself.
  */
-function eventModelingDataEnd(raw: string, i: number): number {
-  const closer = EVENTMODELING_DATA_CLOSERS.get(raw[i]);
-  if (closer === undefined) return -1;
-  const close = raw.lastIndexOf(closer);
-  return close > i ? close : -1;
+function eventModelingDataEnd(
+  raw: string,
+  i: number,
+  ends: ReadonlyMap<string, number>,
+): number {
+  const close = ends.get(raw[i]);
+  return close !== undefined && close > i ? close : -1;
 }
 
 /**
@@ -1312,14 +1338,13 @@ function eventModelingDataEnd(raw: string, i: number): number {
  * Folding both into one helper would take more parameters than it saves lines.
  */
 function execOutsideEventModelingData(raw: string): RegExpExecArray | null {
+  const ends = eventModelingDataEnds(raw);
   for (let i = 0; i < raw.length; i++) {
-    // Tried before the payload opens, so a `//` that runs straight into a quote
-    // still matches whole rather than being read as the payload's start.
     EVENTMODELING_COMMENT_OPEN_RE.lastIndex = i;
     const match = EVENTMODELING_COMMENT_OPEN_RE.exec(raw);
     if (match !== null) return match;
 
-    const close = eventModelingDataEnd(raw, i);
+    const close = eventModelingDataEnd(raw, i, ends);
     // The loop's own step lands past the closer.
     if (close !== -1) i = close;
   }
@@ -1343,11 +1368,16 @@ function execOutsideEventModelingData(raw: string): RegExpExecArray | null {
  * on either side of it into one token: mermaid lexes `Screen"a"Login` as two
  * identifiers, and a slice would hand the walk `ScreenLogin`. Every token after
  * a payload therefore keeps its column as well as its line.
+ *
+ * Expects a line the comment stripper has already run over: a delimiter written
+ * inside a comment would otherwise pair with a real one and mask live code
+ * between them.
  */
 function maskEventModelingData(raw: string): string {
+  const ends = eventModelingDataEnds(raw);
   let masked = '';
   for (let i = 0; i < raw.length; i++) {
-    const close = eventModelingDataEnd(raw, i);
+    const close = eventModelingDataEnd(raw, i, ends);
     if (close === -1) {
       masked += raw[i];
       continue;

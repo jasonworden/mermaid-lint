@@ -422,4 +422,67 @@ describe('mermaid behavior contracts', () => {
       ).ok,
     ).toBe(true);
   }, 20_000);
+
+  it('accepts eventmodeling data payloads whose text reads like code', async () => {
+    // A frame statement may close with an inline data payload, `EM_DATA_INLINE`
+    // = /\{(.*)\}|"(.*)"|'(.*)'/, whose contents are free text. That is what
+    // makes `stripEventModelingComments` skip payload spans and
+    // `tokenizeEventModeling` mask them: inside one, a comment opener is not a
+    // comment and a frame statement is not a declaration. Every body below is
+    // accepted today. If a mermaid bump starts rejecting any of them, the
+    // payload handling in semantic.ts is guarding a shape that no longer
+    // parses, and this is where that surfaces.
+
+    // A comment opener inside a quoted payload. Read as a comment, this one
+    // silences every frame below it.
+    expect(
+      (
+        await validateWithMermaidJS(
+          'eventmodeling\n  tf 1 ui Screen "a /* b"\n  tf 2 cmd DoIt ->> 99',
+        )
+      ).ok,
+    ).toBe(true);
+    // Two payloads spelling a block comment's opener and closer on separate
+    // rows. Read as a comment, the frame between them disappears.
+    expect(
+      (
+        await validateWithMermaidJS(
+          'eventmodeling\n  tf 1 ui A "/*"\n  tf 2 evt B "*/"\n  tf 3 cmd C ->> 2',
+        )
+      ).ok,
+    ).toBe(true);
+    // The brace spelling of the same terminal.
+    expect(
+      (
+        await validateWithMermaidJS(
+          'eventmodeling\n  tf 1 ui A {/*}\n  tf 2 cmd B ->> 99',
+        )
+      ).ok,
+    ).toBe(true);
+    // A whole frame statement written inside a payload. It declares nothing —
+    // tokenized, it would invent a frame `2`.
+    expect(
+      (
+        await validateWithMermaidJS(
+          'eventmodeling\n  tf 1 ui A "tf 2 cmd B"\n  tf 3 cmd C ->> 2',
+        )
+      ).ok,
+    ).toBe(true);
+    // No whitespace either side of the payload, and a second statement on the
+    // same line: the shape that says the payload must be blanked rather than
+    // cut out, since a cut would fuse `A` and `tf` into one token.
+    expect(
+      (await validateWithMermaidJS('eventmodeling\n  tf 1 ui A"x"tf 2 cmd B'))
+        .ok,
+    ).toBe(true);
+    // And the payload closes the statement: it follows the `->>` sources
+    // rather than preceding them. This is why the fixtures above put it last.
+    expect(
+      (
+        await validateWithMermaidJS(
+          'eventmodeling\n  tf 1 ui A\n  tf 2 cmd B "x" ->> 1',
+        )
+      ).ok,
+    ).toBe(false);
+  }, 20_000);
 });
