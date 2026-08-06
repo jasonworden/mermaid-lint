@@ -4060,6 +4060,67 @@ const vennSelfUnion: Rule = {
   },
 };
 
+const vennNoSets: Rule = {
+  id: 'venn-no-sets',
+  appliesTo: isVenn,
+  evaluate: ({ lines, headerLine }) => {
+    const declaresSet = parseVennStatements(lines, headerLine).some(
+      (statement) => statement.kind === 'set',
+    );
+    if (declaresSet) return [];
+    // A `union` without a declared set never reaches here — mermaid's
+    // `validateUnionIdentifiers` throws in the syntax pass — so an empty `set`
+    // list means the body carries no venn data at all.
+    return [
+      {
+        message:
+          'venn-beta declares no set, so nothing renders: Mermaid throws `Cannot read properties of undefined` on an empty diagram rather than drawing an empty frame. Add at least one `set` statement.',
+        line: headerLine,
+      },
+    ];
+  },
+};
+
+const vennDuplicateUnion: Rule = {
+  id: 'venn-duplicate-union',
+  appliesTo: isVenn,
+  evaluate: ({ lines, headerLine, fileLine }) => {
+    const seen = new Map<string, number>();
+    const findings: RuleFinding[] = [];
+
+    for (const statement of parseVennStatements(lines, headerLine)) {
+      if (statement.kind !== 'union') continue;
+      // Sorted before keying because `addSubsetData` sorts too, which is what
+      // makes `union B, A` the same subset as `union A, B`. A plain sort, on a
+      // copy: identifiers are compared by code unit and case-sensitively, the
+      // way mermaid compares them, and `identifiers` stays in source order for
+      // the message. Keyed on `"` rather than the NUL `sankey-duplicate-link`
+      // uses: a venn identifier is `[A-Za-z0-9\-_]+` or a `"[^"]*"` whose
+      // quotes `vennNormalize` strips, so `"` is the one character no
+      // identifier can hold — NUL is not, since `[^"]*` admits it. Without a
+      // separator the list cannot hold, `union "A,B", C` would key the same
+      // as the genuinely different `union A, B, C`.
+      const key = [...statement.identifiers].sort().join('"');
+      const first = seen.get(key);
+      if (first === undefined) {
+        seen.set(key, statement.line);
+        continue;
+      }
+      // One physical line may carry several statements, so the first sighting
+      // is sometimes the line being reported — naming it back would be noise.
+      // `radar-duplicate-axis` drops the clause the same way.
+      const origin =
+        first === statement.line ? '' : ` (first on line ${fileLine(first)})`;
+      findings.push({
+        message: `venn union \`${statement.identifiers.join(', ')}\` declares an intersection already declared${origin}; Mermaid sorts each list but never deduplicates across statements, so a second region is drawn over the first and both take the last label.`,
+        line: statement.line,
+      });
+    }
+
+    return findings;
+  },
+};
+
 // ---------------------------------------------------------------------------
 // treeView-beta helpers and rules
 // ---------------------------------------------------------------------------
@@ -5175,6 +5236,8 @@ const RULES: Rule[] = [
   vennNonPositiveSize,
   vennSingleSet,
   vennSelfUnion,
+  vennNoSets,
+  vennDuplicateUnion,
   treeviewNoNodes,
   treeviewDuplicateSibling,
   ishikawaNoCauses,

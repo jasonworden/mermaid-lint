@@ -53,9 +53,11 @@ diagram body
    │
    ├── 1. PARSE (well-formed?) ────────────────────────────────
    │      merman  (Rust → WASM, fast)        validate.ts → merman.ts
-   │        │  valid?  ── yes ──▶ accept (fast path)
-   │        │  no / unsupported / panic
-   │        ▼
+   │        │  valid?  ── yes ──▶ verdict trustworthy here?
+   │        │                       │  yes ──▶ accept (fast path)
+   │        │  no / unsupported     │  no
+   │        │  / panic              ▼
+   │        ▼      ◀────────────────┘
    │      mermaid.js  (the real parser, authoritative)
    │        parse(body) throws ──▶ syntax error  { message, line, col }
    │
@@ -72,6 +74,24 @@ Two layers, two meanings:
    `mermaid-lint` falls back to **mermaid.js itself**, which is authoritative
    (it's the same parser the renderer uses). A failure here is a **syntax error**
    (`severity: 'error'`) — the diagram is malformed and would not render.
+
+   The asymmetry between the two tiers is worth stating plainly, because only
+   one direction is safe. merman **rejecting** a valid diagram costs nothing but
+   the fallback, which then overrules it. merman **accepting** an invalid one is
+   unrecoverable: the fast path returns before mermaid.js is ever consulted, so
+   a diagram that cannot render is reported as clean. That is why the fast path
+   asks a second question before trusting a `valid` verdict — see
+   `mermanVerdictIsTrustworthy` in
+   [`validate.ts`](../packages/core/src/validate.ts). Two cases are known
+   ([#153](https://github.com/jasonworden/mermaid-lint/issues/153)): merman
+   accepts *any* `eventmodeling` body and some malformed `kanban` ones, and it
+   accepts any flowchart direction token where mermaid's grammar takes only
+   `TB TD BT RL LR v ^ < >`. Those bodies skip the fast path.
+
+   That check is a floor, not a proof — it cannot cover a gap nobody has hit
+   yet. The backstop is `parity.test.ts`, which asserts the *pipeline* rejects
+   every fixture in `test/fixtures/parity/invalid/`. Adding a diagram type there
+   is what makes the next false positive a CI failure instead of silence.
 
 2. **Linting / "is it good?"** — Stage 2,
    [`checkSemantics`](../packages/core/src/semantic.ts), runs a set of rules over

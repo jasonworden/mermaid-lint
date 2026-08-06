@@ -4756,6 +4756,175 @@ describe('venn-self-union rule', () => {
   });
 });
 
+describe('venn-no-sets rule', () => {
+  it('flags a body declaring no set, on the header line', () => {
+    const findings = only(vn(), 'venn-no-sets');
+    expect(findings).toHaveLength(1);
+    // `error`, not `warn`, and the only no-data rule that is. Every other one
+    // describes a diagram that renders an empty frame; this one describes a
+    // render probe (mermaid 11.15.0) that throws `Cannot read properties of
+    // undefined (reading 'set')`, so there is no judgment call to defer.
+    expect(findings[0].severity).toBe('error');
+    expect(findings[0].line).toBe(1);
+  });
+
+  it('anchors past frontmatter rather than at body line 1', () => {
+    // `headerLine` is the header's own body line, which frontmatter pushes
+    // down. Every other case here goes through `vn()`, where it is 1 and so
+    // indistinguishable from a hardcoded line number.
+    const b = block('---\ntitle: Sets\n---\nvenn-beta\n', 'venn-beta');
+    expect(only(b, 'venn-no-sets').map((f) => f.line)).toEqual([4]);
+  });
+
+  it('flags a body carrying only decoration', () => {
+    // Each of these parses clean and each crashes the renderer identically —
+    // neither `title` nor `style` nor a comment contributes a subset.
+    expect(only(vn('  title Hello'), 'venn-no-sets')).toHaveLength(1);
+    expect(
+      only(vn('  title Hello', '  style A fill:#f00'), 'venn-no-sets'),
+    ).toHaveLength(1);
+    expect(only(vn('  %% nothing here'), 'venn-no-sets')).toHaveLength(1);
+  });
+
+  it('returns [] as soon as one set is declared', () => {
+    expect(only(vn('  set A'), 'venn-no-sets')).toEqual([]);
+    // Even a set the other rules object to still counts as data.
+    expect(only(vn('  set A: 0'), 'venn-no-sets')).toEqual([]);
+  });
+
+  it('still fires on a union-only body, which the syntax pass also rejects', () => {
+    // `validateUnionIdentifiers` throws `unknown set identifier: …`, so this
+    // body is already a syntax error and the finding is a second voice on the
+    // same defect. It is kept rather than suppressed because it is the voice
+    // that says what to do: a `union` over sets that were never declared is
+    // fixed by declaring them.
+    expect(only(vn('  union A, B'), 'venn-no-sets')).toHaveLength(1);
+  });
+});
+
+describe('venn-duplicate-union rule', () => {
+  it('reports every repeat after the first, each naming the first line', () => {
+    const b = vn(
+      '  set A',
+      '  set B',
+      '  union A, B',
+      '  union A, B',
+      '  union A, B',
+    );
+    const findings = only(b, 'venn-duplicate-union');
+    expect(findings.map((f) => f.line)).toEqual([5, 6]);
+    expect(findings[0].severity).toBe('warn');
+    // Both cite the *first* sighting, not the previous one — the third union
+    // duplicates line 4, not line 5.
+    expect(findings[0].message).toContain('line 4');
+    expect(findings[1].message).toContain('line 4');
+  });
+
+  it('omits the citation when the repeat shares its line', () => {
+    // Statements are not line-terminated, so both unions sit on body line 4
+    // and naming that line back would be noise. Same treatment as
+    // `radar-duplicate-axis`.
+    const b = vn('  set A', '  set B', '  union A, B union A, B');
+    const findings = only(b, 'venn-duplicate-union');
+    expect(findings.map((f) => f.line)).toEqual([4]);
+    expect(findings[0].message).not.toContain('line 4');
+    expect(findings[0].message).toContain('already declared;');
+  });
+
+  it('collides on a reordered list, since mermaid sorts each one', () => {
+    // `addSubsetData` sorts the identifiers before storing them, so
+    // `union B, A` is the same subset as `union A, B` — verified against
+    // `getSubsetData()` in mermaid-behavior.test.ts. The message quotes the
+    // list as written, not as sorted.
+    const b = vn('  set A', '  set B', '  union A, B', '  union B, A');
+    const findings = only(b, 'venn-duplicate-union');
+    expect(findings.map((f) => f.line)).toEqual([5]);
+    expect(findings[0].message).toContain('`B, A`');
+  });
+
+  it('normalizes quoted identifiers, and keeps case distinct', () => {
+    // `normalizeText` strips a surrounding pair of quotes, so `"A"` is `A`.
+    expect(
+      only(
+        vn('  set A', '  set B', '  union "A", B', '  union A, B'),
+        'venn-duplicate-union',
+      ).map((f) => f.line),
+    ).toEqual([5]);
+    // Nothing folds case, so `a` and `A` are two sets and these are two
+    // unions — `getSubsetData()` reports `A,B` and `B,a` separately.
+    expect(
+      only(
+        vn('  set A', '  set a', '  set B', '  union A, B', '  union a, B'),
+        'venn-duplicate-union',
+      ),
+    ).toEqual([]);
+  });
+
+  it('does not merge two unions that differ only in size or label', () => {
+    // Neither is part of the subset key mermaid stores under, so both of
+    // these are the same region declared twice.
+    expect(
+      only(
+        vn('  set A', '  set B', '  union A, B: 5', '  union A, B: 9'),
+        'venn-duplicate-union',
+      ).map((f) => f.line),
+    ).toEqual([5]);
+    expect(
+      only(
+        vn('  set A', '  set B', '  union A, B["One"]', '  union A, B["Two"]'),
+        'venn-duplicate-union',
+      ).map((f) => f.line),
+    ).toEqual([5]);
+  });
+
+  it('returns [] for distinct intersections', () => {
+    const b = vn(
+      '  set A',
+      '  set B',
+      '  set C',
+      '  union A, B',
+      '  union B, C',
+      '  union A, B, C',
+    );
+    expect(only(b, 'venn-duplicate-union')).toEqual([]);
+  });
+
+  it('keys on a separator no identifier can contain', () => {
+    // A quoted identifier may hold a comma, so `union "A,B", C` is a
+    // two-element list. Keyed on a comma it would collide with the genuinely
+    // different three-element `union A, B, C`.
+    expect(
+      only(
+        vn(
+          '  set "A,B"',
+          '  set A',
+          '  set B',
+          '  set C',
+          '  union "A,B", C',
+          '  union A, B, C',
+        ),
+        'venn-duplicate-union',
+      ),
+    ).toEqual([]);
+    // The quoted form's body is `[^"]*`, which admits *every* character but
+    // `"` — including NUL, the separator the sibling duplicate rules key on.
+    // Only `"` itself is safe here.
+    expect(
+      only(
+        vn(
+          `  set "A\u0000B"`,
+          '  set A',
+          '  set B',
+          '  set C',
+          `  union "A\u0000B", C`,
+          '  union A, B, C',
+        ),
+        'venn-duplicate-union',
+      ),
+    ).toEqual([]);
+  });
+});
+
 describe('venn statement scanning', () => {
   it('matches keywords case-insensitively, as the mermaid lexer does', () => {
     // Every rule in venn.jison carries the `i` flag, so `SET A` parses.
@@ -4863,6 +5032,24 @@ describe('venn statement scanning', () => {
     const long = `  union ${Array.from({ length: 20_000 }, (_, i) => `A${i}`).join(', ')}`;
     const started = performance.now();
     expect(only(vn(long), 'venn-self-union')).toEqual([]);
+    expect(performance.now() - started).toBeLessThan(1_000);
+  });
+
+  it('keys many distinct unions in linear time', () => {
+    // `venn-duplicate-union` is the one venn rule whose work spans statements:
+    // it accumulates a key per union. A `Map` keeps that linear; scanning an
+    // array of accumulated keys instead would be quadratic — the same mistake
+    // `venn-self-union` records having already made once with `indexOf`.
+    //
+    // The unions are *distinct* deliberately, so every key is inserted and
+    // every lookup misses. A body of repeats would report at the second union
+    // and leave the accumulation shallow.
+    const many = Array.from(
+      { length: 20_000 },
+      (_, i) => `  union A${i}, B${i}`,
+    );
+    const started = performance.now();
+    expect(only(vn(...many), 'venn-duplicate-union')).toEqual([]);
     expect(performance.now() - started).toBeLessThan(1_000);
   });
 });
@@ -5279,6 +5466,6 @@ describe('line citations in rule messages', () => {
   // at a time, which is why this is a floor at today's count rather than a
   // loose lower bound. Raise it when you add a citing rule.
   it('still finds every citation it is meant to police', () => {
-    expect(cites.length).toBeGreaterThanOrEqual(30);
+    expect(cites.length).toBeGreaterThanOrEqual(33);
   });
 });
