@@ -139,6 +139,64 @@ describe('syntax error position', () => {
     );
   });
 
+  // Most jison errors name a token that sits on one line, so `loc.first_line`
+  // and `loc.last_line` agree. These are the cases where they diverge, and the
+  // two ends stop meaning the same thing — see `jisonPosition`.
+  describe('tokens that span a newline', () => {
+    // The offending character sits on line 3; `first_line` is line 2, where the
+    // whitespace run leading up to it began.
+    const WITH_TOKEN: ReadonlyArray<readonly [string, string]> = [
+      ['erDiagram', 'erDiagram\n  A ||--o{ B : has\n  @@@@'],
+      [
+        'erDiagram with another stray token',
+        'erDiagram\n  A ||--o{ B : has\n  ####',
+      ],
+      ['timeline', 'timeline\n  2024 : a\n  ::: bad'],
+      ['timeline after a title', 'timeline\n  title T\n  ::: bad'],
+      ['journey', 'journey\n  section S\n  ::::'],
+    ];
+
+    it.each(WITH_TOKEN)(
+      'blames the line the token sits on for %s',
+      async (_type, body) => {
+        expect(await lineOf(body)).toBe(3);
+      },
+    );
+
+    it.each(WITH_TOKEN)(
+      'agrees with the line mermaid cites for %s',
+      async (_type, body) => {
+        // A diagnostic printed as `file:2:1: Parse error on line 3` contradicts
+        // itself in public. Both numbers are body-relative here, so they must be
+        // the same number.
+        const result = await validateWithMermaidJS(body);
+        expect(result.ok).toBe(false);
+        if (result.ok) return;
+        const cited = /on line (\d+)/.exec(result.error.message);
+        expect(cited).not.toBeNull();
+        expect(Number(cited?.[1])).toBe(result.error.line);
+      },
+    );
+
+    // The other half of the divergence: with no token in `hash.text` the lexer
+    // ran off the end of an unterminated construct and swallowed every line
+    // below it, so `last_line` is where scanning gave up, not where the defect
+    // is. `first_line` opens the construct, and stays the answer.
+    const UNTERMINATED: ReadonlyArray<readonly [string, string]> = [
+      ['bracket', 'flowchart TD\n  A[Start --> B\n  C --> D'],
+      ['paren', 'flowchart TD\n  A(Start --> B\n  C --> D'],
+      ['brace', 'flowchart TD\n  A{Start --> B\n  C --> D'],
+      ['quote', 'flowchart TD\n  A["Start] --> B\n  C --> D'],
+    ];
+
+    it.each(UNTERMINATED)(
+      'blames the opening line for an unterminated %s',
+      async (_kind, body) => {
+        expect(await lineOf(body)).toBe(2);
+      },
+    );
+  });
+
   // mermaid parses a preprocessed copy of the diagram, so anything it strips
   // first — frontmatter, `%%{init}%%` directives, `%%` comments, leading blank
   // lines — shifts every number it reports. That bites this project especially:
@@ -202,9 +260,9 @@ describe('syntax error position', () => {
     it('never points past the end of the line it lands on', async () => {
       // jison named column 19 on a six-character line, and 11 on a nine — a
       // caret with nowhere to land. Measure against the line the diagnostic
-      // actually reports, not the line the defect is on: for these two the
-      // parser blames an earlier line, and checking the last line instead
-      // would compare the column against the wrong string and pass regardless.
+      // actually reports rather than assuming which line that is, so this keeps
+      // checking the column against the string it is a column of even if the
+      // blamed line moves.
       for (const body of [
         'erDiagram\n  A ||--o{ B : has\n  @@@@',
         'timeline\n  2024 : a\n  ::: bad',
