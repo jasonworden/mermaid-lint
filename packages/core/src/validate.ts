@@ -176,8 +176,17 @@ function coord(value: unknown): number | undefined {
  * carry a `result`
  * holding the very errors mermaid formatted its message from — so the position
  * is available as data rather than as prose. Lexer errors carry `line`/`column`
- * directly; parser errors carry the offending token. radar-beta reports a token
- * with no start line (hence its literal `on line ?`), which `coord` rejects.
+ * directly; parser errors carry the offending token.
+ *
+ * When input runs out mid-construct the offending token is Chevrotain's
+ * end-of-input sentinel, whose `startLine`/`startColumn` are `NaN` — which is
+ * what makes mermaid print a literal `on line ?, column ?` with no number for
+ * the prose fallback to read either. The error still names the last token it
+ * *did* consume, and that one is positioned, so an unterminated construct is
+ * blamed on the last real line rather than on the block opener. This mirrors
+ * what the jison branch already does for `subgraph`/`loop` with no `end`.
+ * radar-beta is the only grammar observed to reach the sentinel — its siblings
+ * stop at the trailing newline instead — but nothing here is radar-specific.
  */
 function structuredPosition(
   err: Record<string, unknown>,
@@ -192,12 +201,17 @@ function structuredPosition(
   if (lexLine !== undefined)
     return { line: lexLine, col: coord(lexer?.column) };
 
-  const token = (
-    result.parserErrors as { token?: Record<string, unknown> }[]
-  )?.[0]?.token;
-  const parseLine = coord(token?.startLine);
-  if (parseLine !== undefined)
-    return { line: parseLine, col: coord(token?.startColumn) };
+  const parserError = (
+    result.parserErrors as {
+      token?: Record<string, unknown>;
+      previousToken?: Record<string, unknown>;
+    }[]
+  )?.[0];
+  for (const token of [parserError?.token, parserError?.previousToken]) {
+    const parseLine = coord(token?.startLine);
+    if (parseLine !== undefined)
+      return { line: parseLine, col: coord(token?.startColumn) };
+  }
 
   return undefined;
 }
@@ -236,6 +250,51 @@ export function mapParserMessageLines(
     citationRe(message, true),
     (_full, head: string, n: string) => `${head}${map(Number(n))}`,
   );
+}
+
+/**
+ * The position jison attaches to the offending token, when it attaches one.
+ *
+ * `loc` almost always names a token that sits on a single line, so `first_line`
+ * and `last_line` agree and either end would do. They diverge when the token
+ * runs across a newline, and the two ends then mean different things:
+ *
+ * - With a concrete token in `hash.text` — a stray `@` in `erDiagram`, a `:` in
+ *   `timeline` — `first_line` is where the *whitespace* run leading up to that
+ *   token began, back on the last line of valid content, and `last_line` is
+ *   where the character itself sits. `last_line` is the defect, and is also the
+ *   line mermaid's own message formatter cites, so taking it keeps the position
+ *   and the prose from contradicting each other.
+ * - With `hash.text` empty, no token was ever matched: the lexer ran off the
+ *   end of an unterminated construct — `A[Start` with no `]` — and swallowed
+ *   every line below it. `first_line` is where that construct opened, which is
+ *   the defect; `last_line` is merely where scanning gave up.
+ *
+ * Surveyed across the jison grammars mermaid ships, that split held for every
+ * diverging case found: er, timeline and journey stray tokens want `last_line`;
+ * flowchart's unterminated `[`, `(`, `{` and `"` want `first_line`. So this
+ * reads `hash.text` rather than preferring one end outright — the two ends are
+ * not ranked, they answer different questions.
+ *
+ * jison counts columns from 0; every other signal here is 1-indexed. The column
+ * is dropped when `last_line` wins, because `first_column` measures the line
+ * the token *started* on rather than the one being blamed — `refineColumn`
+ * locates the token on the blamed line instead.
+ */
+function jisonPosition(
+  loc: Record<string, unknown> | undefined,
+  hash: Record<string, unknown> | undefined,
+): CitedPosition | undefined {
+  const first = coord(loc?.first_line);
+  if (first === undefined) return undefined;
+
+  const last = coord(loc?.last_line);
+  const token = typeof hash?.text === 'string' ? hash.text : '';
+  if (last !== undefined && last !== first && token.trim().length > 0)
+    return { line: last };
+
+  const col = coord(loc?.first_column);
+  return { line: first, col: col === undefined ? undefined : col + 1 };
 }
 
 /**
@@ -293,21 +352,15 @@ async function runMermaidValidation(
     // Three signals, in descending order of how directly each names the defect.
     //
     // `loc` is jison's offending token, which is what a diagnostic position
-    // should mean, so it wins. `result` is the same thing for Langium grammars,
-    // as data rather than prose. The cited number is the last resort, read from
-    // wording rather than structure, for grammars that publish neither — and on
-    // an unclosed delimiter it names the line the lexer gave up on rather than
-    // the one that opened it.
-    const jisonLine = coord(loc?.first_line);
-    const jisonCol = coord(loc?.first_column);
+    // should mean, so it wins — see `jisonPosition` for which end of a token
+    // that spans a newline answers that. `result` is the same thing for Langium
+    // grammars, as data rather than prose. The cited number is the last resort,
+    // read from wording rather than structure, for grammars that publish
+    // neither — and on an unclosed delimiter it names the line the lexer gave
+    // up on rather than the one that opened it.
+    const jison = jisonPosition(loc, hash);
     const found: CitedPosition | undefined =
-      jisonLine === undefined
-        ? (structuredPosition(e) ?? citedPosition(raw))
-        : // jison counts columns from 0; every other signal is 1-indexed.
-          {
-            line: jisonLine,
-            col: jisonCol === undefined ? undefined : jisonCol + 1,
-          };
+      jison ?? structuredPosition(e) ?? citedPosition(raw);
 
     // Every number above counts lines in mermaid's *preprocessed* copy, not the
     // body — see `parsedLineToBodyLine`. Mapping here keeps `ValidationError`
@@ -323,7 +376,17 @@ async function runMermaidValidation(
       error: {
         message: mapParserMessageLines(raw, toBody),
         line,
-        col: refineColumn(body, line, found?.col, coord(loc?.first_column), e),
+        col: refineColumn(
+          body,
+          line,
+          found?.col,
+          // Only ever the column of the line being blamed: `jisonPosition`
+          // withholds it when it takes the far end of a token that spans a
+          // newline, so the token search below starts at the head of that line
+          // rather than at an offset measured against a different one.
+          jison?.col === undefined ? undefined : jison.col - 1,
+          e,
+        ),
       },
     };
   }

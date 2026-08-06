@@ -553,11 +553,11 @@ measure of how much analysis a given type gets beyond "does it parse".
 | Block | `block-beta` | ✅ | `no-experimental`, `block-no-blocks` | Experimental |
 | Packet | `packet-beta` | ✅ | `no-experimental`, `packet-no-fields`, `packet-empty-labels` | Experimental |
 | Architecture | `architecture-beta` | ✅ | `no-experimental`, `architecture-no-elements`, `architecture-no-edges`, `architecture-duplicate-edge` | Experimental |
-| Kanban | `kanban` | ✅ | `kanban-duplicate-column`, `kanban-duplicate-task-id`, `kanban-empty-column` | Columns and cards share one id namespace |
+| Kanban | `kanban` | ✅ | `kanban-duplicate-column`, `kanban-duplicate-task-id`, `kanban-empty-column`, `kanban-no-columns` | Columns and cards share one id namespace |
 | Event modeling | `eventmodeling` | ✅ | `eventmodeling-undefined-frame`, `eventmodeling-duplicate-frame-id`, `eventmodeling-invalid-flow` | |
 | Radar | `radar-beta` | ✅ | `no-experimental`, `radar-no-curves`, `radar-curve-length-mismatch`, `radar-duplicate-axis` | Experimental |
 | Treemap | `treemap-beta` | ✅ | `no-experimental`, `treemap-zero-value`, `treemap-no-leaves`, `treemap-duplicate-sibling`, `treemap-branch-with-value` | Experimental |
-| Venn | `venn-beta` | ✅ | `no-experimental` | Experimental; no dedicated semantic rules yet |
+| Venn | `venn-beta` | ✅ | `no-experimental`, `venn-duplicate-set`, `venn-non-positive-size`, `venn-single-set`, `venn-self-union` | Experimental; `set`/`union` declarations are never deduplicated |
 | Ishikawa | `ishikawa-beta` | ✅ | `no-experimental` | Experimental; no dedicated semantic rules yet |
 | Wardley map | `wardley-beta` | ✅ | `no-experimental`, `wardley-undefined-component`, `wardley-orphan-component`, `wardley-no-components`, `wardley-mixed-coordinate-scale`, `wardley-duplicate-component` | Experimental; not covered by the Rust fast path — always falls back to mermaid.js |
 | Tree view | `treeView-beta` | ✅ | `no-experimental`, `treeview-no-nodes`, `treeview-duplicate-sibling` | Experimental; node labels must be quoted |

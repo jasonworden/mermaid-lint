@@ -103,6 +103,11 @@ and `frontmatter-must-be-first` (Mermaid does not render the diagram at all).
 | `kanban-duplicate-column` | `warn` | A `kanban` column whose id is already taken; against another column Mermaid also hands every card under either one to both, so cards render many times over and in the wrong column | kanban |
 | `kanban-duplicate-task-id` | `warn` | A `kanban` card whose id is already taken by another card or a column; both render, but the document ends up with two elements carrying one DOM id | kanban |
 | `kanban-empty-column` | `warn` | A `kanban` column with no cards; renders as a header over empty space | kanban |
+| `kanban-no-columns` | `warn` | A `kanban` with no columns at all; parses but renders an empty diagram | kanban |
+| `venn-duplicate-set` | `warn` | A `venn-beta` set declared twice; Mermaid adds a second circle coincident with the first rather than replacing it, and both draw the last label, so an earlier one never renders | venn-beta |
+| `venn-non-positive-size` | `warn` | A `venn-beta` set or union with an explicit size of zero or less; a zero-sized set erases itself and every intersection over it, and a negative one distorts the layout, or throws out of it entirely for a `union` | venn-beta |
+| `venn-single-set` | `warn` | A `venn-beta` diagram declaring one distinct set; it renders as a single circle, with nothing to intersect | venn-beta |
+| `venn-self-union` | `warn` | A `venn-beta` `union` naming the same set twice; the list is never deduplicated, so the set is intersected with itself and draws a spurious extra region | venn-beta |
 | `treeview-no-nodes` | `warn` | A `treeView-beta` with no nodes; unlike the other indented types an empty body parses clean, and renders as an empty tree | treeView-beta |
 | `treeview-duplicate-sibling` | `warn` | Two `treeView-beta` nodes with the same quoted label under one parent; both render, so the tree draws a distinction it does not have | treeView-beta |
 | `frontmatter-must-be-first` | `error` | A `%%` comment or blank line before the YAML frontmatter; Mermaid parses it but the diagram fails to render | all |

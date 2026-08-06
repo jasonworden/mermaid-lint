@@ -276,6 +276,30 @@ describe('line citations in messages', () => {
     expect(task[0].message).toContain('line 8');
   });
 
+  it('cites a file line from venn-duplicate-set', async () => {
+    // Same reason as the kanban case above: `venn-duplicate-set` is the one
+    // venn rule that names a line, and only a fence separates body lines from
+    // file lines.
+    const text = [
+      '# Sets',
+      '',
+      'Prose.',
+      '',
+      '```mermaid',
+      'venn-beta',
+      '  set A',
+      '  set B',
+      '  set A',
+      '```',
+    ].join('\n');
+    const diags = await lintMarkdown('sets.md', text);
+
+    const found = diags.filter((d) => d.ruleId === 'venn-duplicate-set');
+    expect(found).toHaveLength(1);
+    expect(found[0].line).toBe(9);
+    expect(found[0].message).toContain('line 7');
+  });
+
   it('cites a file line from treeview-duplicate-sibling', async () => {
     // Same reason as the kanban case above: the treeView rules run on `.mmd`
     // fixtures where body and file lines coincide, so only a fence can tell

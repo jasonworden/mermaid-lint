@@ -89,6 +89,19 @@ async function kanbanNodes(body: string): Promise<string[]> {
     );
 }
 
+/**
+ * Build a venn-beta diagram and hand back its subset list. Every venn rule
+ * turns on what `addSubsetData` pushed — the identifiers after normalization
+ * and the size after defaulting — and none of that is visible in a verdict,
+ * since every body below parses clean.
+ */
+async function vennSubsets(body: string): Promise<string[]> {
+  const db = await probeDb<{
+    getSubsetData(): { sets: string[]; size: number }[];
+  }>(body);
+  return db.getSubsetData().map((s) => `${s.sets.join(',')}=${s.size}`);
+}
+
 interface ProbeTreeViewNode {
   name: string;
   children: ProbeTreeViewNode[];
@@ -635,6 +648,126 @@ describe('mermaid behavior contracts', () => {
       'card A card %% note=A card %% note',
       'card B=B',
     ]);
+  }, 20_000);
+
+  it('accepts an empty kanban, which is why kanban-no-columns exists', async () => {
+    // Issue #149 ruled that rule out on the grounds that an empty kanban is
+    // already a parse error. It is not: a bare keyword, a body of blank
+    // lines, and a body of only comments all parse clean and produce no
+    // nodes, so nothing but a semantic rule reports them. If a bump makes
+    // any of these reject, the rule is redundant and should go.
+    for (const body of ['kanban\n', 'kanban\n\n\n', 'kanban\n  %% nothing\n']) {
+      expect((await validateWithMermaidJS(body)).ok, body).toBe(true);
+      expect(await kanbanNodes(body)).toEqual([]);
+    }
+
+    // The one spelling that does fail, and why the rule cannot lean on it:
+    // jison wants a NEWLINE, which every fenced block and `.mmd` file has.
+    expect((await validateWithMermaidJS('kanban')).ok).toBe(false);
+
+    // Kanban's grammar has no `title` token, so this is a column named
+    // `title Board` rather than a title — the board is not empty, and
+    // `kanban-no-columns` must stay silent on it.
+    expect(await kanbanNodes('kanban\n  title Board\n')).toEqual([
+      'column title Board=title Board',
+    ]);
+  }, 20_000);
+  it('never deduplicates venn subsets, within a list or across statements', async () => {
+    // Every venn rule rests on this one property of `vennDB.addSubsetData`:
+    // it pushes onto `subsets` unconditionally. A repeat is therefore an extra
+    // *entry*, not an overwrite — which is what makes a duplicate `set` draw
+    // an extra circle and `union A, A` draw a region over itself.
+    expect(await vennSubsets('venn-beta\n  set A\n  set A\n  set B')).toEqual([
+      'A=10',
+      'A=10',
+      'B=10',
+    ]);
+    // The list is sorted but not deduplicated, so `A,A` reaches the layout as
+    // a genuine two-element subset — `venn-self-union`.
+    expect(
+      await vennSubsets('venn-beta\n  set A\n  set B\n  union A, A'),
+    ).toEqual(['A=10', 'B=10', 'A,A=2.5']);
+    // …and sorting is also why `union B, A` is the same subset as `union A, B`.
+    expect(
+      await vennSubsets('venn-beta\n  set A\n  set B\n  union B, A'),
+    ).toEqual(['A=10', 'B=10', 'A,B=2.5']);
+  }, 20_000);
+
+  it('reads venn sizes and identifiers the way the venn scanner does', async () => {
+    // `NUMERIC` carries its sign, so a non-positive size survives the lexer
+    // and reaches semantics — the half `treemap-zero-value` never sees.
+    expect(
+      await vennSubsets('venn-beta\n  set A: 0\n  set B: -5\n  set C: +2'),
+    ).toEqual(['A=0', 'B=-5', 'C=2']);
+    // A size may follow a label, and needs no space after the colon.
+    expect(
+      await vennSubsets('venn-beta\n  set A["Label"]: 0\n  set B:0'),
+    ).toEqual(['A=0', 'B=0']);
+    // `normalizeText` strips a surrounding pair of quotes, so `set "A"` and
+    // `set A` are one set — the normalization `venn-duplicate-set` reproduces.
+    expect(await vennSubsets('venn-beta\n  set "A"\n  set A')).toEqual([
+      'A=10',
+      'A=10',
+    ]);
+    // Keywords are case-insensitive; every rule in venn.jison carries `/i`.
+    expect(await vennSubsets('venn-beta\n  SET A\n  Set B')).toEqual([
+      'A=10',
+      'B=10',
+    ]);
+  }, 20_000);
+
+  it('takes several venn statements from one line', async () => {
+    // The venn grammar has no statement terminator — `document` is a list of
+    // `line`s and `line` is `statement | NEWLINE` — so a newline is a line of
+    // its own and one physical line may carry several statements. The venn
+    // scanner reads a line the same way; reading only the first would call
+    // this a one-set diagram, and miss the duplicate below it.
+    expect(await vennSubsets('venn-beta\n  set A set B')).toEqual([
+      'A=10',
+      'B=10',
+    ]);
+    expect(await vennSubsets('venn-beta\n  set A set A\n  set B')).toEqual([
+      'A=10',
+      'A=10',
+      'B=10',
+    ]);
+  }, 20_000);
+
+  it('ends a quoted venn label at the closing quote, not the first bracket', async () => {
+    // `BRACKET_LABEL` has two lexer rules, `\["[^"]*"\]` tried before
+    // `\[[^\]"]+\]`. A `]` is legal inside the quoted form, so the token ends
+    // at the first `"]`. Cutting a label at the first `]` instead leaves its
+    // tail to be read as a `: size` the author never wrote.
+    expect(await vennSubsets('venn-beta\n  set A["]: -5"]\n  set B')).toEqual([
+      'A=10',
+      'B=10',
+    ]);
+    expect(await vennSubsets('venn-beta\n  set A["x]y"]: 0\n  set B')).toEqual([
+      'A=0',
+      'B=10',
+    ]);
+    // A `%%` inside a label is part of the label, not the start of a comment.
+    expect(
+      await vennSubsets('venn-beta\n  set A["50%% off"]\n  set B'),
+    ).toEqual(['A=10', 'B=10']);
+  }, 20_000);
+
+  it('rejects a union naming an undeclared set, in either order', async () => {
+    // Why there is no `venn-undefined-set` rule: `validateUnionIdentifiers`
+    // throws, and it validates in source order, so a *forward* reference is
+    // an error too. Both belong to the syntax pass.
+    expect(
+      (await validateWithMermaidJS('venn-beta\n  set A\n  union A, Z')).ok,
+    ).toBe(false);
+    expect(
+      (await validateWithMermaidJS('venn-beta\n  union A, B\n  set A\n  set B'))
+        .ok,
+    ).toBe(false);
+    // And a one-identifier `union` is rejected by the grammar's own action,
+    // which is why `venn-self-union` needs `union A, A` to be reachable.
+    expect(
+      (await validateWithMermaidJS('venn-beta\n  set A\n  union A')).ok,
+    ).toBe(false);
   }, 20_000);
 
   it('parses a treeView-beta with no nodes at all', async () => {
