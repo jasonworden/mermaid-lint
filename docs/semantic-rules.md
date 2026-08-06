@@ -13,7 +13,7 @@ Each rule has a severity:
 Tune rules through the `rules` config key. Most rules default to `warn`. Three
 default to `error`, because none leaves a judgment call to the reader:
 `duplicate-ids` (Mermaid renders the wrong result),
-`eventmodeling-undefined-frame` (Mermaid drops the arrow and renders nothing),
+`eventmodeling-undefined-frame` (Mermaid drops the arrow, which never renders),
 and `frontmatter-must-be-first` (Mermaid does not render the diagram at all).
 
 ## Rule Reference
@@ -99,7 +99,7 @@ and `frontmatter-must-be-first` (Mermaid does not render the diagram at all).
 | `wardley-duplicate-component` | `warn` | A `wardley-beta` component or anchor name declared more than once; Mermaid merges them into one node and the last coordinates win | wardley-beta |
 | `eventmodeling-undefined-frame` | `error` | An `eventmodeling` `->>` naming a frame id that no frame declares; Mermaid drops the relation silently and the arrow never renders | eventmodeling |
 | `eventmodeling-duplicate-frame-id` | `warn` | Two `eventmodeling` `tf`/`rf` frames sharing an id; Mermaid renders both and draws a duplicate arrow per matching frame | eventmodeling |
-| `eventmodeling-invalid-flow` | `warn` | An `eventmodeling` frame sourced from a type mermaid's own validator forbids; the validator ships but never runs, so nothing else reports it | eventmodeling |
+| `eventmodeling-invalid-flow` | `warn` | An `eventmodeling` frame sourced from a type Mermaid's own validator forbids; the validator ships but never runs, so nothing else reports it | eventmodeling |
 | `frontmatter-must-be-first` | `error` | A `%%` comment or blank line before the YAML frontmatter; Mermaid parses it but the diagram fails to render | all |
 | `suppression-unknown-rule` | `warn` | A suppression directive naming a rule id that does not exist; the directive silently suppresses nothing | all |
 | `suppression-unused` | `warn` | A well-formed suppression directive that suppressed no finding; usually a stale directive left behind after a fix | all |
