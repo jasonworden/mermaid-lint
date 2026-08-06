@@ -32,6 +32,15 @@ diagram on the happy path.
 For files with parse errors, both runtimes load. That path is slower by design
 because mermaid.js provides the canonical parser verdict and error locations.
 
+A narrow subset of that path costs more still. Some failures are not parse
+errors at all — a diagram module's own post-parse checks, such as mindmap's
+"only one root" or gitGraph's unknown-branch `checkout` — and mermaid attaches
+no position to them. mermaid-lint recovers one by re-parsing prefixes of the
+diagram to find the line that first provokes the same error, which costs
+`log2(lines)` extra parses (about ten for a thousand-line diagram). It runs only
+for errors that carry no position from any other signal, and never for a valid
+diagram.
+
 ## Accuracy Checks
 
 Parser parity is enforced in CI. The test set includes 24+ valid and 10+
