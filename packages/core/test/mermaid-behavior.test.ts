@@ -725,6 +725,57 @@ describe('mermaid behavior contracts', () => {
     ).toEqual(['A=10', 'B=10']);
   }, 20_000);
 
+  it('derives no venn subset from a body that declares no set', async () => {
+    // What `venn-no-sets` is about. The body parses — `title` and `style` are
+    // legal on their own — and leaves `subsets` empty, which is the state the
+    // renderer then indexes into. Render probe, mermaid 11.15.0: each of
+    // these throws `Cannot read properties of undefined (reading 'set')`
+    // rather than drawing the empty frame `pie-no-data` and
+    // `treemap-no-leaves` describe. Only the parse-side half is pinned here;
+    // this file has no renderer.
+    expect(await vennSubsets('venn-beta')).toEqual([]);
+    expect(await vennSubsets('venn-beta\n  title Hello')).toEqual([]);
+    expect(
+      await vennSubsets('venn-beta\n  title Hello\n  style A fill:#f00'),
+    ).toEqual([]);
+  }, 20_000);
+
+  it('keeps two identical venn unions, and tells case apart', async () => {
+    // `venn-duplicate-union`. `addSubsetData` sorts each list but pushes
+    // unconditionally, so the same intersection written twice — verbatim, or
+    // reordered, or with a different size — reaches the layout twice.
+    expect(
+      await vennSubsets(
+        'venn-beta\n  set A\n  set B\n  union A, B\n  union A, B',
+      ),
+    ).toEqual(['A=10', 'B=10', 'A,B=2.5', 'A,B=2.5']);
+    expect(
+      await vennSubsets(
+        'venn-beta\n  set A\n  set B\n  union A, B\n  union B, A',
+      ),
+    ).toEqual(['A=10', 'B=10', 'A,B=2.5', 'A,B=2.5']);
+    expect(
+      await vennSubsets(
+        'venn-beta\n  set A\n  set B\n  union A, B: 5\n  union A, B: 9',
+      ),
+    ).toEqual(['A=10', 'B=10', 'A,B=5', 'A,B=9']);
+    // Nothing folds case, so `a` and `A` are two sets and the unions over
+    // them are two subsets — the rule keys case-sensitively for this reason.
+    expect(
+      await vennSubsets(
+        'venn-beta\n  set A\n  set a\n  set B\n  union A, B\n  union a, B',
+      ),
+    ).toEqual(['A=10', 'a=10', 'B=10', 'A,B=2.5', 'B,a=2.5']);
+    // A within-list repeat is not the same subset as the deduplicated list —
+    // `A,A,B` and `A,B` are stored apart, which is why `venn-duplicate-union`
+    // stays silent on the pair and leaves the repeat to `venn-self-union`.
+    expect(
+      await vennSubsets(
+        'venn-beta\n  set A\n  set B\n  union A, A, B\n  union A, B',
+      ),
+    ).toEqual(['A=10', 'B=10', 'A,A,B=1.1111111111111112', 'A,B=2.5']);
+  }, 20_000);
+
   it('rejects a union naming an undeclared set, in either order', async () => {
     // Why there is no `venn-undefined-set` rule: `validateUnionIdentifiers`
     // throws, and it validates in source order, so a *forward* reference is

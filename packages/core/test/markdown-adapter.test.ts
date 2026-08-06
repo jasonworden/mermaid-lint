@@ -300,6 +300,30 @@ describe('line citations in messages', () => {
     expect(found[0].message).toContain('line 7');
   });
 
+  it('cites a file line from venn-duplicate-union', async () => {
+    // The second venn rule that names a line, and the same trap: `fileLine`
+    // maps the citation while `Diagnostic.line` is mapped for it.
+    const text = [
+      '# Sets',
+      '',
+      'Prose.',
+      '',
+      '```mermaid',
+      'venn-beta',
+      '  set A',
+      '  set B',
+      '  union A, B',
+      '  union B, A',
+      '```',
+    ].join('\n');
+    const diags = await lintMarkdown('sets.md', text);
+
+    const found = diags.filter((d) => d.ruleId === 'venn-duplicate-union');
+    expect(found).toHaveLength(1);
+    expect(found[0].line).toBe(10);
+    expect(found[0].message).toContain('line 9');
+  });
+
   it('omits the citation for a same-row duplicate, fenced or not', async () => {
     // `radar-duplicate-axis` drops the clause when the first sighting is the
     // row it is already reporting. That comparison is body-vs-body; mapping

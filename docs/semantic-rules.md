@@ -10,11 +10,12 @@ Each rule has a severity:
 - `warn` reports the rule without failing the run unless `--strict` is enabled.
 - `error` fails the run outright.
 
-Tune rules through the `rules` config key. Most rules default to `warn`. Three
+Tune rules through the `rules` config key. Most rules default to `warn`. Four
 default to `error`, because none leaves a judgment call to the reader:
 `duplicate-ids` (Mermaid renders the wrong result),
 `eventmodeling-undefined-frame` (Mermaid drops the arrow, which never renders),
-and `frontmatter-must-be-first` (Mermaid does not render the diagram at all).
+`venn-no-sets` (Mermaid's renderer throws, so the diagram never appears), and
+`frontmatter-must-be-first` (Mermaid does not render the diagram at all).
 
 ## Rule Reference
 
@@ -108,6 +109,8 @@ and `frontmatter-must-be-first` (Mermaid does not render the diagram at all).
 | `venn-non-positive-size` | `warn` | A `venn-beta` set or union with an explicit size of zero or less; a zero-sized set erases itself and every intersection over it, and a negative one distorts the layout, or throws out of it entirely for a `union` | venn-beta |
 | `venn-single-set` | `warn` | A `venn-beta` diagram declaring one distinct set; it renders as a single circle, with nothing to intersect | venn-beta |
 | `venn-self-union` | `warn` | A `venn-beta` `union` naming the same set twice; the list is never deduplicated, so the set is intersected with itself and draws a spurious extra region | venn-beta |
+| `venn-no-sets` | `error` | A `venn-beta` diagram declaring no `set`; unlike the other no-data rules it does not render an empty frame — the renderer throws | venn-beta |
+| `venn-duplicate-union` | `warn` | A `venn-beta` intersection declared twice; each list is sorted but never deduplicated, so `union B, A` collides with `union A, B` and a second region is drawn over the first | venn-beta |
 | `frontmatter-must-be-first` | `error` | A `%%` comment or blank line before the YAML frontmatter; Mermaid parses it but the diagram fails to render | all |
 | `suppression-unknown-rule` | `warn` | A suppression directive naming a rule id that does not exist; the directive silently suppresses nothing | all |
 | `suppression-unused` | `warn` | A well-formed suppression directive that suppressed no finding; usually a stale directive left behind after a fix | all |
