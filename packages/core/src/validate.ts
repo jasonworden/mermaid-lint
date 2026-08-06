@@ -176,8 +176,17 @@ function coord(value: unknown): number | undefined {
  * carry a `result`
  * holding the very errors mermaid formatted its message from — so the position
  * is available as data rather than as prose. Lexer errors carry `line`/`column`
- * directly; parser errors carry the offending token. radar-beta reports a token
- * with no start line (hence its literal `on line ?`), which `coord` rejects.
+ * directly; parser errors carry the offending token.
+ *
+ * When input runs out mid-construct the offending token is Chevrotain's
+ * end-of-input sentinel, whose `startLine`/`startColumn` are `NaN` — which is
+ * what makes mermaid print a literal `on line ?, column ?` with no number for
+ * the prose fallback to read either. The error still names the last token it
+ * *did* consume, and that one is positioned, so an unterminated construct is
+ * blamed on the last real line rather than on the block opener. This mirrors
+ * what the jison branch already does for `subgraph`/`loop` with no `end`.
+ * radar-beta is the only grammar observed to reach the sentinel — its siblings
+ * stop at the trailing newline instead — but nothing here is radar-specific.
  */
 function structuredPosition(
   err: Record<string, unknown>,
@@ -192,12 +201,17 @@ function structuredPosition(
   if (lexLine !== undefined)
     return { line: lexLine, col: coord(lexer?.column) };
 
-  const token = (
-    result.parserErrors as { token?: Record<string, unknown> }[]
-  )?.[0]?.token;
-  const parseLine = coord(token?.startLine);
-  if (parseLine !== undefined)
-    return { line: parseLine, col: coord(token?.startColumn) };
+  const parserError = (
+    result.parserErrors as {
+      token?: Record<string, unknown>;
+      previousToken?: Record<string, unknown>;
+    }[]
+  )?.[0];
+  for (const token of [parserError?.token, parserError?.previousToken]) {
+    const parseLine = coord(token?.startLine);
+    if (parseLine !== undefined)
+      return { line: parseLine, col: coord(token?.startColumn) };
+  }
 
   return undefined;
 }
