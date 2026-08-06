@@ -18,7 +18,7 @@
     "build": "tsc"
   },
   "peerDependencies": {
-    "textlint": ">=13.0.0"
+    "textlint": ">=15.8.0"
   },
   "dependencies": {
     "@mermaid-lint/core": "workspace:*"
