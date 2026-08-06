@@ -664,6 +664,35 @@ describe('parser prose cites file lines, not body lines', () => {
   });
 });
 
+describe('diagram-level errors land inside the diagram', () => {
+  // mindmap's "only one root" is not a parse error: the diagram parses, and the
+  // module's own check rejects what it built. mermaid attaches no position, so
+  // the diagnostic used to collapse onto the fence. Core recovers the line by
+  // re-parsing prefixes of the body — see `bisectedLine`. Both surfaces are
+  // covered because the body→file hop differs between them.
+  const BODY = 'mindmap\n  root((A))\n  root((B))\n  root((C))';
+
+  const syntaxErrors = async (path: string, text: string) =>
+    (await lintMarkdown(path, text)).filter((d) => d.ruleId === 'mermaid');
+
+  it('blames the second root inside a fenced block', async () => {
+    const text = ['# Doc', '', '```mermaid', BODY, '```'].join('\n');
+    const errors = await syntaxErrors('doc.md', text);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain('only one root');
+    // Body line 3 holds the second root; the fence opener is file line 3, so
+    // the defect is file line 6 — and no longer the opener it fell back to.
+    expect(errors[0].line).toBe(6);
+  });
+
+  it('blames the second root in a standalone .mmd file', async () => {
+    const errors = await syntaxErrors('x.mmd', BODY);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].line).toBe(3);
+    expect(errors[0].column).toBe(3);
+  });
+});
+
 describe('suppression', () => {
   const md = (body: string) => `# Doc\n\n\`\`\`mermaid\n${body}\n\`\`\`\n`;
 
