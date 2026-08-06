@@ -335,6 +335,9 @@ const RULE_DESCRIPTIONS: Record<RuleId, string> = {
     'Mermaid: a Venn set or union has a size of zero or less',
   'venn-single-set': 'Mermaid: a Venn diagram declares only one set',
   'venn-self-union': 'Mermaid: a Venn union names the same set more than once',
+  'treeview-no-nodes': 'Mermaid: a tree view has no nodes',
+  'treeview-duplicate-sibling':
+    'Mermaid: a tree view node repeats a sibling label under the same parent',
   'frontmatter-must-be-first':
     'Mermaid: something precedes the YAML frontmatter, so the diagram will not render',
   'suppression-unknown-rule':

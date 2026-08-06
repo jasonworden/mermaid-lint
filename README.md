@@ -560,7 +560,7 @@ measure of how much analysis a given type gets beyond "does it parse".
 | Venn | `venn-beta` | ✅ | `no-experimental`, `venn-duplicate-set`, `venn-non-positive-size`, `venn-single-set`, `venn-self-union` | Experimental; `set`/`union` declarations are never deduplicated |
 | Ishikawa | `ishikawa-beta` | ✅ | `no-experimental` | Experimental; no dedicated semantic rules yet |
 | Wardley map | `wardley-beta` | ✅ | `no-experimental`, `wardley-undefined-component`, `wardley-orphan-component`, `wardley-no-components`, `wardley-mixed-coordinate-scale`, `wardley-duplicate-component` | Experimental; not covered by the Rust fast path — always falls back to mermaid.js |
-| Tree view | `treeView-beta` | ✅ | `no-experimental` | Experimental; no dedicated semantic rules yet |
+| Tree view | `treeView-beta` | ✅ | `no-experimental`, `treeview-no-nodes`, `treeview-duplicate-sibling` | Experimental; node labels must be quoted |
 | ZenUML | `zenuml` | ❌ | - | Requires separate [`@mermaid-js/mermaid-zenuml`](https://github.com/mermaid-js/zenuml-core) package; not bundled in mermaid v11 |
 
 The last eight rows need mermaid 11.15.0, so `@mermaid-lint/core` pins that

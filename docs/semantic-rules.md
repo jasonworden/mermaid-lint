@@ -108,6 +108,8 @@ and `frontmatter-must-be-first` (Mermaid does not render the diagram at all).
 | `venn-non-positive-size` | `warn` | A `venn-beta` set or union with an explicit size of zero or less; a zero-sized set erases itself and every intersection over it, and a negative one distorts the layout, or throws out of it entirely for a `union` | venn-beta |
 | `venn-single-set` | `warn` | A `venn-beta` diagram declaring one distinct set; it renders as a single circle, with nothing to intersect | venn-beta |
 | `venn-self-union` | `warn` | A `venn-beta` `union` naming the same set twice; the list is never deduplicated, so the set is intersected with itself and draws a spurious extra region | venn-beta |
+| `treeview-no-nodes` | `warn` | A `treeView-beta` with no nodes; unlike the other indented types an empty body parses clean, and renders as an empty tree | treeView-beta |
+| `treeview-duplicate-sibling` | `warn` | Two `treeView-beta` nodes with the same quoted label under one parent; both render, so the tree draws a distinction it does not have | treeView-beta |
 | `frontmatter-must-be-first` | `error` | A `%%` comment or blank line before the YAML frontmatter; Mermaid parses it but the diagram fails to render | all |
 | `suppression-unknown-rule` | `warn` | A suppression directive naming a rule id that does not exist; the directive silently suppresses nothing | all |
 | `suppression-unused` | `warn` | A well-formed suppression directive that suppressed no finding; usually a stale directive left behind after a fix | all |

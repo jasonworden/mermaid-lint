@@ -122,6 +122,8 @@ export type RuleId =
   | 'venn-non-positive-size'
   | 'venn-single-set'
   | 'venn-self-union'
+  | 'treeview-no-nodes'
+  | 'treeview-duplicate-sibling'
   | 'frontmatter-must-be-first'
   | 'suppression-unknown-rule'
   | 'suppression-unused'
@@ -172,6 +174,7 @@ export type RuleDocsScope =
   | 'stateDiagram'
   | 'timeline'
   | 'treemap-beta'
+  | 'treeView-beta'
   | 'venn-beta'
   | 'wardley-beta'
   | 'xychart-beta';
@@ -499,6 +502,27 @@ export interface RuleMetadata {
  * `vennDB.validateUnionIdentifiers` throws `unknown set identifier: …`, and it
  * validates in source order, so a forward reference is already an error too —
  * both are the syntax pass's, not ours.
+ *
+ * The treeView-beta rules are both advisory `warn`. `treeview-no-nodes` is the
+ * one empty-diagram rule in the #131 batch that is actually reachable: a bare
+ * `treeView-beta` header parses clean and renders the synthetic `/` root and
+ * nothing else, where the other indented types die in the lexer.
+ * `treeview-duplicate-sibling` is the direct analogue of
+ * `mindmap-duplicate-sibling` — two identical labels under one parent both
+ * render, so the tree claims a distinction it does not draw.
+ *
+ * Both key on quoted labels, because that is all the grammar accepts: a bare
+ * `root` after the header is a lexer error, not a node.
+ *
+ * #148 also proposed a `treeview-indent-jump` rule and asked for a call on it.
+ * It is not implemented, because the defect it describes is not observable.
+ * mermaid's `addNode` takes the indent as a raw *character count* and pops a
+ * stack while `level <= top.level`, so any strictly-greater indent is exactly
+ * one level deeper and the magnitude is discarded: indenting a child by three
+ * "levels" renders byte-for-byte identically to indenting it by one (render
+ * probe, mermaid 11.15.0). There is no grammatical indent unit to measure a
+ * jump against, so a rule would have to infer one from the rest of the body —
+ * which the mindmap, treemap, and kanban rules all decline to do.
  *
  * `frontmatter-must-be-first` is `error`, joining `duplicate-ids` and
  * `eventmodeling-undefined-frame` as the only non-advisory rules: a diagram
@@ -959,6 +983,16 @@ export const RULE_METADATA = {
     defaultSeverity: 'warn',
     docsScope: 'venn-beta',
     readmeDiagramKeywords: ['venn-beta'],
+  },
+  'treeview-no-nodes': {
+    defaultSeverity: 'warn',
+    docsScope: 'treeView-beta',
+    readmeDiagramKeywords: ['treeView-beta'],
+  },
+  'treeview-duplicate-sibling': {
+    defaultSeverity: 'warn',
+    docsScope: 'treeView-beta',
+    readmeDiagramKeywords: ['treeView-beta'],
   },
   // Document-shape rule. Like the directive-correctness rules below it
   // describes the body rather than any one diagram type, so it carries no
