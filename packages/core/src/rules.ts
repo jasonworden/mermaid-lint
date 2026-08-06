@@ -111,6 +111,9 @@ export type RuleId =
   | 'wardley-no-components'
   | 'wardley-mixed-coordinate-scale'
   | 'wardley-duplicate-component'
+  | 'eventmodeling-undefined-frame'
+  | 'eventmodeling-duplicate-frame-id'
+  | 'eventmodeling-invalid-flow'
   | 'frontmatter-must-be-first'
   | 'suppression-unknown-rule'
   | 'suppression-unused'
@@ -143,6 +146,7 @@ export type RuleDocsScope =
   | 'classDiagram'
   | 'C4Context'
   | 'erDiagram'
+  | 'eventmodeling'
   | 'flowchart / graph'
   | 'gantt'
   | 'gitGraph'
@@ -173,6 +177,7 @@ export type ReadmeDiagramKeyword =
   | 'C4Context'
   | 'classDiagram'
   | 'erDiagram'
+  | 'eventmodeling'
   | 'flowchart'
   | 'gantt'
   | 'gitGraph'
@@ -383,9 +388,36 @@ export interface RuleMetadata {
  * since a restatement is occasionally deliberate and the last-wins behavior is
  * well defined even when it surprises.
  *
- * `frontmatter-must-be-first` is `error`, joining `duplicate-ids` as the only
- * non-advisory rules: a diagram whose frontmatter is preceded by anything does
- * not render at all, so there is no judgment call to defer to the user.
+ * The eventmodeling rules cover the same two families of mistake as the
+ * wardley-beta ones — reference integrity and reachability — plus one more
+ * that mermaid ships a validator for but never runs.
+ * `eventmodeling-undefined-frame` catches a `->>` naming a frame id that no
+ * frame declares; Mermaid drops the relation silently rather than reporting
+ * an error (render probe, mermaid 11.15.0: the relation `<path>` count goes
+ * from 1 to 0), so the arrow the author wrote never appears. It is `error`
+ * rather than `warn` — the one departure from the all-`warn` precedent set by
+ * the other diagram-type rules — because an undeclared source meets the bar
+ * above: it is unambiguously wrong and renders nothing, the same class of
+ * certainty as `frontmatter-must-be-first`.
+ *
+ * `eventmodeling-duplicate-frame-id` (`warn`) catches two frames sharing an
+ * id. `tf` and `rf` declare into one shared id namespace, so a mixed pair
+ * collides just as two `tf`s would. Mermaid renders every frame with the id
+ * and matches a later `->> <id>` against all of them, drawing a duplicate
+ * arrow per matching frame instead of the single one intended.
+ *
+ * `eventmodeling-invalid-flow` (`warn`) catches a frame sourced from a type
+ * mermaid's own `EventModelingValidator` forbids: `cmd`/`command` may only be
+ * sourced from `ui` or `pcr`/`processor`; `evt`/`event` from `cmd`/`command`;
+ * `rmo`/`readmodel` from `evt`/`event`; `pcr`/`processor` from
+ * `rmo`/`readmodel`; and `ui` from `rmo`/`readmodel`. Mermaid ships that
+ * validator but never runs it at parse time, so nothing reports the
+ * violation without this rule.
+ *
+ * `frontmatter-must-be-first` is `error`, joining `duplicate-ids` and
+ * `eventmodeling-undefined-frame` as the only non-advisory rules: a diagram
+ * whose frontmatter is preceded by anything does not render at all, so there
+ * is no judgment call to defer to the user.
  *
  * @internal
  */
@@ -786,6 +818,21 @@ export const RULE_METADATA = {
     defaultSeverity: 'warn',
     docsScope: 'wardley-beta',
     readmeDiagramKeywords: ['wardley-beta'],
+  },
+  'eventmodeling-undefined-frame': {
+    defaultSeverity: 'error',
+    docsScope: 'eventmodeling',
+    readmeDiagramKeywords: ['eventmodeling'],
+  },
+  'eventmodeling-duplicate-frame-id': {
+    defaultSeverity: 'warn',
+    docsScope: 'eventmodeling',
+    readmeDiagramKeywords: ['eventmodeling'],
+  },
+  'eventmodeling-invalid-flow': {
+    defaultSeverity: 'warn',
+    docsScope: 'eventmodeling',
+    readmeDiagramKeywords: ['eventmodeling'],
   },
   // Document-shape rule. Like the directive-correctness rules below it
   // describes the body rather than any one diagram type, so it carries no

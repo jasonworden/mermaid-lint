@@ -136,7 +136,8 @@ ESLint** — and run the repo's pinned binaries rather than `npx`; see
   (`hash.loc.first_line`), then the number cited in the error prose, then
   `hash.line`. `hash.line` is last because for most jison grammars it is a
   0-indexed cursor one line above the defect; the cited number is what rescues
-  the Langium-based types (pie, packet, gitGraph, architecture, treemap), which
+  the Langium-based types (pie, packet, gitGraph, architecture, treemap,
+  eventmodeling), which
   throw with no `hash` at all. Some cases still resolve to nothing — radar-beta
   prints a literal `on line ?` — and those fall back to the block opener. When
   touching this, check both a bad-token defect and an unclosed-delimiter one:
