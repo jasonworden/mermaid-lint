@@ -125,6 +125,16 @@ function wholeLineFixInfo(currentLine: string, fixed: string) {
 }
 
 /**
+ * The concrete `before → after` edit `--fix` would make on this line. Shared by
+ * both autofix paths in `syntaxRule` so the wording cannot drift: a fix riding
+ * on a parse error appends this to the parser's message, and a standalone
+ * fixable finding uses it alone.
+ */
+function fixDetail(fix: LineFix): string {
+  return `auto-fixable syntax — \`${fix.original.trim()}\` → \`${fix.fixed.trim()}\` (run with --fix)`;
+}
+
+/**
  * Compute the mechanical, body-local autofixes for every Mermaid block in the
  * document, keyed by absolute document line. Only the syntax check offers fixes
  * — these are the same corrections the CLI's `--fix` applies (normalizing
@@ -322,11 +332,14 @@ const RULE_DESCRIPTIONS: Record<RuleId, string> = {
  * The parse / "won't render" check. Surfaces core's `ruleId: 'mermaid'` errors
  * and, uniquely among the rules, offers `markdownlint --fix` autofixes for the
  * mechanically-correctable ones (arrows, missing colons) via core's shared
- * `fixBlockBody`. A fix rides on the parse error when both land on the same line;
- * but the parser often reports a block's error on its header line (e.g. the
- * `flowchart LR` line) while the correctable token sits a line or two below, so
- * most fixes surface instead as their own findings — each naming the concrete
- * `before → after` edit — so a single `--fix` pass corrects the whole block.
+ * `fixBlockBody`. A fix rides on the parse error when both land on the same
+ * line, which is the usual case now that positions name the offending token
+ * rather than the block header. Fixes on any *other* line — the parser reports
+ * one error per block, so the rest of a multi-defect block lands here — surface
+ * as their own findings, so a single `--fix` pass still corrects the whole
+ * block. Either way the finding names the concrete `before → after` edit: the
+ * parser's own wording ("Expecting 'SEMI', 'NEWLINE', …") does not tell a
+ * reader what `--fix` would actually do.
  */
 const syntaxRule: Rule = {
   names: ['mermaid-syntax'],
@@ -351,21 +364,21 @@ const syntaxRule: Rule = {
       if (fix) fixes.delete(d.line);
       onError({
         lineNumber: d.line,
-        detail: d.message,
+        detail: fix ? `${d.message} — ${fixDetail(fix)}` : d.message,
         ...(rangeLength > 0 ? { range: [d.column, rangeLength] } : {}),
         ...(fix ? { fixInfo: wholeLineFixInfo(errorLine, fix.fixed) } : {}),
       });
     }
 
-    // Auto-fixable lines the parser didn't flag at this exact line (its error
-    // usually lands on the block header, not the offending token): surface each
-    // as its own fixable finding, naming the concrete edit `--fix` will make so
-    // the message is self-explanatory without the parser's context.
+    // Auto-fixable lines the parser didn't flag at this exact line: mermaid
+    // reports one error per block, so in a block with several correctable lines
+    // only one can ride on the parse error. Surface the rest as their own
+    // fixable findings, self-explanatory without the parser's context.
     for (const [lineNumber, fix] of fixes) {
       const errorLine = params.lines[lineNumber - 1] ?? '';
       onError({
         lineNumber,
-        detail: `Mermaid: auto-fixable syntax — \`${fix.original.trim()}\` → \`${fix.fixed.trim()}\` (run with --fix)`,
+        detail: `Mermaid: ${fixDetail(fix)}`,
         range: [1, Math.max(errorLine.length, 1)],
         fixInfo: wholeLineFixInfo(errorLine, fix.fixed),
       });

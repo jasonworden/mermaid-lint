@@ -13,7 +13,7 @@ import {
   parseFileDirectives,
   unusedFileDirectives,
 } from './suppress.js';
-import { validateBlock } from './validate.js';
+import { mapParserMessageLines, validateBlock } from './validate.js';
 
 /**
  * Diagnostic severity: a syntax `error` or a semantic `warning`.
@@ -287,7 +287,10 @@ async function blockDiagnostics(
     diagnostics.push({
       line: toAbsLine(block, result.error.line),
       column: result.error.col ?? 1,
-      message: result.error.message,
+      // The parser counts in body lines; the diagnostic is read in file lines.
+      message: mapParserMessageLines(result.error.message, (bodyLine) =>
+        bodyLineToFileLine(block, bodyLine),
+      ),
       ruleId: SYNTAX_RULE_ID,
       severity: 'error',
     });
