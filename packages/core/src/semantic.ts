@@ -3764,6 +3764,219 @@ const kanbanEmptyColumn: Rule = {
 };
 
 // ---------------------------------------------------------------------------
+// treeView-beta helpers and rules
+// ---------------------------------------------------------------------------
+
+/**
+ * A metadata statement that swallows the rest of its line. Each takes free text
+ * that may itself be quoted — `title "Releases"` stores the title as the
+ * literal `"Releases"` — so a node scan that did not skip these lines would
+ * read the diagram's own caption as a node.
+ *
+ * The two boundaries differ because mermaid's terminals do. `TITLE` ends with
+ * an *empty* alternative, so `title` only consumes the line when a space or tab
+ * follows it: `title"p"` lexes as an empty title and then a node `p`, and
+ * skipping that line would lose a node mermaid renders. `accTitle` and
+ * `accDescr` have no such alternative — without their `:` or `{` they are a
+ * lexer error — so a plain word boundary is enough for them.
+ */
+const TREEVIEW_META_RE = /^(?:title(?=[\t ]|$)|(?:accTitle|accDescr)(?![\w-]))/;
+
+/** The opening line of a multi-line `accDescr { … }` block. */
+const TREEVIEW_ACC_DESCR_OPEN_RE = /^accDescr\s*\{/;
+
+/** A bare `accDescr` whose `{` opens on a later line. */
+const TREEVIEW_ACC_DESCR_BARE_RE = /^accDescr$/;
+
+/**
+ * The `treeView-beta` keyword that opens the body, with any indent before it.
+ * Matched to find where to *resume* scanning, not to validate: mermaid's
+ * grammar takes a label right after the keyword, so `treeView-beta "root"`
+ * declares a node on the header line itself.
+ */
+const TREEVIEW_HEADER_RE = /^[\t ]*treeView-beta/;
+
+/**
+ * A quoted treeView label. Mermaid's `STRING2` terminal accepts either quote
+ * style and has no escape, so a label runs to the next matching quote; an
+ * unquoted word is a lexer error, not a node, which is why every treeView rule
+ * keys on quoted text alone.
+ *
+ * Groups: exactly one of [1] (double-quoted) or [2] (single-quoted) holds the
+ * label. The whitespace before a label is what mermaid measures as its indent,
+ * but it is counted by {@link treeViewIndent} rather than captured here: a
+ * leading `([ \t]*)` re-scans the whole run at every start position it fails
+ * from, which is quadratic on a line of nothing but spaces — 80 000 of them
+ * took ~2.8s. Diagram bodies are user input and `checkSemantics` runs ahead of
+ * any parse, so an unparseable body still reaches this.
+ */
+const TREEVIEW_LABEL_RE = /"([^"]*)"|'([^']*)'/g;
+
+/**
+ * Count the whitespace immediately before a label. Mermaid's `INDENTATION`
+ * terminal matches wherever it sits, so this is a node's indent whether the
+ * label opens its line or follows another on the same one.
+ */
+function treeViewIndent(line: string, start: number): number {
+  let n = start;
+  while (n > 0 && (line[n - 1] === ' ' || line[n - 1] === '\t')) n--;
+  return start - n;
+}
+
+interface TreeViewNode {
+  /** Label text, quotes stripped. */
+  text: string;
+  /** 1-indexed body line. */
+  line: number;
+  /** Index of the parent in the node list, or `null` for a top-level node. */
+  parent: number | null;
+}
+
+function isTreeView(block: Block): boolean {
+  return block.type === 'treeView-beta';
+}
+
+/**
+ * Scan a treeView-beta body into a flat node list with parent links.
+ *
+ * Hierarchy is a plain stack over an indent measured in characters: mermaid's
+ * `addNode` pops while `level <= top.level`, so a strictly-deeper indent is a
+ * child and anything else re-parents up the stack. The *size* of the step never
+ * survives — indenting a child by twelve spaces builds the same tree as
+ * indenting it by one — which is why there is no `treeview-indent-jump` rule.
+ *
+ * Indent is per *node*, not per line. Mermaid's `INDENTATION` terminal matches
+ * the whitespace immediately before a label wherever it sits, so a second label
+ * on the same line takes the single space between them as its indent and lands
+ * as a shallow sibling rather than beside its line-mate. Rare, but it is what
+ * mermaid does, so the scan walks labels rather than lines.
+ *
+ * For the same reason the scan is offset-based rather than line-based: three
+ * constructs end mid-line and leave the remainder lexing normally, so each one
+ * yields a `scanFrom` to resume at instead of skipping the whole line. The
+ * header keyword is one (`treeView-beta "root"` declares a node), an
+ * `accDescr { … }` block's closing `}` is another (`accDescr { d } "p"`
+ * declares `p`), and `title` with no space after it is the third.
+ */
+function parseTreeViewNodes(
+  lines: string[],
+  headerLine: number,
+): TreeViewNode[] {
+  const nodes: TreeViewNode[] = [];
+  const stack: { indent: number; index: number }[] = [];
+  let inAccDescr = false;
+
+  for (let i = headerLine - 1; i < lines.length; i++) {
+    const raw = lines[i];
+    const trimmed = raw.trim();
+    // Offset of `trimmed` within `raw`, so an index found in the former can be
+    // mapped back onto the latter — the label scan and the indent count both
+    // need real column positions.
+    const lead = raw.length - raw.trimStart().length;
+    // Where the rest of this line starts lexing as nodes. Zero for an ordinary
+    // node line; past the keyword or a closing `}` for the mid-line cases.
+    let scanFrom = 0;
+
+    if (i === headerLine - 1) {
+      // The header line carries the keyword, and may carry a node after it.
+      const header = TREEVIEW_HEADER_RE.exec(raw);
+      if (header === null) continue;
+      scanFrom = header[0].length;
+    } else {
+      if (trimmed === '' || trimmed.startsWith('%%')) continue;
+
+      // An `accDescr { … }` block is prose; mermaid reads no nodes out of it,
+      // but it stops at the first `}` and keeps lexing what follows.
+      if (inAccDescr) {
+        const close = trimmed.indexOf('}');
+        if (close === -1) continue;
+        inAccDescr = false;
+        scanFrom = lead + close + 1;
+      } else if (TREEVIEW_ACC_DESCR_OPEN_RE.test(trimmed)) {
+        const close = trimmed.indexOf('}', trimmed.indexOf('{'));
+        if (close === -1) {
+          inAccDescr = true;
+          continue;
+        }
+        scanFrom = lead + close + 1;
+      } else if (TREEVIEW_ACC_DESCR_BARE_RE.test(trimmed)) {
+        // Only whitespace may separate the keyword from its brace, so anything
+        // else on the next non-blank line means this was never an `accDescr`.
+        // Walked with an index rather than `lines.slice(i + 1).find(…)`: the
+        // slice copies the whole remaining body, so a diagram that is nothing
+        // but bare `accDescr` lines re-copies it once per line — quadratic, and
+        // reachable, since `checkSemantics` runs ahead of any parse.
+        let next = i + 1;
+        while (next < lines.length && lines[next].trim() === '') next++;
+        if (next < lines.length && lines[next].trim().startsWith('{')) {
+          inAccDescr = true;
+        }
+        continue;
+      } else if (TREEVIEW_META_RE.test(trimmed)) {
+        continue;
+      }
+    }
+
+    TREEVIEW_LABEL_RE.lastIndex = scanFrom;
+    let match = TREEVIEW_LABEL_RE.exec(raw);
+    while (match !== null) {
+      const indent = treeViewIndent(raw, match.index);
+      while (stack.length > 0 && stack[stack.length - 1].indent >= indent) {
+        stack.pop();
+      }
+      nodes.push({
+        text: match[1] ?? match[2],
+        line: i + 1,
+        parent: stack.length > 0 ? stack[stack.length - 1].index : null,
+      });
+      stack.push({ indent, index: nodes.length - 1 });
+      match = TREEVIEW_LABEL_RE.exec(raw);
+    }
+  }
+
+  return nodes;
+}
+
+const treeviewNoNodes: Rule = {
+  id: 'treeview-no-nodes',
+  appliesTo: isTreeView,
+  evaluate: ({ lines, headerLine }) => {
+    if (parseTreeViewNodes(lines, headerLine).length > 0) return [];
+    return [
+      {
+        message:
+          'treeView-beta has no nodes; it parses but renders as an empty tree. Node labels must be quoted — a bare word is a lexer error, not a node.',
+        line: headerLine,
+      },
+    ];
+  },
+};
+
+const treeviewDuplicateSibling: Rule = {
+  id: 'treeview-duplicate-sibling',
+  appliesTo: isTreeView,
+  evaluate: ({ lines, headerLine, fileLine }) => {
+    const findings: RuleFinding[] = [];
+    const nodes = parseTreeViewNodes(lines, headerLine);
+    // key: `${parent index}\0${text}` -> index of the first node seen
+    const seen = new Map<string, number>();
+    for (const [index, node] of nodes.entries()) {
+      const key = `${node.parent ?? 'root'}\0${node.text}`;
+      const first = seen.get(key);
+      if (first === undefined) {
+        seen.set(key, index);
+      } else {
+        findings.push({
+          message: `treeView node \`${node.text}\` duplicates a sibling (first on line ${fileLine(nodes[first].line)}); both branches render under the same parent, so the tree draws a distinction it does not have.`,
+          line: node.line,
+        });
+      }
+    }
+    return findings;
+  },
+};
+
+// ---------------------------------------------------------------------------
 // Timeline helpers and rules
 // ---------------------------------------------------------------------------
 
@@ -4496,6 +4709,8 @@ const RULES: Rule[] = [
   kanbanDuplicateColumn,
   kanbanDuplicateTaskId,
   kanbanEmptyColumn,
+  treeviewNoNodes,
+  treeviewDuplicateSibling,
 ];
 
 // ---------------------------------------------------------------------------

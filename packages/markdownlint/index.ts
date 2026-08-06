@@ -329,6 +329,9 @@ const RULE_DESCRIPTIONS: Record<RuleId, string> = {
   'kanban-duplicate-task-id':
     'Mermaid: a Kanban card id is already used by another card or a column',
   'kanban-empty-column': 'Mermaid: a Kanban column has no cards',
+  'treeview-no-nodes': 'Mermaid: a tree view has no nodes',
+  'treeview-duplicate-sibling':
+    'Mermaid: a tree view node repeats a sibling label under the same parent',
   'frontmatter-must-be-first':
     'Mermaid: something precedes the YAML frontmatter, so the diagram will not render',
   'suppression-unknown-rule':

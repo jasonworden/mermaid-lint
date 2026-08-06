@@ -117,6 +117,8 @@ export type RuleId =
   | 'kanban-duplicate-column'
   | 'kanban-duplicate-task-id'
   | 'kanban-empty-column'
+  | 'treeview-no-nodes'
+  | 'treeview-duplicate-sibling'
   | 'frontmatter-must-be-first'
   | 'suppression-unknown-rule'
   | 'suppression-unused'
@@ -167,6 +169,7 @@ export type RuleDocsScope =
   | 'stateDiagram'
   | 'timeline'
   | 'treemap-beta'
+  | 'treeView-beta'
   | 'wardley-beta'
   | 'xychart-beta';
 
@@ -444,6 +447,27 @@ export interface RuleMetadata {
  * `kanban-empty-column` (`warn`) catches a column with no cards, which renders
  * as a header over empty space — the kanban counterpart of
  * `gantt-empty-section` and `journey-empty-section`.
+ *
+ * The treeView-beta rules are both advisory `warn`. `treeview-no-nodes` is the
+ * one empty-diagram rule in the #131 batch that is actually reachable: a bare
+ * `treeView-beta` header parses clean and renders the synthetic `/` root and
+ * nothing else, where the other indented types die in the lexer.
+ * `treeview-duplicate-sibling` is the direct analogue of
+ * `mindmap-duplicate-sibling` — two identical labels under one parent both
+ * render, so the tree claims a distinction it does not draw.
+ *
+ * Both key on quoted labels, because that is all the grammar accepts: a bare
+ * `root` after the header is a lexer error, not a node.
+ *
+ * #148 also proposed a `treeview-indent-jump` rule and asked for a call on it.
+ * It is not implemented, because the defect it describes is not observable.
+ * mermaid's `addNode` takes the indent as a raw *character count* and pops a
+ * stack while `level <= top.level`, so any strictly-greater indent is exactly
+ * one level deeper and the magnitude is discarded: indenting a child by three
+ * "levels" renders byte-for-byte identically to indenting it by one (render
+ * probe, mermaid 11.15.0). There is no grammatical indent unit to measure a
+ * jump against, so a rule would have to infer one from the rest of the body —
+ * which the mindmap, treemap, and kanban rules all decline to do.
  *
  * `frontmatter-must-be-first` is `error`, joining `duplicate-ids` and
  * `eventmodeling-undefined-frame` as the only non-advisory rules: a diagram
@@ -879,6 +903,16 @@ export const RULE_METADATA = {
     defaultSeverity: 'warn',
     docsScope: 'kanban',
     readmeDiagramKeywords: ['kanban'],
+  },
+  'treeview-no-nodes': {
+    defaultSeverity: 'warn',
+    docsScope: 'treeView-beta',
+    readmeDiagramKeywords: ['treeView-beta'],
+  },
+  'treeview-duplicate-sibling': {
+    defaultSeverity: 'warn',
+    docsScope: 'treeView-beta',
+    readmeDiagramKeywords: ['treeView-beta'],
   },
   // Document-shape rule. Like the directive-correctness rules below it
   // describes the body rather than any one diagram type, so it carries no

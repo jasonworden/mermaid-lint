@@ -276,6 +276,32 @@ describe('line citations in messages', () => {
     expect(task[0].message).toContain('line 8');
   });
 
+  it('cites a file line from treeview-duplicate-sibling', async () => {
+    // Same reason as the kanban case above: the treeView rules run on `.mmd`
+    // fixtures where body and file lines coincide, so only a fence can tell
+    // whether `fileLine` was applied to the right variable.
+    const text = [
+      '# Tree',
+      '',
+      'Prose.',
+      '',
+      '```mermaid',
+      'treeView-beta',
+      '  "root"',
+      '    "same"',
+      '    "same"',
+      '```',
+    ].join('\n');
+    const diags = await lintMarkdown('tree.md', text);
+
+    const found = diags.filter(
+      (d) => d.ruleId === 'treeview-duplicate-sibling',
+    );
+    expect(found).toHaveLength(1);
+    expect(found[0].line).toBe(9);
+    expect(found[0].message).toContain('line 8');
+  });
+
   it('omits the citation for a same-row duplicate, fenced or not', async () => {
     // `radar-duplicate-axis` drops the clause when the first sighting is the
     // row it is already reporting. That comparison is body-vs-body; mapping

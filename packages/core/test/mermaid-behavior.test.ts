@@ -89,6 +89,33 @@ async function kanbanNodes(body: string): Promise<string[]> {
     );
 }
 
+interface ProbeTreeViewNode {
+  name: string;
+  children: ProbeTreeViewNode[];
+}
+
+/**
+ * Flatten the hierarchy Mermaid derived from a treeView-beta body into
+ * `parent > child` edges. The treeView rules turn on which node ends up under
+ * which parent, and `getRoot` is where that is decided; a verdict alone would
+ * say nothing, since every body below but one parses clean. The synthetic `/`
+ * root mermaid always seeds the stack with is the parent of the top level.
+ */
+async function treeViewEdges(body: string): Promise<string[]> {
+  const root = (
+    await probeDb<{ getRoot(): ProbeTreeViewNode }>(body)
+  ).getRoot();
+  const edges: string[] = [];
+  const walk = (node: ProbeTreeViewNode): void => {
+    for (const child of node.children) {
+      edges.push(`${node.name} > ${child.name}`);
+      walk(child);
+    }
+  };
+  walk(root);
+  return edges;
+}
+
 describe('mermaid behavior contracts', () => {
   it('parses every diagram type the README claims support for', async () => {
     // The README's "27 diagram types" table is only true as long as the
@@ -608,5 +635,101 @@ describe('mermaid behavior contracts', () => {
       'card A card %% note=A card %% note',
       'card B=B',
     ]);
+  }, 20_000);
+
+  it('parses a treeView-beta with no nodes at all', async () => {
+    // What makes `treeview-no-nodes` load-bearing rather than redundant. Of
+    // the indented types, treeView is the one whose empty body is *not*
+    // already a syntax error: the header alone parses clean and leaves the
+    // synthetic `/` root childless, so nothing but the rule reports it.
+    expect((await validateWithMermaidJS('treeView-beta\n')).ok).toBe(true);
+    expect(await treeViewEdges('treeView-beta\n')).toEqual([]);
+    // A `title` is metadata, not a node — hence the metadata skip in the scan.
+    expect(await treeViewEdges('treeView-beta\n  title Releases\n')).toEqual(
+      [],
+    );
+  }, 20_000);
+
+  it('rejects an unquoted treeView-beta label', async () => {
+    // Why every treeView rule keys on quoted text: a bare word never becomes a
+    // node, it dies in the lexer. A scan that accepted unquoted words would
+    // invent nodes in bodies the syntax pass has already rejected.
+    expect((await validateWithMermaidJS('treeView-beta\n  root\n')).ok).toBe(
+      false,
+    );
+    // Either quote style works, though, so the scan must accept both.
+    expect(await treeViewEdges("treeView-beta\n  'root'\n")).toEqual([
+      '/ > root',
+    ]);
+  }, 20_000);
+
+  it('keeps both treeView-beta siblings that share a label', async () => {
+    // `treeview-duplicate-sibling`: nothing in a treeView references a label,
+    // so neither node is dropped or merged — the tree simply draws the same
+    // branch twice under one parent.
+    expect(
+      await treeViewEdges('treeView-beta\n  "root"\n    "same"\n    "same"\n'),
+    ).toEqual(['/ > root', 'root > same', 'root > same']);
+  }, 20_000);
+
+  it('reads any deeper treeView-beta indent as exactly one level', async () => {
+    // The reason #148's proposed `treeview-indent-jump` is not implemented.
+    // `addNode` takes the indent as a raw character count and pops while
+    // `level <= top.level`, so the magnitude of a step is discarded entirely:
+    // a child indented eight columns past its parent builds the identical
+    // tree to one indented two. There is no grammatical unit for a rule to
+    // measure a "jump" against.
+    const oneLevel = 'treeView-beta\n  "root"\n    "a"\n      "b"\n';
+    const threeLevels = 'treeView-beta\n  "root"\n    "a"\n            "b"\n';
+    expect(await treeViewEdges(threeLevels)).toEqual(
+      await treeViewEdges(oneLevel),
+    );
+    expect(await treeViewEdges(threeLevels)).toEqual([
+      '/ > root',
+      'root > a',
+      'a > b',
+    ]);
+  }, 20_000);
+
+  it('keeps lexing treeView-beta nodes after a mid-line construct', async () => {
+    // Three places where a treeView statement ends mid-line and the rest goes
+    // on declaring nodes. `parseTreeViewNodes` resumes at an offset for each;
+    // skipping the whole line would call these diagrams empty while mermaid
+    // renders a node in every one.
+    //
+    // The keyword: the grammar takes a `STRING2` straight after it.
+    expect(await treeViewEdges('treeView-beta "root"\n')).toEqual(['/ > root']);
+    // `ACC_DESCR` stops at the first `}`, in either brace form.
+    expect(
+      await treeViewEdges('treeView-beta\n  accDescr { d } "p"\n'),
+    ).toEqual(['/ > p']);
+    expect(
+      await treeViewEdges('treeView-beta\n  accDescr {\n  d\n  } "p"\n'),
+    ).toEqual(['/ > p']);
+    // `TITLE` ends with an *empty* alternative, so it only swallows the line
+    // when a space or tab follows the keyword.
+    expect(await treeViewEdges('treeView-beta\n  title"p"\n')).toEqual([
+      '/ > p',
+    ]);
+    expect(await treeViewEdges('treeView-beta\n  title "p"\n')).toEqual([]);
+    expect(await treeViewEdges('treeView-beta\n  title\t"p"\n')).toEqual([]);
+    // And each of those nodes is a real parent, not a node the scan may drop:
+    // `x` at a deeper indent nests under it, and the shallower `x` does not.
+    expect(await treeViewEdges('treeView-beta "p"\n  "x"\n "x"\n')).toEqual([
+      '/ > p',
+      'p > x',
+      '/ > x',
+    ]);
+  }, 20_000);
+
+  it('indents a second treeView-beta label from the space before it', async () => {
+    // `INDENTATION` matches the whitespace immediately before a label wherever
+    // it sits, not just at the start of a line — so a second label on a line
+    // takes the single space between them as its indent and lands as a
+    // shallow root, *not* beside its line-mate. `parseTreeViewNodes` walks
+    // labels rather than lines to reproduce this.
+    expect(
+      await treeViewEdges('treeView-beta\n  "root"\n    "a" "b"\n'),
+    ).toEqual(['/ > root', 'root > a', '/ > b']);
   }, 20_000);
 });
