@@ -303,6 +303,61 @@ describe('syntax error position', () => {
     }
   });
 
+  // Some failures are not parse errors at all: the diagram parses, and the
+  // module's own post-parse checks reject what it built. Those are thrown as
+  // plain `Error`s with no `hash`, no `result` and no cited line — every signal
+  // above comes back empty. Re-parsing prefixes of the body finds the line that
+  // first provokes the same error; see `bisectedLine`.
+  describe('diagram-level checks that carry no position', () => {
+    const CASES: ReadonlyArray<readonly [string, string]> = [
+      ['mindmap second root', 'mindmap\n  root((A))\n  root((B))'],
+      ['gitGraph unknown branch', 'gitGraph\n  commit\n  checkout nope'],
+      ['gitGraph self-merge', 'gitGraph\n  commit\n  branch dev\n  merge dev'],
+      [
+        'gitGraph duplicate branch',
+        'gitGraph\n  commit\n  branch dev\n  commit\n  branch dev',
+      ],
+      ['packet-beta gap', 'packet-beta\n  0-7: "A"\n  0-7: "B"'],
+      [
+        'architecture-beta missing parent',
+        'architecture-beta\n  group g\n  service a(icon)[A] in nope',
+      ],
+    ];
+
+    // Every body puts its offending construct on its last line.
+    it.each(CASES)(
+      'blames the offending line for a %s',
+      async (_kind, body) => {
+        expect(await lineOf(body)).toBe(body.split('\n').length);
+      },
+    );
+
+    it('blames the second root, not the last line', async () => {
+      // The narrowing is real, not an artifact of the defect being last.
+      expect(
+        await lineOf('mindmap\n  root((A))\n  root((B))\n  root((C))'),
+      ).toBe(3);
+    });
+
+    it('counts body lines, not the preprocessed copy mermaid parsed', async () => {
+      // Bisection slices the body itself, so the line it returns is already
+      // body-relative and must not be mapped a second time.
+      expect(
+        await lineOf('%% note\nmindmap\n  root((A))\n  root((B))\n  root((C))'),
+      ).toBe(4);
+    });
+
+    it('points the column at the start of the blamed line', async () => {
+      // No signal carries a column either, so the caret lands on the line's
+      // first non-blank character rather than an invented offset.
+      const result = await validateWithMermaidJS(
+        'gitGraph\n  commit\n      checkout nope',
+      );
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.col).toBe(7);
+    });
+  });
+
   it('reports no position when mermaid locates none', async () => {
     // An unrecognized type is located by nothing at all: no `hash`, no
     // `result`, and a message that is the user's own body echoed back.

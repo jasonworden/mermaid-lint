@@ -300,6 +300,78 @@ function jisonPosition(
 }
 
 /**
+ * How long a body may be before bisection declines to look.
+ *
+ * Bisection costs `log2(lines)` extra parses, each over a prefix of the body,
+ * so the work grows as `lines * log2(lines)` — a thousand-line diagram probes
+ * ten times and settles in well under a second. Past that the guess stops being
+ * worth the wait, and a diagram that large has bigger problems than a caret.
+ */
+const MAX_BISECT_LINES = 1000;
+
+/** The message mermaid rejects `body` with, or `undefined` if it accepts it. */
+async function parseMessage(body: string): Promise<string | undefined> {
+  try {
+    const mermaid = await getMermaid();
+    await (
+      mermaid as { parse(text: string, opts: object): Promise<unknown> }
+    ).parse(body, { suppressErrors: false });
+    return undefined;
+  } catch (err: unknown) {
+    const e = err as Record<string, unknown>;
+    return typeof e?.message === 'string' ? e.message : String(err);
+  }
+}
+
+/**
+ * The body line an error first appears on, found by re-parsing prefixes of the
+ * body.
+ *
+ * The last resort for errors that are not parse errors at all. A diagram module
+ * runs its own checks on what it built *after* parsing succeeds — mindmap's
+ * "only one root", gitGraph's "branch which is not yet created", packet-beta's
+ * "not contiguous", architecture-beta's missing parent — and throws a plain
+ * `Error` carrying no `hash`, no `result` and no cited line. Nothing in the
+ * message names a position because the code raising it never had one, so
+ * `structuredPosition` and `citedPosition` both come back empty and the
+ * diagnostic collapses onto the block opener.
+ *
+ * The body still knows, though: the shortest prefix that reproduces the *same*
+ * message is the one whose last line introduced the offending construct. That
+ * makes this a measurement rather than a guess — and it degrades safely, since
+ * a prefix failing some other way simply does not match. Requiring an exact
+ * message match is what keeps it honest, and the full body always matches (it
+ * is the parse we just made), so the search always terminates on a real answer.
+ *
+ * Prefixes are cut from the body itself, so the line returned is body-relative
+ * already and must not be mapped through `parsedLineToBodyLine` a second time.
+ *
+ * The one message that must never be bisected is the echoed-body one: it quotes
+ * the diagram back, so no prefix can ever match it except the whole body, and
+ * the search would blame the last line of a diagram whose *type* was the defect.
+ */
+async function bisectedLine(
+  body: string,
+  message: string,
+): Promise<number | undefined> {
+  if (message.startsWith(ECHOES_BODY)) return undefined;
+  const lines = body.split('\n');
+  if (lines.length > MAX_BISECT_LINES) return undefined;
+
+  // Lower bound over "this prefix already fails the same way". `hi` only ever
+  // moves to a prefix that matched, and starts on the body that did.
+  let lo = 1;
+  let hi = lines.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if ((await parseMessage(lines.slice(0, mid).join('\n'))) === message)
+      hi = mid;
+    else lo = mid + 1;
+  }
+  return lo;
+}
+
+/**
  * Sharpen the reported column against the line it lands on.
  *
  * jison sets `first_column` from where the *previous* token ended, so it points
@@ -356,10 +428,12 @@ async function runMermaidValidation(
     // `loc` is jison's offending token, which is what a diagnostic position
     // should mean, so it wins — see `jisonPosition` for which end of a token
     // that spans a newline answers that. `result` is the same thing for Langium
-    // grammars, as data rather than prose. The cited number is the last resort,
-    // read from wording rather than structure, for grammars that publish
-    // neither — and on an unclosed delimiter it names the line the lexer gave
-    // up on rather than the one that opened it.
+    // grammars, as data rather than prose. The cited number is read from
+    // wording rather than structure, for grammars that publish neither — and on
+    // an unclosed delimiter it names the line the lexer gave up on rather than
+    // the one that opened it. When all three come back empty the error is not a
+    // parse error at all, and `bisectedLine` below re-derives the position from
+    // the body.
     const jison = jisonPosition(loc, hash);
     const found: CitedPosition | undefined =
       jison ?? structuredPosition(e) ?? citedPosition(raw);
@@ -371,7 +445,8 @@ async function runMermaidValidation(
     // with no `end`, which fails on the EOF token one line past the end) back
     // on the last real line, where the missing terminator belongs.
     const toBody = (n: number) => parsedLineToBodyLine(body, n);
-    const line = found?.line === undefined ? undefined : toBody(found.line);
+    const line =
+      found === undefined ? await bisectedLine(body, raw) : toBody(found.line);
 
     return {
       ok: false as const,

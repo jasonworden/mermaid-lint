@@ -214,6 +214,33 @@ describe('line citations in messages', () => {
     expect(found[0].message).toContain('first on line 9');
   });
 
+  it('cites the file line for an ishikawa duplicate sibling', async () => {
+    // The offset table below cannot catch `fileLine` handed the wrong variable
+    // — a wrong line still shifts by the offset — so the citing ishikawa rule
+    // gets a fixed-number case, as `pie-duplicate-label` does above.
+    const text = [
+      '# Title',
+      '',
+      'Prose.',
+      '',
+      '```mermaid',
+      'ishikawa-beta',
+      '  Problem',
+      '    Method',
+      '      Same',
+      '      Same',
+      '```',
+    ].join('\n');
+    const diags = await lintMarkdown('fishbone.md', text);
+    const found = diags.filter(
+      (d) => d.ruleId === 'ishikawa-duplicate-sibling',
+    );
+    expect(found).toHaveLength(1);
+    // The repeat is on file line 10; the first `Same` on file line 9.
+    expect(found[0].line).toBe(10);
+    expect(found[0].message).toContain('first on line 9');
+  });
+
   it('cites the same line as a standalone `.mmd`, where body is file', async () => {
     const text = ['pie', '  "A" : 40', '  "B" : 20', '  "A" : 10'].join('\n');
     const [block] = extractMermaidBlocks('lines.mmd', text);
@@ -274,6 +301,56 @@ describe('line citations in messages', () => {
     expect(task).toHaveLength(1);
     expect(task[0].line).toBe(10);
     expect(task[0].message).toContain('line 8');
+  });
+
+  it('cites a file line from venn-duplicate-set', async () => {
+    // Same reason as the kanban case above: `venn-duplicate-set` is the one
+    // venn rule that names a line, and only a fence separates body lines from
+    // file lines.
+    const text = [
+      '# Sets',
+      '',
+      'Prose.',
+      '',
+      '```mermaid',
+      'venn-beta',
+      '  set A',
+      '  set B',
+      '  set A',
+      '```',
+    ].join('\n');
+    const diags = await lintMarkdown('sets.md', text);
+
+    const found = diags.filter((d) => d.ruleId === 'venn-duplicate-set');
+    expect(found).toHaveLength(1);
+    expect(found[0].line).toBe(9);
+    expect(found[0].message).toContain('line 7');
+  });
+
+  it('cites a file line from treeview-duplicate-sibling', async () => {
+    // Same reason as the kanban case above: the treeView rules run on `.mmd`
+    // fixtures where body and file lines coincide, so only a fence can tell
+    // whether `fileLine` was applied to the right variable.
+    const text = [
+      '# Tree',
+      '',
+      'Prose.',
+      '',
+      '```mermaid',
+      'treeView-beta',
+      '  "root"',
+      '    "same"',
+      '    "same"',
+      '```',
+    ].join('\n');
+    const diags = await lintMarkdown('tree.md', text);
+
+    const found = diags.filter(
+      (d) => d.ruleId === 'treeview-duplicate-sibling',
+    );
+    expect(found).toHaveLength(1);
+    expect(found[0].line).toBe(9);
+    expect(found[0].message).toContain('line 8');
   });
 
   it('omits the citation for a same-row duplicate, fenced or not', async () => {
@@ -429,6 +506,10 @@ const CITING_RULES: ReadonlyArray<readonly [string, string]> = [
     'quadrantChart\n  x-axis Low --> High\n  y-axis Low --> High\n  quadrant-1 X\n  quadrant-1 Y',
   ],
   ['c4-duplicate-id', 'C4Context\n  Person(a, "A")\n  Person(a, "B")'],
+  [
+    'ishikawa-duplicate-sibling',
+    'ishikawa-beta\n  P\n    M\n      Same\n      Same',
+  ],
 ];
 
 describe('line citations shift with the fence offset', () => {
@@ -580,6 +661,35 @@ describe('parser prose cites file lines, not body lines', () => {
     const message = await syntaxMessage('x.md', fence(body));
     expect(message).toContain('No diagram type detected');
     expect(message).toContain('Parse error on line 9:');
+  });
+});
+
+describe('diagram-level errors land inside the diagram', () => {
+  // mindmap's "only one root" is not a parse error: the diagram parses, and the
+  // module's own check rejects what it built. mermaid attaches no position, so
+  // the diagnostic used to collapse onto the fence. Core recovers the line by
+  // re-parsing prefixes of the body — see `bisectedLine`. Both surfaces are
+  // covered because the body→file hop differs between them.
+  const BODY = 'mindmap\n  root((A))\n  root((B))\n  root((C))';
+
+  const syntaxErrors = async (path: string, text: string) =>
+    (await lintMarkdown(path, text)).filter((d) => d.ruleId === 'mermaid');
+
+  it('blames the second root inside a fenced block', async () => {
+    const text = ['# Doc', '', '```mermaid', BODY, '```'].join('\n');
+    const errors = await syntaxErrors('doc.md', text);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain('only one root');
+    // Body line 3 holds the second root; the fence opener is file line 3, so
+    // the defect is file line 6 — and no longer the opener it fell back to.
+    expect(errors[0].line).toBe(6);
+  });
+
+  it('blames the second root in a standalone .mmd file', async () => {
+    const errors = await syntaxErrors('x.mmd', BODY);
+    expect(errors).toHaveLength(1);
+    expect(errors[0].line).toBe(3);
+    expect(errors[0].column).toBe(3);
   });
 });
 
