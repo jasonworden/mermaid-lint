@@ -1252,8 +1252,71 @@ const EVENTMODELING_ARROW = '->>';
 /**
  * The three comment openers. `%%` and `//` run to end of line; the block form
  * is one lexer token that may span lines, so it needs its own closer.
+ *
+ * Sticky: it is only ever tried at positions `execOutsideEventModelingData` has
+ * cleared as being outside an inline data payload.
  */
-const EVENTMODELING_COMMENT_OPEN_RE = /%%|\/\/|\/\*/;
+const EVENTMODELING_COMMENT_OPEN_RE = /%%|\/\/|\/\*/y;
+
+/**
+ * The delimiters of `EM_DATA_INLINE` — `/\{(.*)\}|"(.*)"|'(.*)'/`, the optional
+ * payload that closes an `EmTimeFrame` or `EmResetFrame` — mapped to the closer
+ * each one wants.
+ */
+const EVENTMODELING_DATA_CLOSERS = new Map([
+  ['{', '}'],
+  ['"', '"'],
+  ["'", "'"],
+]);
+
+/**
+ * First comment opener that begins outside an inline data payload, or `null`
+ * when every opener on the line sits inside one.
+ *
+ * A frame statement may end with an inline data payload whose contents are free
+ * text, so a comment opener written inside one is payload and not a comment.
+ * Both directions were measured against mermaid 11.15.0, which accepts each of
+ * them: a `/` `*` inside a payload silenced every frame below it, and a payload
+ * pair opening and closing a phantom block comment across two rows made the
+ * frame between them vanish and `eventmodeling-undefined-frame` fire at
+ * severity `error` on a diagram mermaid draws correctly.
+ *
+ * An earlier pass held that no eventmodeling free text can carry frame tokens
+ * because `note` does not parse. `note` indeed does not — but inline data does,
+ * and it is the carrier. Do not re-derive the older conclusion from `note`.
+ *
+ * This is the eventmodeling counterpart of `execOutsideWardleyString`, which
+ * exists for the same class of bug: a `%%` inside a quoted name is syntax, not a
+ * comment. Kept parallel rather than generalized because the run being skipped
+ * is a different construct — a payload is also spelled with braces, and being a
+ * single-line terminal it only counts as a payload when its closer is on the
+ * same line, a rule that would be wrong for wardley's newline-free `STRING`.
+ * Folding both into one helper would take more parameters than it saves lines.
+ */
+function execOutsideEventModelingData(raw: string): RegExpExecArray | null {
+  for (let i = 0; i < raw.length; i++) {
+    // Tried before the payload opens, so a `//` that runs straight into a quote
+    // still matches whole rather than being read as the payload's start.
+    EVENTMODELING_COMMENT_OPEN_RE.lastIndex = i;
+    const match = EVENTMODELING_COMMENT_OPEN_RE.exec(raw);
+    if (match !== null) return match;
+
+    const closer = EVENTMODELING_DATA_CLOSERS.get(raw[i]);
+    if (closer === undefined) continue;
+    // Last rather than first: every branch of `EM_DATA_INLINE` closes on a
+    // greedy `.*`, so a payload runs to the final closer on the line and a
+    // second pair does not start a second payload.
+    const close = raw.lastIndexOf(closer);
+    // `EM_DATA_INLINE` cannot span a newline, so an opener with no closer after
+    // it on this line never lexed as a payload and the scan carries on through
+    // it — for the quote forms that is the unpaired-quote case, where `close`
+    // is the opener itself.
+    if (close <= i) continue;
+    // The loop's own step lands past the closer.
+    i = close;
+  }
+  return null;
+}
 
 /**
  * One match per token. Anything else in a body — braces, quotes, the `[[ ]]`
@@ -1295,9 +1358,10 @@ const EVENTMODELING_META_RE = /^(?:title|accTitle|accDescr)(?![\w.])/;
  * line numbers a token reports stay true.
  *
  * All three forms are hidden terminals, so a comment may open anywhere a token
- * boundary can — mid-statement included. The block form is the reason this is
- * a whole-body pass rather than a per-line strip: it closes on a later line,
- * so the state has to carry across the loop.
+ * boundary can — mid-statement included, which is why openers are found with
+ * `execOutsideEventModelingData` rather than a plain scan. The block form is
+ * the reason this is a whole-body pass rather than a per-line strip: it closes
+ * on a later line, so the state has to carry across the loop.
  *
  * The pass starts at the header because mermaid removes frontmatter before its
  * lexer ever runs, so a `/*` in a YAML title is title text and must not open a
@@ -1330,7 +1394,7 @@ function stripEventModelingComments(
         continue;
       }
 
-      const open = EVENTMODELING_COMMENT_OPEN_RE.exec(rest);
+      const open = execOutsideEventModelingData(rest);
       if (open === null) {
         kept += rest;
         break;

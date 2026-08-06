@@ -3598,6 +3598,15 @@ describe('eventmodeling-undefined-frame rule', () => {
     expect(only(b, 'eventmodeling-undefined-frame')).toEqual([]);
   });
 
+  // Mermaid 11.15.0 accepts this body and draws the arrow. Before the comment
+  // stripper learned about inline data payloads, the two payloads read as a
+  // block comment opening on one line and closing on the next, which swallowed
+  // frame 2 and made this rule fire at severity `error` on a valid diagram.
+  it('stays silent when payloads spell out block-comment delimiters', () => {
+    const b = em('  tf 1 ui A "/*"', '  tf 2 evt B "*/"', '  tf 3 cmd C ->> 2');
+    expect(only(b, 'eventmodeling-undefined-frame')).toEqual([]);
+  });
+
   it('does not flag a self-reference, which declares its own source', () => {
     const b = em('  tf 1 ui Screen ->> 1');
     expect(only(b, 'eventmodeling-undefined-frame')).toEqual([]);
@@ -3852,6 +3861,45 @@ describe('parseEventModeling', () => {
     expect(parsed.references).toEqual([
       { sourceId: '1', line: 5, frameId: '2', frameType: 'cmd' },
     ]);
+  });
+
+  // The three payload cases below were all measured as ACCEPTED by mermaid
+  // 11.15.0. A frame statement may close with an `EM_DATA_INLINE` payload
+  // (`/\{(.*)\}|"(.*)"|'(.*)'/`) whose contents are free text, so a comment
+  // opener written inside one is payload and not a comment. The earlier
+  // reasoning that no eventmodeling free text can carry frame tokens because
+  // `note` does not parse was wrong: `note` does not, but inline data does.
+  it('does not read a comment opener inside a quoted payload as a comment', () => {
+    const parsed = parseEventModeling(
+      ['eventmodeling', '  tf 1 ui Screen "a /* b"', '  tf 2 cmd DoIt ->> 99'],
+      1,
+    );
+    // Without the payload skip the `/*` opens a block comment that never
+    // closes, and everything below it — frame 2 and its undeclared source —
+    // goes silently missing.
+    expect(parsed.frames.map((f) => f.id)).toEqual(['1', '2']);
+    expect(parsed.references).toEqual([
+      { sourceId: '99', line: 3, frameId: '2', frameType: 'cmd' },
+    ]);
+  });
+
+  it('does not read a comment opener inside a braced payload as a comment', () => {
+    const parsed = parseEventModeling(
+      ['eventmodeling', '  tf 1 ui A {/*}', '  tf 2 cmd B ->> 99'],
+      1,
+    );
+    expect(parsed.frames.map((f) => f.id)).toEqual(['1', '2']);
+    expect(parsed.references.map((r) => r.sourceId)).toEqual(['99']);
+  });
+
+  it('still strips a real comment that follows a payload on the same line', () => {
+    // The skip runs to the payload's closer, not to end of line: a `%%` after
+    // it is an ordinary comment and the ghost frame in it must not parse.
+    const parsed = parseEventModeling(
+      ['eventmodeling', '  tf 1 ui Screen "a" %% tf 9 ui GhostA'],
+      1,
+    );
+    expect(parsed.frames.map((f) => f.name)).toEqual(['Screen']);
   });
 
   it('normalizes the long keywords and folds `rf` and `tf` onto one namespace', () => {
