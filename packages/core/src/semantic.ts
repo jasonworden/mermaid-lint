@@ -1270,20 +1270,38 @@ const EVENTMODELING_DATA_CLOSERS = new Map([
 ]);
 
 /**
+ * Index of the closer of the inline data payload opening at `raw[i]`, or `-1`
+ * when no payload opens there.
+ *
+ * A payload's contents are free text, so nothing inside one is code: not a
+ * comment opener, and not a frame statement either. An earlier pass held that
+ * no eventmodeling free text can carry frame tokens because `note` does not
+ * parse. `note` indeed does not — but inline data does, and it is the carrier.
+ * Do not re-derive the older conclusion from `note`.
+ *
+ * The closer is the *last* one on the line, not the first: every branch of
+ * `EM_DATA_INLINE` closes on a greedy `.*`, so a payload runs to the final
+ * closer and a second pair does not start a second payload. The terminal also
+ * cannot span a newline, so an opener with no closer after it never lexed as a
+ * payload at all — for the quote forms that is the unpaired-quote case, where
+ * the last closer is the opener itself.
+ */
+function eventModelingDataEnd(raw: string, i: number): number {
+  const closer = EVENTMODELING_DATA_CLOSERS.get(raw[i]);
+  if (closer === undefined) return -1;
+  const close = raw.lastIndexOf(closer);
+  return close > i ? close : -1;
+}
+
+/**
  * First comment opener that begins outside an inline data payload, or `null`
  * when every opener on the line sits inside one.
  *
- * A frame statement may end with an inline data payload whose contents are free
- * text, so a comment opener written inside one is payload and not a comment.
- * Both directions were measured against mermaid 11.15.0, which accepts each of
- * them: a `/` `*` inside a payload silenced every frame below it, and a payload
- * pair opening and closing a phantom block comment across two rows made the
- * frame between them vanish and `eventmodeling-undefined-frame` fire at
+ * Both failure directions were measured against mermaid 11.15.0, which accepts
+ * each of them: a `/` `*` inside a payload silenced every frame below it, and a
+ * payload pair opening and closing a phantom block comment across two rows made
+ * the frame between them vanish and `eventmodeling-undefined-frame` fire at
  * severity `error` on a diagram mermaid draws correctly.
- *
- * An earlier pass held that no eventmodeling free text can carry frame tokens
- * because `note` does not parse. `note` indeed does not — but inline data does,
- * and it is the carrier. Do not re-derive the older conclusion from `note`.
  *
  * This is the eventmodeling counterpart of `execOutsideWardleyString`, which
  * exists for the same class of bug: a `%%` inside a quoted name is syntax, not a
@@ -1301,27 +1319,52 @@ function execOutsideEventModelingData(raw: string): RegExpExecArray | null {
     const match = EVENTMODELING_COMMENT_OPEN_RE.exec(raw);
     if (match !== null) return match;
 
-    const closer = EVENTMODELING_DATA_CLOSERS.get(raw[i]);
-    if (closer === undefined) continue;
-    // Last rather than first: every branch of `EM_DATA_INLINE` closes on a
-    // greedy `.*`, so a payload runs to the final closer on the line and a
-    // second pair does not start a second payload.
-    const close = raw.lastIndexOf(closer);
-    // `EM_DATA_INLINE` cannot span a newline, so an opener with no closer after
-    // it on this line never lexed as a payload and the scan carries on through
-    // it — for the quote forms that is the unpaired-quote case, where `close`
-    // is the opener itself.
-    if (close <= i) continue;
+    const close = eventModelingDataEnd(raw, i);
     // The loop's own step lands past the closer.
-    i = close;
+    if (close !== -1) i = close;
   }
   return null;
 }
 
 /**
+ * Blank out every inline data payload on a line, one space per masked
+ * character.
+ *
+ * Payload text is free text, so a frame statement written inside one is text:
+ * `tf 1 ui A "tf 2 cmd B"` declares one frame and not two. Left tokenized, the
+ * phantom `2` breaks both eventmodeling rules that read ids, in the same two
+ * directions as an unmasked comment opener. It satisfies a `->> 2` that mermaid
+ * itself drops, so `eventmodeling-undefined-frame` says nothing about a missing
+ * arrow (a false negative on an `error` rule); and it collides with a real
+ * frame `2` declared elsewhere, so `eventmodeling-duplicate-frame-id` reports a
+ * duplicate on a body that has only one (a false positive).
+ *
+ * Spaces rather than a slice because cutting the span out would join the text
+ * on either side of it into one token: mermaid lexes `Screen"a"Login` as two
+ * identifiers, and a slice would hand the walk `ScreenLogin`. Every token after
+ * a payload therefore keeps its column as well as its line.
+ */
+function maskEventModelingData(raw: string): string {
+  let masked = '';
+  for (let i = 0; i < raw.length; i++) {
+    const close = eventModelingDataEnd(raw, i);
+    if (close === -1) {
+      masked += raw[i];
+      continue;
+    }
+    masked += ' '.repeat(close - i + 1);
+    i = close;
+  }
+  return masked;
+}
+
+/**
  * One match per token. Anything else in a body — braces, quotes, the `[[ ]]`
  * of a data reference — is passed over by the scan, which is all a frame walk
- * needs: nothing between two frames can change how either one reads.
+ * needs: nothing between two frames can change how either one reads. That holds
+ * only because the delimiters are stripped of their *contents* first, by
+ * `maskEventModelingData`; run over a raw line this pattern happily reads a
+ * frame statement out of a data payload.
  *
  * Whitespace is not a token boundary in mermaid's lexer, so `Screen->>2` is
  * three tokens and the arrow is matched first to keep it out of the name. Its
@@ -1454,7 +1497,12 @@ function tokenizeEventModeling(lines: string[]): EventModelingToken[] {
 
     if (EVENTMODELING_META_RE.test(trimmed)) continue;
 
-    for (const match of trimmed.matchAll(EVENTMODELING_TOKEN_RE)) {
+    // Masked here rather than in `stripEventModelingComments` because the
+    // `accDescr` gates above read braces of their own, and a description block's
+    // opening `{` is not an inline payload.
+    for (const match of maskEventModelingData(trimmed).matchAll(
+      EVENTMODELING_TOKEN_RE,
+    )) {
       tokens.push({ text: match[0], line: i + 1 });
     }
   }

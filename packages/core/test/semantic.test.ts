@@ -3607,6 +3607,18 @@ describe('eventmodeling-undefined-frame rule', () => {
     expect(only(b, 'eventmodeling-undefined-frame')).toEqual([]);
   });
 
+  // Mermaid 11.15.0 accepts this body and draws one frame, not two: the `tf 2`
+  // is payload text. Frame `2` therefore does not exist, mermaid drops the
+  // arrow, and this rule must say so — a phantom frame read out of the payload
+  // would satisfy the reference and silence an `error`-severity finding.
+  it('flags a source that only a data payload appears to declare', () => {
+    const b = em('  tf 1 ui A "tf 2 cmd B"', '  tf 3 cmd C ->> 2');
+    const findings = only(b, 'eventmodeling-undefined-frame');
+    expect(findings).toHaveLength(1);
+    expect(findings[0].line).toBe(3);
+    expect(findings[0].message).toContain('`2`');
+  });
+
   it('does not flag a self-reference, which declares its own source', () => {
     const b = em('  tf 1 ui Screen ->> 1');
     expect(only(b, 'eventmodeling-undefined-frame')).toEqual([]);
@@ -3666,6 +3678,14 @@ describe('eventmodeling-duplicate-frame-id rule', () => {
     expect(findings).toHaveLength(1);
     expect(findings[0].message).toContain('renders them all');
     expect(findings[0].message).toContain('duplicate arrow per matching frame');
+  });
+
+  // The false-positive direction of the same defect: only one frame really
+  // declares `2` here, and mermaid 11.15.0 accepts the body. A `tf 2` read out
+  // of the payload would invent a duplicate on a valid diagram.
+  it('does not count a frame statement inside a data payload as a declaration', () => {
+    const b = em('  tf 1 ui A "tf 2 cmd B"', '  tf 2 evt C');
+    expect(only(b, 'eventmodeling-duplicate-frame-id')).toEqual([]);
   });
 
   it('stays silent when every frame id is distinct', () => {
@@ -3890,6 +3910,31 @@ describe('parseEventModeling', () => {
     );
     expect(parsed.frames.map((f) => f.id)).toEqual(['1', '2']);
     expect(parsed.references.map((r) => r.sourceId)).toEqual(['99']);
+  });
+
+  it('does not declare a phantom frame from a statement inside a payload', () => {
+    // Payload text is text. `tf 2 cmd B` here names nothing — mermaid accepts
+    // this body and draws exactly one frame.
+    const parsed = parseEventModeling(
+      ['eventmodeling', '  tf 1 ui A "tf 2 cmd B"'],
+      1,
+    );
+    expect(parsed.frames.map((f) => f.id)).toEqual(['1']);
+  });
+
+  it('keeps the tokens either side of a payload apart, and on their line', () => {
+    // Mermaid accepts this body: the payload closes frame 1 and frame 2 opens
+    // on the same line with no whitespace between them. Blanking the payload in
+    // place rather than slicing it out is what keeps `A` and `tf` two tokens —
+    // a slice would hand the walk `Atf` and lose frame 2 entirely.
+    const parsed = parseEventModeling(
+      ['eventmodeling', '  tf 1 ui A"x"tf 2 cmd B ->> 1'],
+      1,
+    );
+    expect(parsed.frames.map((f) => f.name)).toEqual(['A', 'B']);
+    expect(parsed.references).toEqual([
+      { sourceId: '1', line: 2, frameId: '2', frameType: 'cmd' },
+    ]);
   });
 
   it('still strips a real comment that follows a payload on the same line', () => {
