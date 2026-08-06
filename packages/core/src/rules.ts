@@ -124,6 +124,10 @@ export type RuleId =
   | 'venn-self-union'
   | 'treeview-no-nodes'
   | 'treeview-duplicate-sibling'
+  | 'ishikawa-no-causes'
+  | 'ishikawa-empty-category'
+  | 'ishikawa-deep-nesting'
+  | 'ishikawa-duplicate-sibling'
   | 'frontmatter-must-be-first'
   | 'suppression-unknown-rule'
   | 'suppression-unused'
@@ -161,6 +165,7 @@ export type RuleDocsScope =
   | 'gantt'
   | 'gitGraph'
   | 'graph'
+  | 'ishikawa-beta'
   | 'journey'
   | 'kanban'
   | 'mindmap'
@@ -465,6 +470,26 @@ export interface RuleMetadata {
  * it — pinned in `mermaid-behavior.test.ts`, since a bump that added the
  * keyword would turn that into a false negative.
  *
+ * The ishikawa-beta rules cover the fishbone's structure, which its db never
+ * validates — `addNode` normalizes an indent and clamps it, and nothing else.
+ * `ishikawa-no-causes` (`warn`) flags a problem with no categories under it:
+ * the renderer draws the head, then a spine of *zero* length, so the diagram is
+ * a label and nothing more. `ishikawa-empty-category` (`warn`) flags a category
+ * with no causes, which draws its bone at one-fifth length (`lineLen = length *
+ * (children.length ? 1 : 0.2)`) — a labeled stub. It is scoped to categories
+ * because a childless *cause* is a leaf, which is the point of the diagram.
+ * `ishikawa-duplicate-sibling` (`warn`) is the analogue of
+ * `mindmap-duplicate-sibling`. `ishikawa-deep-nesting` follows
+ * `mindmap-deep-nesting` in defaulting to `off`: seven levels render fine, they
+ * just stop communicating, and a rule that is a matter of taste should not warn
+ * by default.
+ *
+ * An empty `ishikawa-beta` is *not* covered, though it is reachable on exactly
+ * the terms `kanban-no-columns` above was: `ishikawa-beta\n` parses clean and
+ * only the no-trailing-newline form fails. #147 excludes it, so it is left for
+ * the same follow-up treatment kanban got rather than widened into here;
+ * `mermaid-behavior.test.ts` pins the parse so the exclusion stays a choice.
+ *
  * The venn-beta rules are all advisory `warn`. Two of the four turn on the one
  * thing `vennDB` does not do: `addSubsetData` pushes onto `subsets` without
  * ever deduplicating, either across statements or within one identifier list.
@@ -503,11 +528,13 @@ export interface RuleMetadata {
  * validates in source order, so a forward reference is already an error too —
  * both are the syntax pass's, not ours.
  *
- * The treeView-beta rules are both advisory `warn`. `treeview-no-nodes` is the
- * one empty-diagram rule in the #131 batch that is actually reachable: a bare
- * `treeView-beta` header parses clean and renders the synthetic `/` root and
- * nothing else, where the other indented types die in the lexer.
- * `treeview-duplicate-sibling` is the direct analogue of
+ * The treeView-beta rules are both advisory `warn`. `treeview-no-nodes` flags
+ * a bare `treeView-beta` header, which parses clean and renders the synthetic
+ * `/` root and nothing else. It is not the only reachable empty-diagram case
+ * in the #131 batch, as this paragraph once claimed: `kanban-no-columns`
+ * above covers the same shape, and an empty `ishikawa-beta` parses too — only
+ * the no-trailing-newline form of either dies in the lexer, which no fenced or
+ * `.mmd` diagram is. `treeview-duplicate-sibling` is the direct analogue of
  * `mindmap-duplicate-sibling` — two identical labels under one parent both
  * render, so the tree claims a distinction it does not draw.
  *
@@ -993,6 +1020,26 @@ export const RULE_METADATA = {
     defaultSeverity: 'warn',
     docsScope: 'treeView-beta',
     readmeDiagramKeywords: ['treeView-beta'],
+  },
+  'ishikawa-no-causes': {
+    defaultSeverity: 'warn',
+    docsScope: 'ishikawa-beta',
+    readmeDiagramKeywords: ['ishikawa-beta'],
+  },
+  'ishikawa-empty-category': {
+    defaultSeverity: 'warn',
+    docsScope: 'ishikawa-beta',
+    readmeDiagramKeywords: ['ishikawa-beta'],
+  },
+  'ishikawa-deep-nesting': {
+    defaultSeverity: 'off',
+    docsScope: 'ishikawa-beta',
+    readmeDiagramKeywords: ['ishikawa-beta'],
+  },
+  'ishikawa-duplicate-sibling': {
+    defaultSeverity: 'warn',
+    docsScope: 'ishikawa-beta',
+    readmeDiagramKeywords: ['ishikawa-beta'],
   },
   // Document-shape rule. Like the directive-correctness rules below it
   // describes the body rather than any one diagram type, so it carries no
