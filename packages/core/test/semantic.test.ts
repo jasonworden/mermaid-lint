@@ -4267,6 +4267,226 @@ describe('kanban-no-columns rule', () => {
   });
 });
 
+function ib(...body: string[]): Block {
+  return block(['ishikawa-beta', ...body].join('\n'), 'ishikawa-beta');
+}
+
+describe('ishikawa node parsing', () => {
+  // The hierarchy these rules read is `IshikawaDB.addNode`'s, not mindmap's.
+  // The cases below are the places the two disagree; `mermaid-behavior.test.ts`
+  // pins the same bodies against mermaid's own `getRoot()`.
+
+  it('nests a second problem under the first rather than starting a new tree', () => {
+    // `addNode`'s pop loop guards on `stack.length > 1`, so the first node is
+    // never popped and everything after it is a descendant. Read as a second
+    // root, `P2` would be a problem with a cause and nothing would fire; it is
+    // really a *category*, and its own child is the cause.
+    const findings = only(
+      ib('  P1', '  P2', '    C'),
+      'ishikawa-empty-category',
+    );
+    expect(findings).toEqual([]);
+    expect(only(ib('  P1', '  P2'), 'ishikawa-empty-category')).toHaveLength(1);
+  });
+
+  it('keeps outdenting past the problem inside the tree', () => {
+    // Same guard, reached the other way: `P2` is indented *less* than `P1` and
+    // still lands under it.
+    const findings = only(ib('    P1', '  P2'), 'ishikawa-empty-category');
+    expect(findings.map((f) => f.line)).toEqual([3]);
+  });
+
+  it('ignores the problem line’s own indent', () => {
+    // `baseLevel` is set by the *second* node, so an unindented problem works
+    // and its categories are still categories.
+    expect(only(ib('P', '  Method'), 'ishikawa-empty-category')).toHaveLength(
+      1,
+    );
+    expect(only(ib('P', '  Method'), 'ishikawa-no-causes')).toEqual([]);
+  });
+
+  it('normalizes an indent jump to one level instead of inventing levels', () => {
+    // `B` is indented six past `A` and is still just `A`'s child, so nothing is
+    // deep here — unlike `treeView-beta`, where the same input visibly flattens.
+    const withDeep: ResolvedRules = {
+      ...RULE_DEFAULTS,
+      'ishikawa-deep-nesting': 'warn',
+    };
+    const b = ib('  P', '    A', '          B', '    C');
+    expect(only(b, 'ishikawa-deep-nesting', withDeep)).toEqual([]);
+    // …and `C` returned to `A`'s level, so it is a sibling category, not a leaf.
+    expect(only(b, 'ishikawa-empty-category').map((f) => f.line)).toEqual([5]);
+  });
+
+  it('reads a problem written on the keyword line', () => {
+    // `ishikawa-beta Problem` lexes as `ISHIKAWA SPACELIST TEXT`. Skipping the
+    // header line wholesale would lose the problem and make this look like a
+    // one-node diagram with no causes.
+    const b = block(
+      'ishikawa-beta Problem\n    Method\n      a',
+      'ishikawa-beta',
+    );
+    expect(only(b, 'ishikawa-no-causes')).toEqual([]);
+    expect(only(b, 'ishikawa-empty-category')).toEqual([]);
+  });
+
+  it('does not read a `%%` tail on the keyword line as the problem', () => {
+    // The lexer's comment rule beats its `TEXT` rule at that position, so the
+    // tail declares nothing. Reading it as the problem would both invent a
+    // finding against the comment and push `Problem` down to a category and
+    // `Method` to a leaf, silencing the empty-category rule on neither.
+    const b = block(
+      'ishikawa-beta %% note\n  Problem\n    Method\n      a',
+      'ishikawa-beta',
+    );
+    expect(only(b, 'ishikawa-no-causes')).toEqual([]);
+    expect(only(b, 'ishikawa-empty-category')).toEqual([]);
+  });
+
+  it('skips own-line comments but keeps a trailing one as text', () => {
+    // Only lexer rule 0 (`\s*%%.*`) is a comment, and it must start the line.
+    // `A %% note` is one node whose text includes the tail.
+    expect(
+      only(ib('  P', '    %% soon', '    A'), 'ishikawa-no-causes'),
+    ).toEqual([]);
+    expect(
+      only(ib('  P', '    A %% note', '    A'), 'ishikawa-duplicate-sibling'),
+    ).toEqual([]);
+  });
+
+  it('counts a tab as one column, matching mermaid’s SPACELIST', () => {
+    const b = block('ishikawa-beta\n  P\n\t\tA\n\t\t\tB', 'ishikawa-beta');
+    expect(only(b, 'ishikawa-empty-category')).toEqual([]);
+  });
+});
+
+describe('ishikawa-no-causes rule', () => {
+  it('flags a problem with nothing under it', () => {
+    const findings = only(ib('  Problem'), 'ishikawa-no-causes');
+    expect(findings).toHaveLength(1);
+    expect(findings[0].severity).toBe('warn');
+    expect(findings[0].line).toBe(2);
+    expect(findings[0].message).toContain('`Problem`');
+    expect(findings[0].message).toContain('zero-length spine');
+  });
+
+  it('stays silent on a body with no nodes at all', () => {
+    // `ishikawa-beta\n` parses and renders an empty `<svg>` — reachable, but a
+    // different diagram from one whose problem has no causes, and there is no
+    // problem here to name. Left to a follow-up `ishikawa-no-nodes` (#147).
+    expect(only(ib(), 'ishikawa-no-causes')).toEqual([]);
+    expect(only(ib('', '  %% nothing yet'), 'ishikawa-no-causes')).toEqual([]);
+  });
+
+  it('returns [] once the problem has a category', () => {
+    expect(only(ib('  Problem', '    Method'), 'ishikawa-no-causes')).toEqual(
+      [],
+    );
+  });
+});
+
+describe('ishikawa-empty-category rule', () => {
+  it('flags every category with no causes, wherever it sits', () => {
+    const b = ib(
+      '  P',
+      '    Method',
+      '    Machine',
+      '      Worn',
+      '    Material',
+    );
+    const findings = only(b, 'ishikawa-empty-category');
+    expect(findings.map((f) => f.line)).toEqual([3, 6]);
+    expect(findings[0].severity).toBe('warn');
+    expect(findings[0].message).toContain('`Method`');
+    expect(findings[0].message).toContain('a fifth of full length');
+  });
+
+  it('leaves a childless cause alone — a leaf is the point', () => {
+    // Only depth 2 draws a bone. Flagging depth 3+ would fire on every
+    // well-formed fishbone.
+    const b = ib('  P', '    Method', '      Rushed', '      Undocumented');
+    expect(only(b, 'ishikawa-empty-category')).toEqual([]);
+  });
+
+  it('does not fire on the problem itself when it has no categories', () => {
+    // That is `ishikawa-no-causes`; the problem is depth 1, not a category.
+    expect(only(ib('  P'), 'ishikawa-empty-category')).toEqual([]);
+  });
+});
+
+describe('ishikawa-deep-nesting rule', () => {
+  const withDeep: ResolvedRules = {
+    ...RULE_DEFAULTS,
+    'ishikawa-deep-nesting': 'warn',
+  };
+
+  const deepBody = ib(
+    '  P',
+    '    A',
+    '      B',
+    '        C',
+    '          D',
+    '            E',
+  );
+
+  it('is off by default — a deep tree produces no findings', () => {
+    expect(only(deepBody, 'ishikawa-deep-nesting')).toEqual([]);
+  });
+
+  it('returns [] for a shallow tree even when enabled', () => {
+    const b = ib('  P', '    A', '      B');
+    expect(only(b, 'ishikawa-deep-nesting', withDeep)).toEqual([]);
+  });
+
+  it('flags nodes nested beyond the threshold when enabled', () => {
+    const findings = only(deepBody, 'ishikawa-deep-nesting', withDeep);
+    // P=1, A=2, B=3, C=4, D=5, E=6 — only E exceeds depth 5.
+    expect(findings).toHaveLength(1);
+    expect(findings[0].line).toBe(7);
+    expect(findings[0].message).toContain('`E`');
+    expect(findings[0].message).toContain('6 levels deep');
+  });
+});
+
+describe('ishikawa-duplicate-sibling rule', () => {
+  it('reports every repeat after the first, each naming the first line', () => {
+    const b = ib('  P', '    M', '      Same', '      Same', '      Same');
+    const findings = only(b, 'ishikawa-duplicate-sibling');
+    expect(findings.map((f) => f.line)).toEqual([5, 6]);
+    for (const finding of findings) {
+      expect(finding.severity).toBe('warn');
+      expect(finding.message).toContain('`Same`');
+      expect(finding.message).toContain('line 4');
+    }
+  });
+
+  it('covers categories, which are siblings under the problem', () => {
+    const b = ib('  P', '    M', '      a', '    M', '      b');
+    const findings = only(b, 'ishikawa-duplicate-sibling');
+    expect(findings.map((f) => f.line)).toEqual([5]);
+  });
+
+  it('returns [] for the same text under different parents', () => {
+    const b = ib('  P', '    M1', '      X', '    M2', '      X');
+    expect(only(b, 'ishikawa-duplicate-sibling')).toEqual([]);
+  });
+
+  it('compares text verbatim, since inner whitespace is significant', () => {
+    // Mermaid trims a node's line and keeps the rest as-is: `a  b` and `a b`
+    // are two labels, and quotes are part of the text rather than a wrapper.
+    expect(
+      only(ib('  P', '    a  b', '    a b'), 'ishikawa-duplicate-sibling'),
+    ).toEqual([]);
+    expect(
+      only(ib('  P', '    "X"', '    X'), 'ishikawa-duplicate-sibling'),
+    ).toEqual([]);
+    // Trailing whitespace *is* trimmed, so these are one label twice.
+    expect(
+      only(ib('  P', '    Same  ', '    Same'), 'ishikawa-duplicate-sibling'),
+    ).toHaveLength(1);
+  });
+});
+
 describe('kanban id extraction', () => {
   it(
     'reads an unclosed wrapper in linear time (ReDoS regression)',
@@ -4742,6 +4962,255 @@ describe('venn statement scanning', () => {
   });
 });
 
+function tv(...body: string[]): Block {
+  return block(['treeView-beta', ...body].join('\n'), 'treeView-beta');
+}
+
+describe('treeview-no-nodes rule', () => {
+  it('flags a header with nothing under it', () => {
+    const findings = only(tv(), 'treeview-no-nodes');
+    expect(findings).toHaveLength(1);
+    expect(findings[0].severity).toBe('warn');
+    expect(findings[0].line).toBe(1);
+    expect(findings[0].message).toContain('renders as an empty tree');
+    // The syntax note the rule carries: an author who wrote bare words is one
+    // parse error away, not one rule away, so the message says so.
+    expect(findings[0].message).toContain('must be quoted');
+  });
+
+  it('flags a body that is metadata and comments only', () => {
+    // Every one of these can contain a quoted run, and none of them declares a
+    // node. Reading `title "Releases"` as a node would silence the rule on a
+    // diagram that renders empty.
+    const b = tv(
+      '  title "Releases"',
+      '  accTitle: "Releases"',
+      '  accDescr: covers "v1" and "v2"',
+      '  %% "not a node"',
+      '',
+    );
+    expect(only(b, 'treeview-no-nodes').map((f) => f.line)).toEqual([1]);
+  });
+
+  it('skips an accDescr block, in both its brace forms', () => {
+    expect(
+      only(
+        tv('  accDescr {', '    "v1"', '    "v2"', '  }'),
+        'treeview-no-nodes',
+      ),
+    ).toHaveLength(1);
+    expect(
+      only(tv('  accDescr', '  {', '    "v1"', '  }'), 'treeview-no-nodes'),
+    ).toHaveLength(1);
+    // A same-line block closes immediately, so what follows is nodes again.
+    expect(
+      only(tv('  accDescr { prose }', '  "root"'), 'treeview-no-nodes'),
+    ).toEqual([]);
+  });
+
+  it('sees a node declared on the header line itself', () => {
+    // The grammar takes a `STRING2` straight after the keyword, so
+    // `treeView-beta "root"` is a one-node tree, not an empty one. A scan that
+    // started below the header would call this diagram empty while mermaid
+    // renders a node in it.
+    expect(
+      only(block('treeView-beta "root"', 'treeView-beta'), 'treeview-no-nodes'),
+    ).toEqual([]);
+  });
+
+  it('sees a node after an accDescr block closes on the same line', () => {
+    // `ACC_DESCR` stops at the first `}` and the rest of the line keeps
+    // lexing, so `accDescr { d } "p"` declares `p`. Skipping the whole line
+    // would lose it.
+    expect(only(tv('  accDescr { d } "p"'), 'treeview-no-nodes')).toEqual([]);
+    // Same for the multi-line form's closing line.
+    expect(
+      only(tv('  accDescr {', '  d', '  } "p"'), 'treeview-no-nodes'),
+    ).toEqual([]);
+  });
+
+  it('sees a node after a `title` with no space after it', () => {
+    // `TITLE` ends with an empty alternative, so `title` only swallows its
+    // line when a space or tab follows. `title"p"` is an empty title plus a
+    // node `p` — mermaid renders it, so the scan must not skip the line.
+    expect(only(tv('  title"p"'), 'treeview-no-nodes')).toEqual([]);
+    // With a separator it does swallow the line, quotes and all.
+    expect(only(tv('  title "p"'), 'treeview-no-nodes')).toHaveLength(1);
+    expect(only(tv('  title\t"p"'), 'treeview-no-nodes')).toHaveLength(1);
+    // A bare `title` is an empty title and swallows only itself.
+    expect(only(tv('  title', '  "p"'), 'treeview-no-nodes')).toEqual([]);
+  });
+
+  it('returns [] once any node is declared', () => {
+    expect(only(tv('  "root"'), 'treeview-no-nodes')).toEqual([]);
+    // Either quote style is a node, and an empty label still is one.
+    expect(only(tv("  'root'"), 'treeview-no-nodes')).toEqual([]);
+    expect(only(tv('  ""'), 'treeview-no-nodes')).toEqual([]);
+  });
+
+  it('does not apply to other indented diagram types', () => {
+    expect(only(block('mindmap', 'mindmap'), 'treeview-no-nodes')).toEqual([]);
+  });
+});
+
+describe('treeview-duplicate-sibling rule', () => {
+  it('reports every repeat after the first, each naming the first line', () => {
+    const b = tv('  "root"', '    "same"', '    "same"', '    "same"');
+    const findings = only(b, 'treeview-duplicate-sibling');
+    // Reported on the later node, naming the first — the convention
+    // `mindmap-duplicate-sibling` set.
+    expect(findings.map((f) => f.line)).toEqual([4, 5]);
+    for (const finding of findings) {
+      expect(finding.severity).toBe('warn');
+      expect(finding.message).toContain('`same`');
+      expect(finding.message).toContain('line 3');
+    }
+  });
+
+  it('keys on the parent, so the same label under two parents is fine', () => {
+    const b = tv('  "r1"', '    "x"', '  "r2"', '    "x"');
+    expect(only(b, 'treeview-duplicate-sibling')).toEqual([]);
+    // Nor does a child repeating its own parent's label collide.
+    expect(only(tv('  "x"', '    "x"'), 'treeview-duplicate-sibling')).toEqual(
+      [],
+    );
+  });
+
+  it('flags duplicated top-level nodes', () => {
+    // Everything at the top level shares mermaid's synthetic `/` root, so two
+    // of them are siblings just as much as two children are.
+    const findings = only(tv('  "r"', '  "r"'), 'treeview-duplicate-sibling');
+    expect(findings.map((f) => f.line)).toEqual([3]);
+    expect(findings[0].message).toContain('line 2');
+  });
+
+  it('treats the two quote styles as one label', () => {
+    // Mermaid strips either quote to the same text, so `"a"` and `'a'` render
+    // as one repeated branch and must read as one here too.
+    expect(
+      only(tv('  "a"', "  'a'"), 'treeview-duplicate-sibling'),
+    ).toHaveLength(1);
+  });
+
+  it('re-parents on an outdent rather than assuming a fixed step', () => {
+    // `b` outdents past `a` to a level no ancestor holds, so mermaid pops `a`
+    // and lands it beside `x` under `r` — where it does duplicate. Inferring
+    // an indent unit instead would put it somewhere mermaid never puts it.
+    const b = tv('  "r"', '    "x"', '      "a"', '    "b"', '    "x"');
+    const findings = only(b, 'treeview-duplicate-sibling');
+    expect(findings.map((f) => f.line)).toEqual([6]);
+    expect(findings[0].message).toContain('line 3');
+  });
+
+  it('indents a second label on a line from the space before it', () => {
+    // Both labels on line 3 land under the synthetic root, not under `root` —
+    // `"b"`'s indent is the single space between them, which pops `"a"` and
+    // `"root"` both. So it duplicates the *top-level* `"b"`, not a child.
+    const findings = only(
+      tv('  "b"', '    "a" "b"'),
+      'treeview-duplicate-sibling',
+    );
+    expect(findings.map((f) => f.line)).toEqual([3]);
+    expect(findings[0].message).toContain('line 2');
+  });
+
+  it('keeps a header-line node on the stack, so its children re-parent right', () => {
+    // The header-line node is a real parent. Missing it would drop `"p"` from
+    // the stack and land both `"x"` under the synthetic root as siblings —
+    // a duplicate mermaid does not have. Its edges here are `/ > p`,
+    // `p > x`, `/ > x`: the two `x` sit at different depths.
+    const b = block(
+      ['treeView-beta "p"', '  "x"', ' "x"'].join('\n'),
+      'treeView-beta',
+    );
+    expect(only(b, 'treeview-duplicate-sibling')).toEqual([]);
+  });
+
+  it('keeps an accDescr tail node on the stack too', () => {
+    // Same shape, with the parent declared after a closing `}` instead of
+    // after the keyword.
+    const b = tv('  accDescr { d } "p"', '    "x"', ' "x"');
+    expect(only(b, 'treeview-duplicate-sibling')).toEqual([]);
+  });
+
+  it('ignores quoted text inside metadata and comments', () => {
+    const b = tv(
+      '  title "root"',
+      '  accDescr: about "root"',
+      '  %% "root"',
+      '  "root"',
+    );
+    expect(only(b, 'treeview-duplicate-sibling')).toEqual([]);
+  });
+
+  it('returns [] for a tree whose siblings are all distinct', () => {
+    const b = tv('  "root"', '    "a"', '    "b"', '      "a"');
+    expect(only(b, 'treeview-duplicate-sibling')).toEqual([]);
+  });
+});
+
+describe('treeView label scanning', () => {
+  it(
+    'scans a quote-less line in linear time (ReDoS regression)',
+    // Same shape and reason as the kanban guard above: only the failing path
+    // is slow, so a passing run costs ~1ms while a regression has to run to
+    // completion before it can be reported.
+    { timeout: 60_000 },
+    () => {
+      // Writing the indent into `TREEVIEW_LABEL_RE` as a leading `([ \t]*)`
+      // re-scans the whole whitespace run at every start position it fails
+      // from — quadratic on a line with no quote to anchor it. 80 000 spaces
+      // took ~2.8s that way; counting the run backwards from a match is O(n)
+      // over the line and does the same 80 000 in under a millisecond.
+      // Diagram bodies are user input and `checkSemantics` runs ahead of any
+      // parse, so an unparseable body still reaches this.
+      const b = tv(' '.repeat(80_000));
+
+      const start = performance.now();
+      const findings = only(b, 'treeview-duplicate-sibling');
+      const elapsed = performance.now() - start;
+
+      // The line quotes nothing, so it declares no node at all.
+      expect(findings).toEqual([]);
+      expect(only(b, 'treeview-no-nodes').map((f) => f.line)).toEqual([1]);
+      expect(elapsed).toBeLessThan(500);
+    },
+  );
+
+  it(
+    'looks ahead from a bare accDescr in linear time (ReDoS regression)',
+    { timeout: 60_000 },
+    () => {
+      // The bare-`accDescr` branch has to look ahead for the `{` that may open
+      // on a later line. Spelled `lines.slice(i + 1).find(…)` it copies the
+      // whole remaining body once per bare `accDescr` — measured at ~8s for
+      // 128 000 of them, a clean 4x per doubling. Walking an index instead
+      // stops at the first non-blank line, which here is the next `accDescr`.
+      const b = tv(...Array.from({ length: 60_000 }, () => '  accDescr'));
+
+      const start = performance.now();
+      const findings = only(b, 'treeview-no-nodes');
+      const elapsed = performance.now() - start;
+
+      // No `{` ever opens, so every line is metadata and nothing is a node.
+      expect(findings.map((f) => f.line)).toEqual([1]);
+      expect(elapsed).toBeLessThan(500);
+    },
+  );
+
+  it('counts the indent of every label on a line, cheaply', () => {
+    // The backwards count must stay correct where the forward capture was:
+    // each label's indent is the run immediately before it, so the second
+    // label on a line takes the single separating space.
+    const b = tv('  "a" "a"');
+    // Both land under the synthetic root — `"a"`'s indent of 1 pops the first
+    // — so they are siblings and the second duplicates the first.
+    expect(only(b, 'treeview-duplicate-sibling').map((f) => f.line)).toEqual([
+      2,
+    ]);
+  });
+});
+
 // https://github.com/jasonworden/mermaid-lint/issues/123. Every case here goes
 // through the real extractor rather than `block()`: the rule gates on
 // `block.type === '---'`, so hardcoding the type would assert the rule's body
@@ -4905,6 +5374,6 @@ describe('line citations in rule messages', () => {
   // at a time, which is why this is a floor at today's count rather than a
   // loose lower bound. Raise it when you add a citing rule.
   it('still finds every citation it is meant to police', () => {
-    expect(cites.length).toBeGreaterThanOrEqual(31);
+    expect(cites.length).toBeGreaterThanOrEqual(33);
   });
 });

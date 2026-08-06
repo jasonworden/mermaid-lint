@@ -111,6 +111,12 @@ default to `error`, because none leaves a judgment call to the reader:
 | `venn-self-union` | `warn` | A `venn-beta` `union` naming the same set twice; the list is never deduplicated, so the set is intersected with itself and draws a spurious extra region | venn-beta |
 | `venn-no-sets` | `error` | A `venn-beta` diagram declaring no `set`; unlike the other no-data rules it does not render an empty frame — the renderer throws | venn-beta |
 | `venn-duplicate-union` | `warn` | A `venn-beta` intersection declared twice; each list is sorted but never deduplicated, so `union B, A` collides with `union A, B` and a second region is drawn over the first | venn-beta |
+| `treeview-no-nodes` | `warn` | A `treeView-beta` with no nodes; unlike the other indented types an empty body parses clean, and renders as an empty tree | treeView-beta |
+| `treeview-duplicate-sibling` | `warn` | Two `treeView-beta` nodes with the same quoted label under one parent; both render, so the tree draws a distinction it does not have | treeView-beta |
+| `ishikawa-no-causes` | `warn` | An `ishikawa-beta` problem with no categories under it; renders as the problem head above a zero-length spine | ishikawa-beta |
+| `ishikawa-empty-category` | `warn` | An `ishikawa-beta` category with no causes; its bone draws at a fifth of full length with nothing attached | ishikawa-beta |
+| `ishikawa-deep-nesting` | `off` | An `ishikawa-beta` node nested beyond five levels deep. Off by default because deep nesting is a matter of taste | ishikawa-beta |
+| `ishikawa-duplicate-sibling` | `warn` | Two `ishikawa-beta` nodes with identical text under one parent; the same cause renders twice | ishikawa-beta |
 | `frontmatter-must-be-first` | `error` | A `%%` comment or blank line before the YAML frontmatter; Mermaid parses it but the diagram fails to render | all |
 | `suppression-unknown-rule` | `warn` | A suppression directive naming a rule id that does not exist; the directive silently suppresses nothing | all |
 | `suppression-unused` | `warn` | A well-formed suppression directive that suppressed no finding; usually a stale directive left behind after a fix | all |

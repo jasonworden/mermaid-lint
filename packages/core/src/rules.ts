@@ -124,6 +124,12 @@ export type RuleId =
   | 'venn-self-union'
   | 'venn-no-sets'
   | 'venn-duplicate-union'
+  | 'treeview-no-nodes'
+  | 'treeview-duplicate-sibling'
+  | 'ishikawa-no-causes'
+  | 'ishikawa-empty-category'
+  | 'ishikawa-deep-nesting'
+  | 'ishikawa-duplicate-sibling'
   | 'frontmatter-must-be-first'
   | 'suppression-unknown-rule'
   | 'suppression-unused'
@@ -161,6 +167,7 @@ export type RuleDocsScope =
   | 'gantt'
   | 'gitGraph'
   | 'graph'
+  | 'ishikawa-beta'
   | 'journey'
   | 'kanban'
   | 'mindmap'
@@ -174,6 +181,7 @@ export type RuleDocsScope =
   | 'stateDiagram'
   | 'timeline'
   | 'treemap-beta'
+  | 'treeView-beta'
   | 'venn-beta'
   | 'wardley-beta'
   | 'xychart-beta';
@@ -464,6 +472,26 @@ export interface RuleMetadata {
  * it — pinned in `mermaid-behavior.test.ts`, since a bump that added the
  * keyword would turn that into a false negative.
  *
+ * The ishikawa-beta rules cover the fishbone's structure, which its db never
+ * validates — `addNode` normalizes an indent and clamps it, and nothing else.
+ * `ishikawa-no-causes` (`warn`) flags a problem with no categories under it:
+ * the renderer draws the head, then a spine of *zero* length, so the diagram is
+ * a label and nothing more. `ishikawa-empty-category` (`warn`) flags a category
+ * with no causes, which draws its bone at one-fifth length (`lineLen = length *
+ * (children.length ? 1 : 0.2)`) — a labeled stub. It is scoped to categories
+ * because a childless *cause* is a leaf, which is the point of the diagram.
+ * `ishikawa-duplicate-sibling` (`warn`) is the analogue of
+ * `mindmap-duplicate-sibling`. `ishikawa-deep-nesting` follows
+ * `mindmap-deep-nesting` in defaulting to `off`: seven levels render fine, they
+ * just stop communicating, and a rule that is a matter of taste should not warn
+ * by default.
+ *
+ * An empty `ishikawa-beta` is *not* covered, though it is reachable on exactly
+ * the terms `kanban-no-columns` above was: `ishikawa-beta\n` parses clean and
+ * only the no-trailing-newline form fails. #147 excludes it, so it is left for
+ * the same follow-up treatment kanban got rather than widened into here;
+ * `mermaid-behavior.test.ts` pins the parse so the exclusion stays a choice.
+ *
  * The venn-beta rules are advisory `warn` apart from `venn-no-sets`. Three of
  * the six turn on the one thing `vennDB` does not do: `addSubsetData` pushes
  * onto `subsets` without ever deduplicating, either across statements or
@@ -528,6 +556,29 @@ export interface RuleMetadata {
  * collides with `union A, B`) but are case-sensitive, since mermaid never
  * folds case: `set a` and `set A` are two sets, and the unions over them are
  * two unions.
+ *
+ * The treeView-beta rules are both advisory `warn`. `treeview-no-nodes` flags
+ * a bare `treeView-beta` header, which parses clean and renders the synthetic
+ * `/` root and nothing else. It is not the only reachable empty-diagram case
+ * in the #131 batch, as this paragraph once claimed: `kanban-no-columns`
+ * above covers the same shape, and an empty `ishikawa-beta` parses too — only
+ * the no-trailing-newline form of either dies in the lexer, which no fenced or
+ * `.mmd` diagram is. `treeview-duplicate-sibling` is the direct analogue of
+ * `mindmap-duplicate-sibling` — two identical labels under one parent both
+ * render, so the tree claims a distinction it does not draw.
+ *
+ * Both key on quoted labels, because that is all the grammar accepts: a bare
+ * `root` after the header is a lexer error, not a node.
+ *
+ * #148 also proposed a `treeview-indent-jump` rule and asked for a call on it.
+ * It is not implemented, because the defect it describes is not observable.
+ * mermaid's `addNode` takes the indent as a raw *character count* and pops a
+ * stack while `level <= top.level`, so any strictly-greater indent is exactly
+ * one level deeper and the magnitude is discarded: indenting a child by three
+ * "levels" renders byte-for-byte identically to indenting it by one (render
+ * probe, mermaid 11.15.0). There is no grammatical indent unit to measure a
+ * jump against, so a rule would have to infer one from the rest of the body —
+ * which the mindmap, treemap, and kanban rules all decline to do.
  *
  * `frontmatter-must-be-first` is `error`, joining `duplicate-ids`,
  * `eventmodeling-undefined-frame`, and `venn-no-sets` as the only
@@ -998,6 +1049,36 @@ export const RULE_METADATA = {
     defaultSeverity: 'warn',
     docsScope: 'venn-beta',
     readmeDiagramKeywords: ['venn-beta'],
+  },
+  'treeview-no-nodes': {
+    defaultSeverity: 'warn',
+    docsScope: 'treeView-beta',
+    readmeDiagramKeywords: ['treeView-beta'],
+  },
+  'treeview-duplicate-sibling': {
+    defaultSeverity: 'warn',
+    docsScope: 'treeView-beta',
+    readmeDiagramKeywords: ['treeView-beta'],
+  },
+  'ishikawa-no-causes': {
+    defaultSeverity: 'warn',
+    docsScope: 'ishikawa-beta',
+    readmeDiagramKeywords: ['ishikawa-beta'],
+  },
+  'ishikawa-empty-category': {
+    defaultSeverity: 'warn',
+    docsScope: 'ishikawa-beta',
+    readmeDiagramKeywords: ['ishikawa-beta'],
+  },
+  'ishikawa-deep-nesting': {
+    defaultSeverity: 'off',
+    docsScope: 'ishikawa-beta',
+    readmeDiagramKeywords: ['ishikawa-beta'],
+  },
+  'ishikawa-duplicate-sibling': {
+    defaultSeverity: 'warn',
+    docsScope: 'ishikawa-beta',
+    readmeDiagramKeywords: ['ishikawa-beta'],
   },
   // Document-shape rule. Like the directive-correctness rules below it
   // describes the body rather than any one diagram type, so it carries no

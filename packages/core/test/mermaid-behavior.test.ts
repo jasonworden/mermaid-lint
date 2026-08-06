@@ -102,6 +102,55 @@ async function vennSubsets(body: string): Promise<string[]> {
   return db.getSubsetData().map((s) => `${s.sets.join(',')}=${s.size}`);
 }
 
+interface ProbeTreeViewNode {
+  name: string;
+  children: ProbeTreeViewNode[];
+}
+
+/**
+ * Flatten the hierarchy Mermaid derived from a treeView-beta body into
+ * `parent > child` edges. The treeView rules turn on which node ends up under
+ * which parent, and `getRoot` is where that is decided; a verdict alone would
+ * say nothing, since every body below but one parses clean. The synthetic `/`
+ * root mermaid always seeds the stack with is the parent of the top level.
+ */
+async function treeViewEdges(body: string): Promise<string[]> {
+  const root = (
+    await probeDb<{ getRoot(): ProbeTreeViewNode }>(body)
+  ).getRoot();
+  const edges: string[] = [];
+  const walk = (node: ProbeTreeViewNode): void => {
+    for (const child of node.children) {
+      edges.push(`${node.name} > ${child.name}`);
+      walk(child);
+    }
+  };
+  walk(root);
+  return edges;
+}
+
+interface ProbeIshikawaNode {
+  text: string;
+  children: ProbeIshikawaNode[];
+}
+
+/**
+ * The tree mermaid derived from an ishikawa-beta body, flattened to
+ * `depth:text` lines. The ishikawa rules turn on which node ends up under
+ * which parent, and `IshikawaDB.addNode` resolves that differently from the
+ * other indentation-based types — so a verdict says nothing here, and the
+ * shape is the whole point.
+ */
+async function ishikawaTree(body: string): Promise<string[]> {
+  const db = await probeDb<{ getRoot(): ProbeIshikawaNode | undefined }>(body);
+  const walk = (node: ProbeIshikawaNode, depth: number): string[] => [
+    `${depth}:${node.text}`,
+    ...node.children.flatMap((child) => walk(child, depth + 1)),
+  ];
+  const root = db.getRoot();
+  return root === undefined ? [] : walk(root, 1);
+}
+
 describe('mermaid behavior contracts', () => {
   it('parses every diagram type the README claims support for', async () => {
     // The README's "27 diagram types" table is only true as long as the
@@ -792,5 +841,194 @@ describe('mermaid behavior contracts', () => {
     expect(
       (await validateWithMermaidJS('venn-beta\n  set A\n  union A')).ok,
     ).toBe(false);
+  }, 20_000);
+
+  it('parses a treeView-beta with no nodes at all', async () => {
+    // What makes `treeview-no-nodes` load-bearing rather than redundant. Of
+    // the indented types, treeView is the one whose empty body is *not*
+    // already a syntax error: the header alone parses clean and leaves the
+    // synthetic `/` root childless, so nothing but the rule reports it.
+    expect((await validateWithMermaidJS('treeView-beta\n')).ok).toBe(true);
+    expect(await treeViewEdges('treeView-beta\n')).toEqual([]);
+    // A `title` is metadata, not a node — hence the metadata skip in the scan.
+    expect(await treeViewEdges('treeView-beta\n  title Releases\n')).toEqual(
+      [],
+    );
+  }, 20_000);
+
+  it('rejects an unquoted treeView-beta label', async () => {
+    // Why every treeView rule keys on quoted text: a bare word never becomes a
+    // node, it dies in the lexer. A scan that accepted unquoted words would
+    // invent nodes in bodies the syntax pass has already rejected.
+    expect((await validateWithMermaidJS('treeView-beta\n  root\n')).ok).toBe(
+      false,
+    );
+    // Either quote style works, though, so the scan must accept both.
+    expect(await treeViewEdges("treeView-beta\n  'root'\n")).toEqual([
+      '/ > root',
+    ]);
+  }, 20_000);
+
+  it('keeps both treeView-beta siblings that share a label', async () => {
+    // `treeview-duplicate-sibling`: nothing in a treeView references a label,
+    // so neither node is dropped or merged — the tree simply draws the same
+    // branch twice under one parent.
+    expect(
+      await treeViewEdges('treeView-beta\n  "root"\n    "same"\n    "same"\n'),
+    ).toEqual(['/ > root', 'root > same', 'root > same']);
+  }, 20_000);
+
+  it('reads any deeper treeView-beta indent as exactly one level', async () => {
+    // The reason #148's proposed `treeview-indent-jump` is not implemented.
+    // `addNode` takes the indent as a raw character count and pops while
+    // `level <= top.level`, so the magnitude of a step is discarded entirely:
+    // a child indented eight columns past its parent builds the identical
+    // tree to one indented two. There is no grammatical unit for a rule to
+    // measure a "jump" against.
+    const oneLevel = 'treeView-beta\n  "root"\n    "a"\n      "b"\n';
+    const threeLevels = 'treeView-beta\n  "root"\n    "a"\n            "b"\n';
+    expect(await treeViewEdges(threeLevels)).toEqual(
+      await treeViewEdges(oneLevel),
+    );
+    expect(await treeViewEdges(threeLevels)).toEqual([
+      '/ > root',
+      'root > a',
+      'a > b',
+    ]);
+  }, 20_000);
+
+  it('keeps lexing treeView-beta nodes after a mid-line construct', async () => {
+    // Three places where a treeView statement ends mid-line and the rest goes
+    // on declaring nodes. `parseTreeViewNodes` resumes at an offset for each;
+    // skipping the whole line would call these diagrams empty while mermaid
+    // renders a node in every one.
+    //
+    // The keyword: the grammar takes a `STRING2` straight after it.
+    expect(await treeViewEdges('treeView-beta "root"\n')).toEqual(['/ > root']);
+    // `ACC_DESCR` stops at the first `}`, in either brace form.
+    expect(
+      await treeViewEdges('treeView-beta\n  accDescr { d } "p"\n'),
+    ).toEqual(['/ > p']);
+    expect(
+      await treeViewEdges('treeView-beta\n  accDescr {\n  d\n  } "p"\n'),
+    ).toEqual(['/ > p']);
+    // `TITLE` ends with an *empty* alternative, so it only swallows the line
+    // when a space or tab follows the keyword.
+    expect(await treeViewEdges('treeView-beta\n  title"p"\n')).toEqual([
+      '/ > p',
+    ]);
+    expect(await treeViewEdges('treeView-beta\n  title "p"\n')).toEqual([]);
+    expect(await treeViewEdges('treeView-beta\n  title\t"p"\n')).toEqual([]);
+    // And each of those nodes is a real parent, not a node the scan may drop:
+    // `x` at a deeper indent nests under it, and the shallower `x` does not.
+    expect(await treeViewEdges('treeView-beta "p"\n  "x"\n "x"\n')).toEqual([
+      '/ > p',
+      'p > x',
+      '/ > x',
+    ]);
+  }, 20_000);
+
+  it('indents a second treeView-beta label from the space before it', async () => {
+    // `INDENTATION` matches the whitespace immediately before a label wherever
+    // it sits, not just at the start of a line — so a second label on a line
+    // takes the single space between them as its indent and lands as a
+    // shallow root, *not* beside its line-mate. `parseTreeViewNodes` walks
+    // labels rather than lines to reproduce this.
+    expect(
+      await treeViewEdges('treeView-beta\n  "root"\n    "a" "b"\n'),
+    ).toEqual(['/ > root', 'root > a', '/ > b']);
+  }, 20_000);
+  it('keeps every ishikawa node under one problem, whatever its indent', async () => {
+    // `IshikawaDB.addNode` pops with `while (stack.length > 1 && …)`, so the
+    // first node is never popped and a fishbone has exactly one root. Both
+    // shapes below would be a *second root* under mindmap's stack-of-indents
+    // parser; `parseIshikawaNodes` replicates addNode instead because of this.
+    expect(await ishikawaTree('ishikawa-beta\n  P1\n  P2\n    C\n')).toEqual([
+      '1:P1',
+      '2:P2',
+      '3:C',
+    ]);
+    // Outdenting past the problem lands in the same place — `level` is clamped
+    // to 1 rather than escaping the tree.
+    expect(await ishikawaTree('ishikawa-beta\n    P1\n  P2\n')).toEqual([
+      '1:P1',
+      '2:P2',
+    ]);
+    // Three at one indent are siblings, not a chain: only the *first* node is
+    // special.
+    expect(await ishikawaTree('ishikawa-beta\n  P1\n  P2\n  P3\n')).toEqual([
+      '1:P1',
+      '2:P2',
+      '2:P3',
+    ]);
+  }, 20_000);
+
+  it('sets the ishikawa base indent from the second node, not the first', async () => {
+    // `baseLevel ??= rawLevel` runs after the root's early return, so the
+    // problem's own indent is never read and an unindented one works.
+    expect(await ishikawaTree('ishikawa-beta\nProblem\n  Cause\n')).toEqual([
+      '1:Problem',
+      '2:Cause',
+    ]);
+    // Text trailing the keyword is the problem — the rules read the header
+    // line for exactly this, since skipping it would lose the root.
+    expect(await ishikawaTree('ishikawa-beta Problem\n    Method\n')).toEqual([
+      '1:Problem',
+      '2:Method',
+    ]);
+    // A `%%` tail on that line is not text, though — the lexer's comment rule
+    // (`\s*%%.*`) is tried before `TEXT` at that position, so it wins and
+    // declares nothing. Asserted on the body that isolates it: were the tail
+    // read as text it would be the root, and the tree would not be empty.
+    // `parseIshikawaNodes` skips it for the same reason.
+    expect(await ishikawaTree('ishikawa-beta %% note\n')).toEqual([]);
+  }, 20_000);
+
+  it('normalizes an ishikawa indent jump instead of creating phantom levels', async () => {
+    // `B` is indented six columns past `A` and is still just its child, and
+    // `C` returning to `A`'s indent makes it `A`'s sibling. A tab counts as
+    // one column, same as a space (`indentWidth`).
+    expect(
+      await ishikawaTree('ishikawa-beta\n  P\n    A\n          B\n    C\n'),
+    ).toEqual(['1:P', '2:A', '3:B', '2:C']);
+    expect(await ishikawaTree('ishikawa-beta\n  P\n\t\tA\n\t\t\tB\n')).toEqual([
+      '1:P',
+      '2:A',
+      '3:B',
+    ]);
+  }, 20_000);
+
+  it('keeps ishikawa node text verbatim, with no shapes, ids, or directives', async () => {
+    // The grammar is `SPACELIST TEXT` with `TEXT` as `[^\n]+`, so unlike
+    // mindmap there is nothing to unwrap: quotes stay, inner whitespace is
+    // significant, a trailing `%%` is text rather than a comment, and `title`
+    // is a node like any other. `parseIshikawaNodes` therefore has no
+    // text-extraction step, and `ishikawa-duplicate-sibling` compares raw.
+    expect(
+      await ishikawaTree(
+        'ishikawa-beta\n  P\n    "X"\n    a  b\n    A %% note\n    title T\n',
+      ),
+    ).toEqual(['1:P', '2:"X"', '2:a  b', '2:A %% note', '2:title T']);
+    // Trailing whitespace *is* trimmed, by the grammar's own `.trim()`.
+    expect(await ishikawaTree('ishikawa-beta\n  P\n    Same  \n')).toEqual([
+      '1:P',
+      '2:Same',
+    ]);
+    // An own-line `%%` is a comment (lexer rule 0, `\s*%%.*`) and declares no
+    // node — which is what lets the rules skip those lines.
+    expect(
+      await ishikawaTree('ishikawa-beta\n  P\n    %% soon\n    A\n'),
+    ).toEqual(['1:P', '2:A']);
+  }, 20_000);
+
+  it('parses an empty ishikawa body and gives it no root', async () => {
+    // #147 excludes an empty-diagram rule as "already a parse error". It is
+    // not — only the no-trailing-newline form errors, which no fenced or
+    // `.mmd` diagram is. The renderer opens with `if (!root) return`, so this
+    // body renders an empty `<svg>`: an `ishikawa-no-nodes` rule is reachable,
+    // and `ishikawa-no-causes` stays silent here on purpose rather than naming
+    // a problem node that does not exist.
+    expect(await ishikawaTree('ishikawa-beta\n')).toEqual([]);
+    expect((await validateWithMermaidJS('ishikawa-beta')).ok).toBe(false);
   }, 20_000);
 });

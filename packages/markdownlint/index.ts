@@ -338,6 +338,14 @@ const RULE_DESCRIPTIONS: Record<RuleId, string> = {
   'venn-no-sets': 'Mermaid: a Venn diagram declares no set and does not render',
   'venn-duplicate-union':
     'Mermaid: a Venn intersection is declared more than once',
+  'treeview-no-nodes': 'Mermaid: a tree view has no nodes',
+  'treeview-duplicate-sibling':
+    'Mermaid: a tree view node repeats a sibling label under the same parent',
+  'ishikawa-no-causes': 'Mermaid: an Ishikawa problem has no causes',
+  'ishikawa-empty-category': 'Mermaid: an Ishikawa category has no causes',
+  'ishikawa-deep-nesting': 'Mermaid: an Ishikawa node is nested too deeply',
+  'ishikawa-duplicate-sibling':
+    'Mermaid: an Ishikawa node duplicates a sibling under the same parent',
   'frontmatter-must-be-first':
     'Mermaid: something precedes the YAML frontmatter, so the diagram will not render',
   'suppression-unknown-rule':
