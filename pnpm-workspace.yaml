@@ -9,6 +9,11 @@ catalog:
   vite: ^6.4.3
   typescript: 6.0.3
   '@types/node': ^22.0.0
+overrides:
+  # GHSA-52cp-r559-cp3m / CVE-2026-59869: js-yaml merge-key quadratic CPU DoS,
+  # fixed in 4.3.0. Transitive-only (via rc-config-loader/textlint's secretlint
+  # chain), so a catalog entry can't reach it — force the patched version here.
+  js-yaml@^4.1.1: ^4.3.0
 allowBuilds:
   '@biomejs/biome': true
   esbuild: true
