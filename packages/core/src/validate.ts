@@ -170,8 +170,9 @@ function coord(value: unknown): number | undefined {
 /**
  * The position mermaid's Langium-based parsers attach to the error object.
  *
- * pie, packet-beta, gitGraph, architecture-beta, treemap-beta and radar-beta
- * parse via Langium and throw without jison's `hash`, but they carry a `result`
+ * pie, packet-beta, gitGraph, architecture-beta, treemap-beta, radar-beta and
+ * eventmodeling parse via Langium and throw without jison's `hash`, but they
+ * carry a `result`
  * holding the very errors mermaid formatted its message from — so the position
  * is available as data rather than as prose. Lexer errors carry `line`/`column`
  * directly; parser errors carry the offending token. radar-beta reports a token
