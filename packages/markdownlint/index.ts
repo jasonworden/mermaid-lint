@@ -330,6 +330,14 @@ const RULE_DESCRIPTIONS: Record<RuleId, string> = {
     'Mermaid: a Kanban card id is already used by another card or a column',
   'kanban-empty-column': 'Mermaid: a Kanban column has no cards',
   'kanban-no-columns': 'Mermaid: a Kanban board has no columns',
+  'venn-duplicate-set': 'Mermaid: a Venn set is declared more than once',
+  'venn-non-positive-size':
+    'Mermaid: a Venn set or union has a size of zero or less',
+  'venn-single-set': 'Mermaid: a Venn diagram declares only one set',
+  'venn-self-union': 'Mermaid: a Venn union names the same set more than once',
+  'treeview-no-nodes': 'Mermaid: a tree view has no nodes',
+  'treeview-duplicate-sibling':
+    'Mermaid: a tree view node repeats a sibling label under the same parent',
   'ishikawa-no-causes': 'Mermaid: an Ishikawa problem has no causes',
   'ishikawa-empty-category': 'Mermaid: an Ishikawa category has no causes',
   'ishikawa-deep-nesting': 'Mermaid: an Ishikawa node is nested too deeply',

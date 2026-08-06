@@ -4522,6 +4522,508 @@ describe('kanban id extraction', () => {
   );
 });
 
+function vn(...body: string[]): Block {
+  return block(['venn-beta', ...body].join('\n'), 'venn-beta');
+}
+
+describe('venn-duplicate-set rule', () => {
+  it('reports every repeat after the first, each naming the first line', () => {
+    const b = vn('  set A', '  set B', '  set A', '  set A');
+    const findings = only(b, 'venn-duplicate-set');
+    // Reported on the later declaration, naming the first — the convention
+    // `kanban-duplicate-column` and `sankey-duplicate-link` set.
+    expect(findings.map((f) => f.line)).toEqual([4, 5]);
+    for (const finding of findings) {
+      expect(finding.severity).toBe('warn');
+      expect(finding.message).toContain('`A`');
+      expect(finding.message).toContain('line 2');
+    }
+  });
+
+  it('collides a quoted identifier with its bare form', () => {
+    // `vennDB.normalizeText` strips the quotes before anything is compared, so
+    // to mermaid these are one set — as `union A, B` resolving proves.
+    const b = vn('  set "A"', '  set A', '  set B');
+    const findings = only(b, 'venn-duplicate-set');
+    expect(findings).toHaveLength(1);
+    expect(findings[0].line).toBe(3);
+    expect(findings[0].message).toContain('`A`');
+  });
+
+  it('ignores the label, which does not make two declarations distinct', () => {
+    // Both circles draw the *last* label, so differing labels are not two
+    // sets — they are one set whose first label silently never renders.
+    const b = vn('  set A["First"]', '  set A["Second"]', '  set B');
+    expect(only(b, 'venn-duplicate-set').map((f) => f.line)).toEqual([3]);
+  });
+
+  it('does not read a union identifier as a set declaration', () => {
+    // Repeating the union too: if union identifiers counted as declarations,
+    // `A` and `B` would each be reported twice over.
+    const b = vn('  set A', '  set B', '  union A, B', '  union A, B');
+    expect(only(b, 'venn-duplicate-set')).toEqual([]);
+  });
+});
+
+describe('venn-non-positive-size rule', () => {
+  it('flags a zero-sized set, whose set and intersections both vanish', () => {
+    const b = vn('  set A: 0', '  set B: 10', '  union A, B');
+    const findings = only(b, 'venn-non-positive-size');
+    expect(findings).toHaveLength(1);
+    expect(findings[0].severity).toBe('warn');
+    expect(findings[0].line).toBe(2);
+    expect(findings[0].message).toContain('`A`');
+    expect(findings[0].message).toContain('(0)');
+  });
+
+  it('flags a negative set size, which the lexer accepts', () => {
+    // Unlike treemap, `NUMERIC` carries the sign (`[+-]?…`), so the negative
+    // half is reachable here and `venn-non-positive-size` covers what
+    // `treemap-zero-value` cannot.
+    const b = vn('  set A: -5', '  set B: 10');
+    const findings = only(b, 'venn-non-positive-size');
+    expect(findings).toHaveLength(1);
+    expect(findings[0].line).toBe(2);
+    expect(findings[0].message).toContain('(-5)');
+  });
+
+  it('flags a non-positive union size with the union wording', () => {
+    const b = vn('  set A', '  set B', '  union A, B: -3');
+    const findings = only(b, 'venn-non-positive-size');
+    expect(findings).toHaveLength(1);
+    expect(findings[0].line).toBe(4);
+    expect(findings[0].message).toContain('union `A, B`');
+    expect(findings[0].message).toContain('nothing renders');
+  });
+
+  it('reads a size past a label, and with no space after the colon', () => {
+    const b = vn('  set A["Label"]: 0', '  set B:0', '  set C: 1');
+    expect(only(b, 'venn-non-positive-size').map((f) => f.line)).toEqual([
+      2, 3,
+    ]);
+  });
+
+  it('returns [] for positive and implicit sizes', () => {
+    // A set with no `: value` is sized by `addSubsetData`'s own default, which
+    // is always positive — silence here, not a default-valued finding.
+    const b = vn('  set A', '  set B: +5', '  set C: .5', '  union A, B');
+    expect(only(b, 'venn-non-positive-size')).toEqual([]);
+  });
+});
+
+describe('venn-single-set rule', () => {
+  it('flags a one-set diagram on its declaration', () => {
+    const b = vn('  set A');
+    const findings = only(b, 'venn-single-set');
+    expect(findings).toHaveLength(1);
+    expect(findings[0].severity).toBe('warn');
+    expect(findings[0].line).toBe(2);
+    expect(findings[0].message).toContain('`A`');
+  });
+
+  it('counts distinct identifiers, so a repeat is still one set', () => {
+    // `venn-duplicate-set` answers for the repeat; this rule answers for the
+    // diagram having nothing to intersect, which two `set A`s still do not.
+    const b = vn('  set A', '  set A');
+    expect(only(b, 'venn-single-set')).toHaveLength(1);
+  });
+
+  it('returns [] for two sets, and for a body declaring none', () => {
+    expect(only(vn('  set A', '  set B'), 'venn-single-set')).toEqual([]);
+    expect(only(vn('  title Empty'), 'venn-single-set')).toEqual([]);
+  });
+});
+
+describe('venn-self-union rule', () => {
+  it('flags an identifier repeated inside one union', () => {
+    const b = vn('  set A', '  set B', '  union A, A');
+    const findings = only(b, 'venn-self-union');
+    expect(findings).toHaveLength(1);
+    expect(findings[0].severity).toBe('warn');
+    expect(findings[0].line).toBe(4);
+    expect(findings[0].message).toContain('`A`');
+  });
+
+  it('flags a repeat among distinct identifiers, and normalizes quotes', () => {
+    const b = vn('  set A', '  set B', '  union A, B, "A"');
+    const findings = only(b, 'venn-self-union');
+    expect(findings).toHaveLength(1);
+    expect(findings[0].line).toBe(4);
+    expect(findings[0].message).toContain('`A`');
+  });
+
+  it('returns [] for a union over distinct sets', () => {
+    const b = vn(
+      '  set A',
+      '  set B',
+      '  set C',
+      '  union A, B',
+      '  union A, B, C',
+    );
+    expect(only(b, 'venn-self-union')).toEqual([]);
+  });
+});
+
+describe('venn statement scanning', () => {
+  it('matches keywords case-insensitively, as the mermaid lexer does', () => {
+    // Every rule in venn.jison carries the `i` flag, so `SET A` parses.
+    const b = vn('  SET A', '  Set A', '  set B', '  UNION A, A');
+    expect(only(b, 'venn-duplicate-set').map((f) => f.line)).toEqual([3]);
+    expect(only(b, 'venn-self-union').map((f) => f.line)).toEqual([5]);
+  });
+
+  it('skips comments and blank lines', () => {
+    const b = vn('  set A', '', '  %% set A', '  set B');
+    expect(only(b, 'venn-duplicate-set')).toEqual([]);
+  });
+
+  it('reads a statement carrying a trailing comment', () => {
+    const b = vn('  set A %% first', '  set A %% again', '  set B');
+    expect(only(b, 'venn-duplicate-set').map((f) => f.line)).toEqual([3]);
+  });
+
+  it('accepts identifiers containing dashes and underscores', () => {
+    const b = vn('  set a-b', '  set c_d', '  set a-b', '  union a-b, c_d');
+    expect(only(b, 'venn-duplicate-set').map((f) => f.line)).toEqual([4]);
+  });
+
+  it('reads every statement on a line, since newlines do not terminate them', () => {
+    // `document` is a list of `line`s and `line` is `statement | NEWLINE`, so
+    // a newline is a line of its own rather than a terminator and one physical
+    // line may carry several statements. Verified against mermaid 11.15.0:
+    // `set A set B` renders two circles, and `set A set A` renders the
+    // duplicate (4 regions, labels A, A, B, "").
+    expect(only(vn('  set A set B'), 'venn-single-set')).toEqual([]);
+    expect(
+      only(vn('  set A set A', '  set B'), 'venn-duplicate-set').map(
+        (f) => f.line,
+      ),
+    ).toEqual([2]);
+    // Both statements are on one line, so both findings cite that line.
+    expect(
+      only(vn('  set A set A set A', '  set B'), 'venn-duplicate-set').map(
+        (f) => f.line,
+      ),
+    ).toEqual([2, 2]);
+  });
+
+  it('does not scan past a keyword that swallows its line', () => {
+    // `title` lexes as `title\s[^#\n;]+`, so it takes the rest of the line
+    // with it: the `set B` here is title text, not a declaration. Reading one
+    // would invent a second set and silence `venn-single-set`.
+    const b = vn('  set A', '  title Comparing set B against set C');
+    expect(only(b, 'venn-single-set')).toHaveLength(1);
+    expect(only(b, 'venn-duplicate-set')).toEqual([]);
+  });
+
+  it('ends a quoted label at the closing quote, not the first bracket', () => {
+    // The lexer tries `["…"]` before `[…]` and its body is `[^"]*`, so a `]`
+    // is legal inside a quoted label. Cutting at the first `]` would leave the
+    // label's tail to be read as a size — mermaid renders this exactly as a
+    // plain two-set diagram, with A labelled `]: -5`.
+    expect(
+      only(vn('  set A["]: -5"]', '  set B'), 'venn-non-positive-size'),
+    ).toEqual([]);
+    // …and the converse: a real size after such a label must still be read.
+    expect(
+      only(vn('  set A["x]y"]: 0', '  set B'), 'venn-non-positive-size').map(
+        (f) => f.line,
+      ),
+    ).toEqual([2]);
+    // A bare label cannot contain `]` at all, so it ends at the first one.
+    expect(
+      only(vn('  set A[a, b]: 0', '  set B'), 'venn-non-positive-size').map(
+        (f) => f.line,
+      ),
+    ).toEqual([2]);
+  });
+
+  it('does not read a comment as a statement, but keeps one inside a label', () => {
+    // A `%%` between statements opens a comment; a `%%` inside a label was
+    // already consumed with it, the way the lexer takes `["50%% off"]` whole.
+    expect(
+      only(vn('  set A %% set A', '  set B'), 'venn-duplicate-set'),
+    ).toEqual([]);
+    expect(only(vn('  set A["50%% off"] set B'), 'venn-single-set')).toEqual(
+      [],
+    );
+  });
+
+  it('does not treat a keyword prefix as a statement', () => {
+    // `settings` is one `IDENTIFIER` to the lexer, not `set` + `tings`; the
+    // `\b` in the keyword pattern is what keeps it out.
+    const b = vn('  set A', '  set B', '  text settings');
+    expect(only(b, 'venn-duplicate-set')).toEqual([]);
+  });
+
+  it('scans a pathological line in linear time', () => {
+    // The scan is a left-to-right pass rather than one combined regex, which
+    // would stack quantifiers over overlapping character sets and backtrack
+    // super-linearly. A diagram body is user input and `checkSemantics` runs
+    // ahead of any parse, so an unparseable body still reaches it. Shape
+    // follows the magnitude test #143 established.
+    //
+    // The identifiers are *distinct* deliberately. A repeated one (`A, A, …`)
+    // exercises neither hot path: `venn-self-union` reports at the second
+    // identifier and stops, so a quadratic dedupe would pass this test — which
+    // is exactly what an earlier `indexOf`-based one did, at 255ms for this
+    // input. The clean union is the adversarial case for both.
+    const long = `  union ${Array.from({ length: 20_000 }, (_, i) => `A${i}`).join(', ')}`;
+    const started = performance.now();
+    expect(only(vn(long), 'venn-self-union')).toEqual([]);
+    expect(performance.now() - started).toBeLessThan(1_000);
+  });
+});
+
+function tv(...body: string[]): Block {
+  return block(['treeView-beta', ...body].join('\n'), 'treeView-beta');
+}
+
+describe('treeview-no-nodes rule', () => {
+  it('flags a header with nothing under it', () => {
+    const findings = only(tv(), 'treeview-no-nodes');
+    expect(findings).toHaveLength(1);
+    expect(findings[0].severity).toBe('warn');
+    expect(findings[0].line).toBe(1);
+    expect(findings[0].message).toContain('renders as an empty tree');
+    // The syntax note the rule carries: an author who wrote bare words is one
+    // parse error away, not one rule away, so the message says so.
+    expect(findings[0].message).toContain('must be quoted');
+  });
+
+  it('flags a body that is metadata and comments only', () => {
+    // Every one of these can contain a quoted run, and none of them declares a
+    // node. Reading `title "Releases"` as a node would silence the rule on a
+    // diagram that renders empty.
+    const b = tv(
+      '  title "Releases"',
+      '  accTitle: "Releases"',
+      '  accDescr: covers "v1" and "v2"',
+      '  %% "not a node"',
+      '',
+    );
+    expect(only(b, 'treeview-no-nodes').map((f) => f.line)).toEqual([1]);
+  });
+
+  it('skips an accDescr block, in both its brace forms', () => {
+    expect(
+      only(
+        tv('  accDescr {', '    "v1"', '    "v2"', '  }'),
+        'treeview-no-nodes',
+      ),
+    ).toHaveLength(1);
+    expect(
+      only(tv('  accDescr', '  {', '    "v1"', '  }'), 'treeview-no-nodes'),
+    ).toHaveLength(1);
+    // A same-line block closes immediately, so what follows is nodes again.
+    expect(
+      only(tv('  accDescr { prose }', '  "root"'), 'treeview-no-nodes'),
+    ).toEqual([]);
+  });
+
+  it('sees a node declared on the header line itself', () => {
+    // The grammar takes a `STRING2` straight after the keyword, so
+    // `treeView-beta "root"` is a one-node tree, not an empty one. A scan that
+    // started below the header would call this diagram empty while mermaid
+    // renders a node in it.
+    expect(
+      only(block('treeView-beta "root"', 'treeView-beta'), 'treeview-no-nodes'),
+    ).toEqual([]);
+  });
+
+  it('sees a node after an accDescr block closes on the same line', () => {
+    // `ACC_DESCR` stops at the first `}` and the rest of the line keeps
+    // lexing, so `accDescr { d } "p"` declares `p`. Skipping the whole line
+    // would lose it.
+    expect(only(tv('  accDescr { d } "p"'), 'treeview-no-nodes')).toEqual([]);
+    // Same for the multi-line form's closing line.
+    expect(
+      only(tv('  accDescr {', '  d', '  } "p"'), 'treeview-no-nodes'),
+    ).toEqual([]);
+  });
+
+  it('sees a node after a `title` with no space after it', () => {
+    // `TITLE` ends with an empty alternative, so `title` only swallows its
+    // line when a space or tab follows. `title"p"` is an empty title plus a
+    // node `p` — mermaid renders it, so the scan must not skip the line.
+    expect(only(tv('  title"p"'), 'treeview-no-nodes')).toEqual([]);
+    // With a separator it does swallow the line, quotes and all.
+    expect(only(tv('  title "p"'), 'treeview-no-nodes')).toHaveLength(1);
+    expect(only(tv('  title\t"p"'), 'treeview-no-nodes')).toHaveLength(1);
+    // A bare `title` is an empty title and swallows only itself.
+    expect(only(tv('  title', '  "p"'), 'treeview-no-nodes')).toEqual([]);
+  });
+
+  it('returns [] once any node is declared', () => {
+    expect(only(tv('  "root"'), 'treeview-no-nodes')).toEqual([]);
+    // Either quote style is a node, and an empty label still is one.
+    expect(only(tv("  'root'"), 'treeview-no-nodes')).toEqual([]);
+    expect(only(tv('  ""'), 'treeview-no-nodes')).toEqual([]);
+  });
+
+  it('does not apply to other indented diagram types', () => {
+    expect(only(block('mindmap', 'mindmap'), 'treeview-no-nodes')).toEqual([]);
+  });
+});
+
+describe('treeview-duplicate-sibling rule', () => {
+  it('reports every repeat after the first, each naming the first line', () => {
+    const b = tv('  "root"', '    "same"', '    "same"', '    "same"');
+    const findings = only(b, 'treeview-duplicate-sibling');
+    // Reported on the later node, naming the first — the convention
+    // `mindmap-duplicate-sibling` set.
+    expect(findings.map((f) => f.line)).toEqual([4, 5]);
+    for (const finding of findings) {
+      expect(finding.severity).toBe('warn');
+      expect(finding.message).toContain('`same`');
+      expect(finding.message).toContain('line 3');
+    }
+  });
+
+  it('keys on the parent, so the same label under two parents is fine', () => {
+    const b = tv('  "r1"', '    "x"', '  "r2"', '    "x"');
+    expect(only(b, 'treeview-duplicate-sibling')).toEqual([]);
+    // Nor does a child repeating its own parent's label collide.
+    expect(only(tv('  "x"', '    "x"'), 'treeview-duplicate-sibling')).toEqual(
+      [],
+    );
+  });
+
+  it('flags duplicated top-level nodes', () => {
+    // Everything at the top level shares mermaid's synthetic `/` root, so two
+    // of them are siblings just as much as two children are.
+    const findings = only(tv('  "r"', '  "r"'), 'treeview-duplicate-sibling');
+    expect(findings.map((f) => f.line)).toEqual([3]);
+    expect(findings[0].message).toContain('line 2');
+  });
+
+  it('treats the two quote styles as one label', () => {
+    // Mermaid strips either quote to the same text, so `"a"` and `'a'` render
+    // as one repeated branch and must read as one here too.
+    expect(
+      only(tv('  "a"', "  'a'"), 'treeview-duplicate-sibling'),
+    ).toHaveLength(1);
+  });
+
+  it('re-parents on an outdent rather than assuming a fixed step', () => {
+    // `b` outdents past `a` to a level no ancestor holds, so mermaid pops `a`
+    // and lands it beside `x` under `r` — where it does duplicate. Inferring
+    // an indent unit instead would put it somewhere mermaid never puts it.
+    const b = tv('  "r"', '    "x"', '      "a"', '    "b"', '    "x"');
+    const findings = only(b, 'treeview-duplicate-sibling');
+    expect(findings.map((f) => f.line)).toEqual([6]);
+    expect(findings[0].message).toContain('line 3');
+  });
+
+  it('indents a second label on a line from the space before it', () => {
+    // Both labels on line 3 land under the synthetic root, not under `root` —
+    // `"b"`'s indent is the single space between them, which pops `"a"` and
+    // `"root"` both. So it duplicates the *top-level* `"b"`, not a child.
+    const findings = only(
+      tv('  "b"', '    "a" "b"'),
+      'treeview-duplicate-sibling',
+    );
+    expect(findings.map((f) => f.line)).toEqual([3]);
+    expect(findings[0].message).toContain('line 2');
+  });
+
+  it('keeps a header-line node on the stack, so its children re-parent right', () => {
+    // The header-line node is a real parent. Missing it would drop `"p"` from
+    // the stack and land both `"x"` under the synthetic root as siblings —
+    // a duplicate mermaid does not have. Its edges here are `/ > p`,
+    // `p > x`, `/ > x`: the two `x` sit at different depths.
+    const b = block(
+      ['treeView-beta "p"', '  "x"', ' "x"'].join('\n'),
+      'treeView-beta',
+    );
+    expect(only(b, 'treeview-duplicate-sibling')).toEqual([]);
+  });
+
+  it('keeps an accDescr tail node on the stack too', () => {
+    // Same shape, with the parent declared after a closing `}` instead of
+    // after the keyword.
+    const b = tv('  accDescr { d } "p"', '    "x"', ' "x"');
+    expect(only(b, 'treeview-duplicate-sibling')).toEqual([]);
+  });
+
+  it('ignores quoted text inside metadata and comments', () => {
+    const b = tv(
+      '  title "root"',
+      '  accDescr: about "root"',
+      '  %% "root"',
+      '  "root"',
+    );
+    expect(only(b, 'treeview-duplicate-sibling')).toEqual([]);
+  });
+
+  it('returns [] for a tree whose siblings are all distinct', () => {
+    const b = tv('  "root"', '    "a"', '    "b"', '      "a"');
+    expect(only(b, 'treeview-duplicate-sibling')).toEqual([]);
+  });
+});
+
+describe('treeView label scanning', () => {
+  it(
+    'scans a quote-less line in linear time (ReDoS regression)',
+    // Same shape and reason as the kanban guard above: only the failing path
+    // is slow, so a passing run costs ~1ms while a regression has to run to
+    // completion before it can be reported.
+    { timeout: 60_000 },
+    () => {
+      // Writing the indent into `TREEVIEW_LABEL_RE` as a leading `([ \t]*)`
+      // re-scans the whole whitespace run at every start position it fails
+      // from — quadratic on a line with no quote to anchor it. 80 000 spaces
+      // took ~2.8s that way; counting the run backwards from a match is O(n)
+      // over the line and does the same 80 000 in under a millisecond.
+      // Diagram bodies are user input and `checkSemantics` runs ahead of any
+      // parse, so an unparseable body still reaches this.
+      const b = tv(' '.repeat(80_000));
+
+      const start = performance.now();
+      const findings = only(b, 'treeview-duplicate-sibling');
+      const elapsed = performance.now() - start;
+
+      // The line quotes nothing, so it declares no node at all.
+      expect(findings).toEqual([]);
+      expect(only(b, 'treeview-no-nodes').map((f) => f.line)).toEqual([1]);
+      expect(elapsed).toBeLessThan(500);
+    },
+  );
+
+  it(
+    'looks ahead from a bare accDescr in linear time (ReDoS regression)',
+    { timeout: 60_000 },
+    () => {
+      // The bare-`accDescr` branch has to look ahead for the `{` that may open
+      // on a later line. Spelled `lines.slice(i + 1).find(…)` it copies the
+      // whole remaining body once per bare `accDescr` — measured at ~8s for
+      // 128 000 of them, a clean 4x per doubling. Walking an index instead
+      // stops at the first non-blank line, which here is the next `accDescr`.
+      const b = tv(...Array.from({ length: 60_000 }, () => '  accDescr'));
+
+      const start = performance.now();
+      const findings = only(b, 'treeview-no-nodes');
+      const elapsed = performance.now() - start;
+
+      // No `{` ever opens, so every line is metadata and nothing is a node.
+      expect(findings.map((f) => f.line)).toEqual([1]);
+      expect(elapsed).toBeLessThan(500);
+    },
+  );
+
+  it('counts the indent of every label on a line, cheaply', () => {
+    // The backwards count must stay correct where the forward capture was:
+    // each label's indent is the run immediately before it, so the second
+    // label on a line takes the single separating space.
+    const b = tv('  "a" "a"');
+    // Both land under the synthetic root — `"a"`'s indent of 1 pops the first
+    // — so they are siblings and the second duplicates the first.
+    expect(only(b, 'treeview-duplicate-sibling').map((f) => f.line)).toEqual([
+      2,
+    ]);
+  });
+});
+
 // https://github.com/jasonworden/mermaid-lint/issues/123. Every case here goes
 // through the real extractor rather than `block()`: the rule gates on
 // `block.type === '---'`, so hardcoding the type would assert the rule's body

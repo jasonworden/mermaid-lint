@@ -118,6 +118,12 @@ export type RuleId =
   | 'kanban-duplicate-task-id'
   | 'kanban-empty-column'
   | 'kanban-no-columns'
+  | 'venn-duplicate-set'
+  | 'venn-non-positive-size'
+  | 'venn-single-set'
+  | 'venn-self-union'
+  | 'treeview-no-nodes'
+  | 'treeview-duplicate-sibling'
   | 'ishikawa-no-causes'
   | 'ishikawa-empty-category'
   | 'ishikawa-deep-nesting'
@@ -173,6 +179,8 @@ export type RuleDocsScope =
   | 'stateDiagram'
   | 'timeline'
   | 'treemap-beta'
+  | 'treeView-beta'
+  | 'venn-beta'
   | 'wardley-beta'
   | 'xychart-beta';
 
@@ -481,6 +489,67 @@ export interface RuleMetadata {
  * only the no-trailing-newline form fails. #147 excludes it, so it is left for
  * the same follow-up treatment kanban got rather than widened into here;
  * `mermaid-behavior.test.ts` pins the parse so the exclusion stays a choice.
+ *
+ * The venn-beta rules are all advisory `warn`. Two of the four turn on the one
+ * thing `vennDB` does not do: `addSubsetData` pushes onto `subsets` without
+ * ever deduplicating, either across statements or within one identifier list.
+ *
+ * `venn-duplicate-set` catches the same set declared twice. The second push
+ * adds a circle rather than replacing the first — render probe, mermaid
+ * 11.15.0: a two-set diagram goes from 3 regions to 4, the extra one drawn
+ * coincident with the original, so nothing looks wrong until the styling or
+ * the label does. The label is where it bites: `addSubsetData` records each
+ * declaration's own label, but both circles draw the *last* one, so
+ * `set A["First"]` followed by `set A["Second"]` renders `Second` twice and
+ * `First` nowhere. Identifiers are compared after `normalizeText`, which
+ * strips surrounding double quotes, so `set "A"` and `set A` collide.
+ *
+ * `venn-non-positive-size` catches an explicit `: value` of zero or less, on
+ * either a `set` or a `union` — the venn counterpart of `pie-zero-value` and
+ * `sankey-non-positive-value`. Unlike treemap, a sign survives the lexer
+ * (`NUMERIC` is `[+-]?…`), so both halves are reachable, and each of the four
+ * cases is a defect: a zero-sized set erases itself *and* every union over it
+ * (3 regions to 1, logging `area A,B not represented on screen`); a
+ * zero-sized union parks its label off-canvas; a negative set size distorts
+ * the geometry; and a negative union size throws out of the layout, so
+ * nothing renders at all.
+ *
+ * `venn-single-set` catches a diagram declaring one distinct set. It renders —
+ * one circle, correctly — but a Venn diagram with nothing to intersect states
+ * nothing a label could not, so this is advisory in the spirit of
+ * `er-standalone-entity`.
+ *
+ * `venn-self-union` catches an identifier repeated inside one `union`, as in
+ * `union A, A`. The list is sorted but never deduplicated, so the pair reaches
+ * the layout as a genuine two-element subset and draws a spurious extra region
+ * over the set's own circle. It is the venn counterpart of `sankey-self-loop`.
+ * A union naming an *undeclared* set is deliberately not a rule here:
+ * `vennDB.validateUnionIdentifiers` throws `unknown set identifier: …`, and it
+ * validates in source order, so a forward reference is already an error too —
+ * both are the syntax pass's, not ours.
+ *
+ * The treeView-beta rules are both advisory `warn`. `treeview-no-nodes` flags
+ * a bare `treeView-beta` header, which parses clean and renders the synthetic
+ * `/` root and nothing else. It is not the only reachable empty-diagram case
+ * in the #131 batch, as this paragraph once claimed: `kanban-no-columns`
+ * above covers the same shape, and an empty `ishikawa-beta` parses too — only
+ * the no-trailing-newline form of either dies in the lexer, which no fenced or
+ * `.mmd` diagram is. `treeview-duplicate-sibling` is the direct analogue of
+ * `mindmap-duplicate-sibling` — two identical labels under one parent both
+ * render, so the tree claims a distinction it does not draw.
+ *
+ * Both key on quoted labels, because that is all the grammar accepts: a bare
+ * `root` after the header is a lexer error, not a node.
+ *
+ * #148 also proposed a `treeview-indent-jump` rule and asked for a call on it.
+ * It is not implemented, because the defect it describes is not observable.
+ * mermaid's `addNode` takes the indent as a raw *character count* and pops a
+ * stack while `level <= top.level`, so any strictly-greater indent is exactly
+ * one level deeper and the magnitude is discarded: indenting a child by three
+ * "levels" renders byte-for-byte identically to indenting it by one (render
+ * probe, mermaid 11.15.0). There is no grammatical indent unit to measure a
+ * jump against, so a rule would have to infer one from the rest of the body —
+ * which the mindmap, treemap, and kanban rules all decline to do.
  *
  * `frontmatter-must-be-first` is `error`, joining `duplicate-ids` and
  * `eventmodeling-undefined-frame` as the only non-advisory rules: a diagram
@@ -921,6 +990,36 @@ export const RULE_METADATA = {
     defaultSeverity: 'warn',
     docsScope: 'kanban',
     readmeDiagramKeywords: ['kanban'],
+  },
+  'venn-duplicate-set': {
+    defaultSeverity: 'warn',
+    docsScope: 'venn-beta',
+    readmeDiagramKeywords: ['venn-beta'],
+  },
+  'venn-non-positive-size': {
+    defaultSeverity: 'warn',
+    docsScope: 'venn-beta',
+    readmeDiagramKeywords: ['venn-beta'],
+  },
+  'venn-single-set': {
+    defaultSeverity: 'warn',
+    docsScope: 'venn-beta',
+    readmeDiagramKeywords: ['venn-beta'],
+  },
+  'venn-self-union': {
+    defaultSeverity: 'warn',
+    docsScope: 'venn-beta',
+    readmeDiagramKeywords: ['venn-beta'],
+  },
+  'treeview-no-nodes': {
+    defaultSeverity: 'warn',
+    docsScope: 'treeView-beta',
+    readmeDiagramKeywords: ['treeView-beta'],
+  },
+  'treeview-duplicate-sibling': {
+    defaultSeverity: 'warn',
+    docsScope: 'treeView-beta',
+    readmeDiagramKeywords: ['treeView-beta'],
   },
   'ishikawa-no-causes': {
     defaultSeverity: 'warn',

@@ -89,6 +89,46 @@ async function kanbanNodes(body: string): Promise<string[]> {
     );
 }
 
+/**
+ * Build a venn-beta diagram and hand back its subset list. Every venn rule
+ * turns on what `addSubsetData` pushed — the identifiers after normalization
+ * and the size after defaulting — and none of that is visible in a verdict,
+ * since every body below parses clean.
+ */
+async function vennSubsets(body: string): Promise<string[]> {
+  const db = await probeDb<{
+    getSubsetData(): { sets: string[]; size: number }[];
+  }>(body);
+  return db.getSubsetData().map((s) => `${s.sets.join(',')}=${s.size}`);
+}
+
+interface ProbeTreeViewNode {
+  name: string;
+  children: ProbeTreeViewNode[];
+}
+
+/**
+ * Flatten the hierarchy Mermaid derived from a treeView-beta body into
+ * `parent > child` edges. The treeView rules turn on which node ends up under
+ * which parent, and `getRoot` is where that is decided; a verdict alone would
+ * say nothing, since every body below but one parses clean. The synthetic `/`
+ * root mermaid always seeds the stack with is the parent of the top level.
+ */
+async function treeViewEdges(body: string): Promise<string[]> {
+  const root = (
+    await probeDb<{ getRoot(): ProbeTreeViewNode }>(body)
+  ).getRoot();
+  const edges: string[] = [];
+  const walk = (node: ProbeTreeViewNode): void => {
+    for (const child of node.children) {
+      edges.push(`${node.name} > ${child.name}`);
+      walk(child);
+    }
+  };
+  walk(root);
+  return edges;
+}
+
 interface ProbeIshikawaNode {
   text: string;
   children: ProbeIshikawaNode[];
@@ -653,6 +693,199 @@ describe('mermaid behavior contracts', () => {
     expect(await kanbanNodes('kanban\n  title Board\n')).toEqual([
       'column title Board=title Board',
     ]);
+  }, 20_000);
+  it('never deduplicates venn subsets, within a list or across statements', async () => {
+    // Every venn rule rests on this one property of `vennDB.addSubsetData`:
+    // it pushes onto `subsets` unconditionally. A repeat is therefore an extra
+    // *entry*, not an overwrite — which is what makes a duplicate `set` draw
+    // an extra circle and `union A, A` draw a region over itself.
+    expect(await vennSubsets('venn-beta\n  set A\n  set A\n  set B')).toEqual([
+      'A=10',
+      'A=10',
+      'B=10',
+    ]);
+    // The list is sorted but not deduplicated, so `A,A` reaches the layout as
+    // a genuine two-element subset — `venn-self-union`.
+    expect(
+      await vennSubsets('venn-beta\n  set A\n  set B\n  union A, A'),
+    ).toEqual(['A=10', 'B=10', 'A,A=2.5']);
+    // …and sorting is also why `union B, A` is the same subset as `union A, B`.
+    expect(
+      await vennSubsets('venn-beta\n  set A\n  set B\n  union B, A'),
+    ).toEqual(['A=10', 'B=10', 'A,B=2.5']);
+  }, 20_000);
+
+  it('reads venn sizes and identifiers the way the venn scanner does', async () => {
+    // `NUMERIC` carries its sign, so a non-positive size survives the lexer
+    // and reaches semantics — the half `treemap-zero-value` never sees.
+    expect(
+      await vennSubsets('venn-beta\n  set A: 0\n  set B: -5\n  set C: +2'),
+    ).toEqual(['A=0', 'B=-5', 'C=2']);
+    // A size may follow a label, and needs no space after the colon.
+    expect(
+      await vennSubsets('venn-beta\n  set A["Label"]: 0\n  set B:0'),
+    ).toEqual(['A=0', 'B=0']);
+    // `normalizeText` strips a surrounding pair of quotes, so `set "A"` and
+    // `set A` are one set — the normalization `venn-duplicate-set` reproduces.
+    expect(await vennSubsets('venn-beta\n  set "A"\n  set A')).toEqual([
+      'A=10',
+      'A=10',
+    ]);
+    // Keywords are case-insensitive; every rule in venn.jison carries `/i`.
+    expect(await vennSubsets('venn-beta\n  SET A\n  Set B')).toEqual([
+      'A=10',
+      'B=10',
+    ]);
+  }, 20_000);
+
+  it('takes several venn statements from one line', async () => {
+    // The venn grammar has no statement terminator — `document` is a list of
+    // `line`s and `line` is `statement | NEWLINE` — so a newline is a line of
+    // its own and one physical line may carry several statements. The venn
+    // scanner reads a line the same way; reading only the first would call
+    // this a one-set diagram, and miss the duplicate below it.
+    expect(await vennSubsets('venn-beta\n  set A set B')).toEqual([
+      'A=10',
+      'B=10',
+    ]);
+    expect(await vennSubsets('venn-beta\n  set A set A\n  set B')).toEqual([
+      'A=10',
+      'A=10',
+      'B=10',
+    ]);
+  }, 20_000);
+
+  it('ends a quoted venn label at the closing quote, not the first bracket', async () => {
+    // `BRACKET_LABEL` has two lexer rules, `\["[^"]*"\]` tried before
+    // `\[[^\]"]+\]`. A `]` is legal inside the quoted form, so the token ends
+    // at the first `"]`. Cutting a label at the first `]` instead leaves its
+    // tail to be read as a `: size` the author never wrote.
+    expect(await vennSubsets('venn-beta\n  set A["]: -5"]\n  set B')).toEqual([
+      'A=10',
+      'B=10',
+    ]);
+    expect(await vennSubsets('venn-beta\n  set A["x]y"]: 0\n  set B')).toEqual([
+      'A=0',
+      'B=10',
+    ]);
+    // A `%%` inside a label is part of the label, not the start of a comment.
+    expect(
+      await vennSubsets('venn-beta\n  set A["50%% off"]\n  set B'),
+    ).toEqual(['A=10', 'B=10']);
+  }, 20_000);
+
+  it('rejects a union naming an undeclared set, in either order', async () => {
+    // Why there is no `venn-undefined-set` rule: `validateUnionIdentifiers`
+    // throws, and it validates in source order, so a *forward* reference is
+    // an error too. Both belong to the syntax pass.
+    expect(
+      (await validateWithMermaidJS('venn-beta\n  set A\n  union A, Z')).ok,
+    ).toBe(false);
+    expect(
+      (await validateWithMermaidJS('venn-beta\n  union A, B\n  set A\n  set B'))
+        .ok,
+    ).toBe(false);
+    // And a one-identifier `union` is rejected by the grammar's own action,
+    // which is why `venn-self-union` needs `union A, A` to be reachable.
+    expect(
+      (await validateWithMermaidJS('venn-beta\n  set A\n  union A')).ok,
+    ).toBe(false);
+  }, 20_000);
+
+  it('parses a treeView-beta with no nodes at all', async () => {
+    // What makes `treeview-no-nodes` load-bearing rather than redundant. Of
+    // the indented types, treeView is the one whose empty body is *not*
+    // already a syntax error: the header alone parses clean and leaves the
+    // synthetic `/` root childless, so nothing but the rule reports it.
+    expect((await validateWithMermaidJS('treeView-beta\n')).ok).toBe(true);
+    expect(await treeViewEdges('treeView-beta\n')).toEqual([]);
+    // A `title` is metadata, not a node — hence the metadata skip in the scan.
+    expect(await treeViewEdges('treeView-beta\n  title Releases\n')).toEqual(
+      [],
+    );
+  }, 20_000);
+
+  it('rejects an unquoted treeView-beta label', async () => {
+    // Why every treeView rule keys on quoted text: a bare word never becomes a
+    // node, it dies in the lexer. A scan that accepted unquoted words would
+    // invent nodes in bodies the syntax pass has already rejected.
+    expect((await validateWithMermaidJS('treeView-beta\n  root\n')).ok).toBe(
+      false,
+    );
+    // Either quote style works, though, so the scan must accept both.
+    expect(await treeViewEdges("treeView-beta\n  'root'\n")).toEqual([
+      '/ > root',
+    ]);
+  }, 20_000);
+
+  it('keeps both treeView-beta siblings that share a label', async () => {
+    // `treeview-duplicate-sibling`: nothing in a treeView references a label,
+    // so neither node is dropped or merged — the tree simply draws the same
+    // branch twice under one parent.
+    expect(
+      await treeViewEdges('treeView-beta\n  "root"\n    "same"\n    "same"\n'),
+    ).toEqual(['/ > root', 'root > same', 'root > same']);
+  }, 20_000);
+
+  it('reads any deeper treeView-beta indent as exactly one level', async () => {
+    // The reason #148's proposed `treeview-indent-jump` is not implemented.
+    // `addNode` takes the indent as a raw character count and pops while
+    // `level <= top.level`, so the magnitude of a step is discarded entirely:
+    // a child indented eight columns past its parent builds the identical
+    // tree to one indented two. There is no grammatical unit for a rule to
+    // measure a "jump" against.
+    const oneLevel = 'treeView-beta\n  "root"\n    "a"\n      "b"\n';
+    const threeLevels = 'treeView-beta\n  "root"\n    "a"\n            "b"\n';
+    expect(await treeViewEdges(threeLevels)).toEqual(
+      await treeViewEdges(oneLevel),
+    );
+    expect(await treeViewEdges(threeLevels)).toEqual([
+      '/ > root',
+      'root > a',
+      'a > b',
+    ]);
+  }, 20_000);
+
+  it('keeps lexing treeView-beta nodes after a mid-line construct', async () => {
+    // Three places where a treeView statement ends mid-line and the rest goes
+    // on declaring nodes. `parseTreeViewNodes` resumes at an offset for each;
+    // skipping the whole line would call these diagrams empty while mermaid
+    // renders a node in every one.
+    //
+    // The keyword: the grammar takes a `STRING2` straight after it.
+    expect(await treeViewEdges('treeView-beta "root"\n')).toEqual(['/ > root']);
+    // `ACC_DESCR` stops at the first `}`, in either brace form.
+    expect(
+      await treeViewEdges('treeView-beta\n  accDescr { d } "p"\n'),
+    ).toEqual(['/ > p']);
+    expect(
+      await treeViewEdges('treeView-beta\n  accDescr {\n  d\n  } "p"\n'),
+    ).toEqual(['/ > p']);
+    // `TITLE` ends with an *empty* alternative, so it only swallows the line
+    // when a space or tab follows the keyword.
+    expect(await treeViewEdges('treeView-beta\n  title"p"\n')).toEqual([
+      '/ > p',
+    ]);
+    expect(await treeViewEdges('treeView-beta\n  title "p"\n')).toEqual([]);
+    expect(await treeViewEdges('treeView-beta\n  title\t"p"\n')).toEqual([]);
+    // And each of those nodes is a real parent, not a node the scan may drop:
+    // `x` at a deeper indent nests under it, and the shallower `x` does not.
+    expect(await treeViewEdges('treeView-beta "p"\n  "x"\n "x"\n')).toEqual([
+      '/ > p',
+      'p > x',
+      '/ > x',
+    ]);
+  }, 20_000);
+
+  it('indents a second treeView-beta label from the space before it', async () => {
+    // `INDENTATION` matches the whitespace immediately before a label wherever
+    // it sits, not just at the start of a line — so a second label on a line
+    // takes the single space between them as its indent and lands as a
+    // shallow root, *not* beside its line-mate. `parseTreeViewNodes` walks
+    // labels rather than lines to reproduce this.
+    expect(
+      await treeViewEdges('treeView-beta\n  "root"\n    "a" "b"\n'),
+    ).toEqual(['/ > root', 'root > a', '/ > b']);
   }, 20_000);
   it('keeps every ishikawa node under one problem, whatever its indent', async () => {
     // `IshikawaDB.addNode` pops with `while (stack.length > 1 && …)`, so the

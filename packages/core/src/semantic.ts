@@ -3779,6 +3779,457 @@ const kanbanNoColumns: Rule = {
 };
 
 // ---------------------------------------------------------------------------
+// Venn helpers and rules
+// ---------------------------------------------------------------------------
+
+/**
+ * The `set` / `union` keyword opening a venn-beta statement. Mermaid's lexer
+ * matches every keyword case-insensitively (`SET A` parses), so this does too.
+ */
+const VENN_STATEMENT_RE = /^(?:set|union)\b/i;
+
+/**
+ * One venn identifier: Mermaid's `IDENTIFIER` or its `STRING`. Anchored and
+ * applied to a moving slice rather than scanned globally, so the identifier
+ * list is read left to right exactly as the parser reads it.
+ */
+const VENN_IDENTIFIER_RE = /^(?:[A-Za-z_][A-Za-z0-9\-_]*|"[^"]*")/;
+
+/**
+ * Mermaid's `NUMERIC`, after the `:` that introduces an explicit size. The
+ * sign is part of the token — unlike treemap, where a `-5` dies in the lexer.
+ * Captures [1]=the numeric text.
+ */
+const VENN_SIZE_RE = /^:\s*([+-]?(?:\d+(?:\.\d+)?|\.\d+))/;
+
+/**
+ * Normalize an identifier the way `vennDB.normalizeText` does: trim, then drop
+ * a surrounding pair of double quotes. This is what makes `set "A"` and
+ * `set A` the same set, and it runs before anything is compared.
+ */
+function vennNormalize(raw: string): string {
+  const trimmed = raw.trim();
+  return trimmed.length >= 2 && trimmed.startsWith('"') && trimmed.endsWith('"')
+    ? trimmed.slice(1, -1)
+    : trimmed;
+}
+
+interface VennStatement {
+  kind: 'set' | 'union';
+  /** Normalized identifiers, in source order (Mermaid sorts; order is ours). */
+  identifiers: string[];
+  /** The explicit `: value`, or `null` when the statement carries none. */
+  size: number | null;
+  /** 1-indexed body line. */
+  line: number;
+}
+
+function isVenn(block: Block): boolean {
+  return block.type === 'venn-beta';
+}
+
+/**
+ * Scan a venn-beta body into its `set` and `union` statements.
+ *
+ * A statement is the keyword, then an identifier list, then an optional
+ * `[label]`, then an optional `: size`. The parts are consumed in that order by
+ * a single left-to-right pass rather than by one regex over the whole line: a
+ * combined pattern would stack quantifiers over overlapping character sets and
+ * backtrack super-linearly on the failing path, which a diagram body
+ * (arbitrary user input, scanned before any parse) can reach. The scan is
+ * O(line length).
+ *
+ * The grammar is *not* line-oriented, which is the trap here. `document` is a
+ * list of `line`s and `line` is `statement | NEWLINE` — a newline is a line of
+ * its own, not a statement terminator — so several statements may share one
+ * physical line. `set A set B` really does declare two sets, and `set A set A`
+ * really is the duplicate `venn-duplicate-set` exists for. Hence the inner
+ * loop, which keeps reading statements until the line stops yielding them.
+ *
+ * A line that does not *open* with `set` or `union` is skipped whole rather
+ * than scanned for one further in. Mermaid's `title` swallows the rest of its
+ * line (`title\s[^#\n;]+`), so a `set` inside it is title text, not a
+ * declaration — scanning forward would invent a set the diagram never had.
+ * Skipping may miss a statement trailing some other keyword; that direction
+ * costs a finding, the other direction invents one.
+ */
+function parseVennStatements(
+  lines: string[],
+  headerLine: number,
+): VennStatement[] {
+  const statements: VennStatement[] = [];
+
+  for (let i = headerLine; i < lines.length; i++) {
+    let rest = lines[i].trim();
+
+    for (;;) {
+      // A `%%` here opens a comment running to end of line. Reached only
+      // between statements: a `%%` *inside* a label was consumed with it, the
+      // way the lexer consumes `["50%% off"]` as one token.
+      if (rest.startsWith('%%')) break;
+
+      const keyword = VENN_STATEMENT_RE.exec(rest);
+      if (keyword === null) break;
+
+      const kind = keyword[0].toLowerCase() as 'set' | 'union';
+      rest = rest.slice(keyword[0].length);
+      const identifiers: string[] = [];
+
+      for (;;) {
+        rest = rest.trimStart();
+        const identifier = VENN_IDENTIFIER_RE.exec(rest);
+        if (identifier === null) break;
+        identifiers.push(vennNormalize(identifier[0]));
+        rest = rest.slice(identifier[0].length).trimStart();
+        // Only a `union` takes more than one identifier; a comma after a `set`
+        // identifier is a parse error, so stop and let the syntax pass have it.
+        if (kind !== 'union' || !rest.startsWith(',')) break;
+        rest = rest.slice(1);
+      }
+      if (identifiers.length === 0) break;
+
+      // An optional `[label]`. The lexer tries `["…"]` before `[…]`, and the
+      // quoted form's body is `[^"]*` — so a `]` is legal inside it and the
+      // token ends at the first `"]`, not the first `]`. Ending a quoted label
+      // early would leave its tail in `rest`, where `set A["]: -5"]` reads as
+      // a size of -5 the diagram never had.
+      if (rest.startsWith('[')) {
+        const quoted = rest.startsWith('["');
+        const close = quoted ? rest.indexOf('"]', 2) : rest.indexOf(']');
+        // Unterminated: a lexical error, so leave the line to the syntax pass.
+        if (close === -1) break;
+        rest = rest.slice(close + (quoted ? 2 : 1)).trimStart();
+      }
+
+      const size = VENN_SIZE_RE.exec(rest);
+      if (size !== null) rest = rest.slice(size[0].length).trimStart();
+
+      statements.push({
+        kind,
+        identifiers,
+        size: size === null ? null : Number.parseFloat(size[1]),
+        line: i + 1,
+      });
+    }
+  }
+
+  return statements;
+}
+
+const vennDuplicateSet: Rule = {
+  id: 'venn-duplicate-set',
+  appliesTo: isVenn,
+  evaluate: ({ lines, headerLine, fileLine }) => {
+    const seen = new Map<string, number>();
+    const findings: RuleFinding[] = [];
+
+    for (const statement of parseVennStatements(lines, headerLine)) {
+      if (statement.kind !== 'set') continue;
+      const id = statement.identifiers[0];
+      const first = seen.get(id);
+      if (first === undefined) {
+        seen.set(id, statement.line);
+        continue;
+      }
+      findings.push({
+        message: `venn set \`${id}\` is declared more than once (first on line ${fileLine(first)}); Mermaid adds a second circle coincident with the first rather than replacing it, and both draw the last label, so an earlier one never renders.`,
+        line: statement.line,
+      });
+    }
+
+    return findings;
+  },
+};
+
+const vennNonPositiveSize: Rule = {
+  id: 'venn-non-positive-size',
+  appliesTo: isVenn,
+  evaluate: ({ lines, headerLine }) =>
+    parseVennStatements(lines, headerLine)
+      .filter((statement) => statement.size !== null && statement.size <= 0)
+      .map((statement) => {
+        // Only the consequence differs between the two kinds; the subject
+        // reads the same, since a `set` always carries exactly one identifier.
+        const consequence =
+          statement.kind === 'set'
+            ? 'a size of 0 removes the set and every intersection over it from the diagram, and a negative one distorts the layout.'
+            : 'venn areas should be greater than 0, and a negative one throws out of the layout so nothing renders.';
+        return {
+          message: `venn ${statement.kind} \`${statement.identifiers.join(', ')}\` has a non-positive size (${statement.size}); ${consequence}`,
+          line: statement.line,
+        };
+      }),
+};
+
+const vennSingleSet: Rule = {
+  id: 'venn-single-set',
+  appliesTo: isVenn,
+  evaluate: ({ lines, headerLine }) => {
+    const sets = parseVennStatements(lines, headerLine).filter(
+      (statement) => statement.kind === 'set',
+    );
+    const distinct = new Set(sets.map((statement) => statement.identifiers[0]));
+    if (distinct.size !== 1) return [];
+
+    // Every declaration names that one set, so the first is both the name to
+    // report and the line to report it on.
+    const [first] = sets;
+    return [
+      {
+        message: `venn-beta declares only one set (\`${first.identifiers[0]}\`); it renders as a single circle, with nothing to intersect.`,
+        line: first.line,
+      },
+    ];
+  },
+};
+
+const vennSelfUnion: Rule = {
+  id: 'venn-self-union',
+  appliesTo: isVenn,
+  evaluate: ({ lines, headerLine }) => {
+    const findings: RuleFinding[] = [];
+
+    for (const statement of parseVennStatements(lines, headerLine)) {
+      if (statement.kind !== 'union') continue;
+      // A `seen` set rather than `indexOf`, which rescans from the head per
+      // element and so is quadratic on the path that finds *nothing* — a union
+      // of distinct identifiers, which is the well-formed case every clean
+      // diagram takes. Measured at 20 000 distinct identifiers: 255ms via
+      // `indexOf`, 2ms here.
+      const seen = new Set<string>();
+      let repeated: string | undefined;
+      for (const id of statement.identifiers) {
+        if (seen.has(id)) {
+          repeated = id;
+          break;
+        }
+        seen.add(id);
+      }
+      if (repeated === undefined) continue;
+      findings.push({
+        message: `venn union names \`${repeated}\` more than once; Mermaid does not deduplicate the list, so the set is intersected with itself and draws a spurious extra region.`,
+        line: statement.line,
+      });
+    }
+
+    return findings;
+  },
+};
+
+// ---------------------------------------------------------------------------
+// treeView-beta helpers and rules
+// ---------------------------------------------------------------------------
+
+/**
+ * A metadata statement that swallows the rest of its line. Each takes free text
+ * that may itself be quoted — `title "Releases"` stores the title as the
+ * literal `"Releases"` — so a node scan that did not skip these lines would
+ * read the diagram's own caption as a node.
+ *
+ * The two boundaries differ because mermaid's terminals do. `TITLE` ends with
+ * an *empty* alternative, so `title` only consumes the line when a space or tab
+ * follows it: `title"p"` lexes as an empty title and then a node `p`, and
+ * skipping that line would lose a node mermaid renders. `accTitle` and
+ * `accDescr` have no such alternative — without their `:` or `{` they are a
+ * lexer error — so a plain word boundary is enough for them.
+ */
+const TREEVIEW_META_RE = /^(?:title(?=[\t ]|$)|(?:accTitle|accDescr)(?![\w-]))/;
+
+/** The opening line of a multi-line `accDescr { … }` block. */
+const TREEVIEW_ACC_DESCR_OPEN_RE = /^accDescr\s*\{/;
+
+/** A bare `accDescr` whose `{` opens on a later line. */
+const TREEVIEW_ACC_DESCR_BARE_RE = /^accDescr$/;
+
+/**
+ * The `treeView-beta` keyword that opens the body, with any indent before it.
+ * Matched to find where to *resume* scanning, not to validate: mermaid's
+ * grammar takes a label right after the keyword, so `treeView-beta "root"`
+ * declares a node on the header line itself.
+ */
+const TREEVIEW_HEADER_RE = /^[\t ]*treeView-beta/;
+
+/**
+ * A quoted treeView label. Mermaid's `STRING2` terminal accepts either quote
+ * style and has no escape, so a label runs to the next matching quote; an
+ * unquoted word is a lexer error, not a node, which is why every treeView rule
+ * keys on quoted text alone.
+ *
+ * Groups: exactly one of [1] (double-quoted) or [2] (single-quoted) holds the
+ * label. The whitespace before a label is what mermaid measures as its indent,
+ * but it is counted by {@link treeViewIndent} rather than captured here: a
+ * leading `([ \t]*)` re-scans the whole run at every start position it fails
+ * from, which is quadratic on a line of nothing but spaces — 80 000 of them
+ * took ~2.8s. Diagram bodies are user input and `checkSemantics` runs ahead of
+ * any parse, so an unparseable body still reaches this.
+ */
+const TREEVIEW_LABEL_RE = /"([^"]*)"|'([^']*)'/g;
+
+/**
+ * Count the whitespace immediately before a label. Mermaid's `INDENTATION`
+ * terminal matches wherever it sits, so this is a node's indent whether the
+ * label opens its line or follows another on the same one.
+ */
+function treeViewIndent(line: string, start: number): number {
+  let n = start;
+  while (n > 0 && (line[n - 1] === ' ' || line[n - 1] === '\t')) n--;
+  return start - n;
+}
+
+interface TreeViewNode {
+  /** Label text, quotes stripped. */
+  text: string;
+  /** 1-indexed body line. */
+  line: number;
+  /** Index of the parent in the node list, or `null` for a top-level node. */
+  parent: number | null;
+}
+
+function isTreeView(block: Block): boolean {
+  return block.type === 'treeView-beta';
+}
+
+/**
+ * Scan a treeView-beta body into a flat node list with parent links.
+ *
+ * Hierarchy is a plain stack over an indent measured in characters: mermaid's
+ * `addNode` pops while `level <= top.level`, so a strictly-deeper indent is a
+ * child and anything else re-parents up the stack. The *size* of the step never
+ * survives — indenting a child by twelve spaces builds the same tree as
+ * indenting it by one — which is why there is no `treeview-indent-jump` rule.
+ *
+ * Indent is per *node*, not per line. Mermaid's `INDENTATION` terminal matches
+ * the whitespace immediately before a label wherever it sits, so a second label
+ * on the same line takes the single space between them as its indent and lands
+ * as a shallow sibling rather than beside its line-mate. Rare, but it is what
+ * mermaid does, so the scan walks labels rather than lines.
+ *
+ * For the same reason the scan is offset-based rather than line-based: three
+ * constructs end mid-line and leave the remainder lexing normally, so each one
+ * yields a `scanFrom` to resume at instead of skipping the whole line. The
+ * header keyword is one (`treeView-beta "root"` declares a node), an
+ * `accDescr { … }` block's closing `}` is another (`accDescr { d } "p"`
+ * declares `p`), and `title` with no space after it is the third.
+ */
+function parseTreeViewNodes(
+  lines: string[],
+  headerLine: number,
+): TreeViewNode[] {
+  const nodes: TreeViewNode[] = [];
+  const stack: { indent: number; index: number }[] = [];
+  let inAccDescr = false;
+
+  for (let i = headerLine - 1; i < lines.length; i++) {
+    const raw = lines[i];
+    const trimmed = raw.trim();
+    // Offset of `trimmed` within `raw`, so an index found in the former can be
+    // mapped back onto the latter — the label scan and the indent count both
+    // need real column positions.
+    const lead = raw.length - raw.trimStart().length;
+    // Where the rest of this line starts lexing as nodes. Zero for an ordinary
+    // node line; past the keyword or a closing `}` for the mid-line cases.
+    let scanFrom = 0;
+
+    if (i === headerLine - 1) {
+      // The header line carries the keyword, and may carry a node after it.
+      const header = TREEVIEW_HEADER_RE.exec(raw);
+      if (header === null) continue;
+      scanFrom = header[0].length;
+    } else {
+      if (trimmed === '' || trimmed.startsWith('%%')) continue;
+
+      // An `accDescr { … }` block is prose; mermaid reads no nodes out of it,
+      // but it stops at the first `}` and keeps lexing what follows.
+      if (inAccDescr) {
+        const close = trimmed.indexOf('}');
+        if (close === -1) continue;
+        inAccDescr = false;
+        scanFrom = lead + close + 1;
+      } else if (TREEVIEW_ACC_DESCR_OPEN_RE.test(trimmed)) {
+        const close = trimmed.indexOf('}', trimmed.indexOf('{'));
+        if (close === -1) {
+          inAccDescr = true;
+          continue;
+        }
+        scanFrom = lead + close + 1;
+      } else if (TREEVIEW_ACC_DESCR_BARE_RE.test(trimmed)) {
+        // Only whitespace may separate the keyword from its brace, so anything
+        // else on the next non-blank line means this was never an `accDescr`.
+        // Walked with an index rather than `lines.slice(i + 1).find(…)`: the
+        // slice copies the whole remaining body, so a diagram that is nothing
+        // but bare `accDescr` lines re-copies it once per line — quadratic, and
+        // reachable, since `checkSemantics` runs ahead of any parse.
+        let next = i + 1;
+        while (next < lines.length && lines[next].trim() === '') next++;
+        if (next < lines.length && lines[next].trim().startsWith('{')) {
+          inAccDescr = true;
+        }
+        continue;
+      } else if (TREEVIEW_META_RE.test(trimmed)) {
+        continue;
+      }
+    }
+
+    TREEVIEW_LABEL_RE.lastIndex = scanFrom;
+    let match = TREEVIEW_LABEL_RE.exec(raw);
+    while (match !== null) {
+      const indent = treeViewIndent(raw, match.index);
+      while (stack.length > 0 && stack[stack.length - 1].indent >= indent) {
+        stack.pop();
+      }
+      nodes.push({
+        text: match[1] ?? match[2],
+        line: i + 1,
+        parent: stack.length > 0 ? stack[stack.length - 1].index : null,
+      });
+      stack.push({ indent, index: nodes.length - 1 });
+      match = TREEVIEW_LABEL_RE.exec(raw);
+    }
+  }
+
+  return nodes;
+}
+
+const treeviewNoNodes: Rule = {
+  id: 'treeview-no-nodes',
+  appliesTo: isTreeView,
+  evaluate: ({ lines, headerLine }) => {
+    if (parseTreeViewNodes(lines, headerLine).length > 0) return [];
+    return [
+      {
+        message:
+          'treeView-beta has no nodes; it parses but renders as an empty tree. Node labels must be quoted — a bare word is a lexer error, not a node.',
+        line: headerLine,
+      },
+    ];
+  },
+};
+
+const treeviewDuplicateSibling: Rule = {
+  id: 'treeview-duplicate-sibling',
+  appliesTo: isTreeView,
+  evaluate: ({ lines, headerLine, fileLine }) => {
+    const findings: RuleFinding[] = [];
+    const nodes = parseTreeViewNodes(lines, headerLine);
+    // key: `${parent index}\0${text}` -> index of the first node seen
+    const seen = new Map<string, number>();
+    for (const [index, node] of nodes.entries()) {
+      const key = `${node.parent ?? 'root'}\0${node.text}`;
+      const first = seen.get(key);
+      if (first === undefined) {
+        seen.set(key, index);
+      } else {
+        findings.push({
+          message: `treeView node \`${node.text}\` duplicates a sibling (first on line ${fileLine(nodes[first].line)}); both branches render under the same parent, so the tree draws a distinction it does not have.`,
+          line: node.line,
+        });
+      }
+    }
+    return findings;
+  },
+};
+
+// ---------------------------------------------------------------------------
 // Ishikawa helpers and rules
 // ---------------------------------------------------------------------------
 
@@ -4721,6 +5172,12 @@ const RULES: Rule[] = [
   kanbanDuplicateTaskId,
   kanbanEmptyColumn,
   kanbanNoColumns,
+  vennDuplicateSet,
+  vennNonPositiveSize,
+  vennSingleSet,
+  vennSelfUnion,
+  treeviewNoNodes,
+  treeviewDuplicateSibling,
   ishikawaNoCauses,
   ishikawaEmptyCategory,
   ishikawaDeepNesting,
