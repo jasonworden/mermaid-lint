@@ -3636,6 +3636,7 @@ describe('eventmodeling-duplicate-frame-id rule', () => {
     const findings = only(b, 'eventmodeling-duplicate-frame-id');
     expect(findings).toHaveLength(1);
     expect(findings[0].line).toBe(3);
+    expect(findings[0].message).toContain('first on line 2');
   });
 
   it('reports every repeat after the first, each naming the first line', () => {
@@ -4077,6 +4078,6 @@ describe('line citations in rule messages', () => {
   // at a time, which is why this is a floor at today's count rather than a
   // loose lower bound. Raise it when you add a citing rule.
   it('still finds every citation it is meant to police', () => {
-    expect(cites.length).toBeGreaterThanOrEqual(26);
+    expect(cites.length).toBeGreaterThanOrEqual(27);
   });
 });

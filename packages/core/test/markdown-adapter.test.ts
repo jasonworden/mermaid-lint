@@ -330,6 +330,10 @@ const CITING_RULES: ReadonlyArray<readonly [string, string]> = [
     'wardley-duplicate-component',
     'wardley-beta\n  component User [0.9, 0.5]\n  component User [0.3, 0.2]',
   ],
+  [
+    'eventmodeling-duplicate-frame-id',
+    'eventmodeling\n  tf 1 ui A\n  tf 1 ui B',
+  ],
   ['sankey-duplicate-link', 'sankey-beta\nA,B,5\nA,B,3'],
   ['duplicate-ids', 'flowchart LR\n  A[Start] --> B\n  A[Begin] --> C'],
   [
