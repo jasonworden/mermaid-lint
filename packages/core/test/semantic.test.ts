@@ -4302,6 +4302,259 @@ describe('kanban id extraction', () => {
   );
 });
 
+function vn(...body: string[]): Block {
+  return block(['venn-beta', ...body].join('\n'), 'venn-beta');
+}
+
+describe('venn-duplicate-set rule', () => {
+  it('reports every repeat after the first, each naming the first line', () => {
+    const b = vn('  set A', '  set B', '  set A', '  set A');
+    const findings = only(b, 'venn-duplicate-set');
+    // Reported on the later declaration, naming the first — the convention
+    // `kanban-duplicate-column` and `sankey-duplicate-link` set.
+    expect(findings.map((f) => f.line)).toEqual([4, 5]);
+    for (const finding of findings) {
+      expect(finding.severity).toBe('warn');
+      expect(finding.message).toContain('`A`');
+      expect(finding.message).toContain('line 2');
+    }
+  });
+
+  it('collides a quoted identifier with its bare form', () => {
+    // `vennDB.normalizeText` strips the quotes before anything is compared, so
+    // to mermaid these are one set — as `union A, B` resolving proves.
+    const b = vn('  set "A"', '  set A', '  set B');
+    const findings = only(b, 'venn-duplicate-set');
+    expect(findings).toHaveLength(1);
+    expect(findings[0].line).toBe(3);
+    expect(findings[0].message).toContain('`A`');
+  });
+
+  it('ignores the label, which does not make two declarations distinct', () => {
+    // Both circles draw the *last* label, so differing labels are not two
+    // sets — they are one set whose first label silently never renders.
+    const b = vn('  set A["First"]', '  set A["Second"]', '  set B');
+    expect(only(b, 'venn-duplicate-set').map((f) => f.line)).toEqual([3]);
+  });
+
+  it('does not read a union identifier as a set declaration', () => {
+    // Repeating the union too: if union identifiers counted as declarations,
+    // `A` and `B` would each be reported twice over.
+    const b = vn('  set A', '  set B', '  union A, B', '  union A, B');
+    expect(only(b, 'venn-duplicate-set')).toEqual([]);
+  });
+});
+
+describe('venn-non-positive-size rule', () => {
+  it('flags a zero-sized set, whose set and intersections both vanish', () => {
+    const b = vn('  set A: 0', '  set B: 10', '  union A, B');
+    const findings = only(b, 'venn-non-positive-size');
+    expect(findings).toHaveLength(1);
+    expect(findings[0].severity).toBe('warn');
+    expect(findings[0].line).toBe(2);
+    expect(findings[0].message).toContain('`A`');
+    expect(findings[0].message).toContain('(0)');
+  });
+
+  it('flags a negative set size, which the lexer accepts', () => {
+    // Unlike treemap, `NUMERIC` carries the sign (`[+-]?…`), so the negative
+    // half is reachable here and `venn-non-positive-size` covers what
+    // `treemap-zero-value` cannot.
+    const b = vn('  set A: -5', '  set B: 10');
+    const findings = only(b, 'venn-non-positive-size');
+    expect(findings).toHaveLength(1);
+    expect(findings[0].line).toBe(2);
+    expect(findings[0].message).toContain('(-5)');
+  });
+
+  it('flags a non-positive union size with the union wording', () => {
+    const b = vn('  set A', '  set B', '  union A, B: -3');
+    const findings = only(b, 'venn-non-positive-size');
+    expect(findings).toHaveLength(1);
+    expect(findings[0].line).toBe(4);
+    expect(findings[0].message).toContain('union `A, B`');
+    expect(findings[0].message).toContain('nothing renders');
+  });
+
+  it('reads a size past a label, and with no space after the colon', () => {
+    const b = vn('  set A["Label"]: 0', '  set B:0', '  set C: 1');
+    expect(only(b, 'venn-non-positive-size').map((f) => f.line)).toEqual([
+      2, 3,
+    ]);
+  });
+
+  it('returns [] for positive and implicit sizes', () => {
+    // A set with no `: value` is sized by `addSubsetData`'s own default, which
+    // is always positive — silence here, not a default-valued finding.
+    const b = vn('  set A', '  set B: +5', '  set C: .5', '  union A, B');
+    expect(only(b, 'venn-non-positive-size')).toEqual([]);
+  });
+});
+
+describe('venn-single-set rule', () => {
+  it('flags a one-set diagram on its declaration', () => {
+    const b = vn('  set A');
+    const findings = only(b, 'venn-single-set');
+    expect(findings).toHaveLength(1);
+    expect(findings[0].severity).toBe('warn');
+    expect(findings[0].line).toBe(2);
+    expect(findings[0].message).toContain('`A`');
+  });
+
+  it('counts distinct identifiers, so a repeat is still one set', () => {
+    // `venn-duplicate-set` answers for the repeat; this rule answers for the
+    // diagram having nothing to intersect, which two `set A`s still do not.
+    const b = vn('  set A', '  set A');
+    expect(only(b, 'venn-single-set')).toHaveLength(1);
+  });
+
+  it('returns [] for two sets, and for a body declaring none', () => {
+    expect(only(vn('  set A', '  set B'), 'venn-single-set')).toEqual([]);
+    expect(only(vn('  title Empty'), 'venn-single-set')).toEqual([]);
+  });
+});
+
+describe('venn-self-union rule', () => {
+  it('flags an identifier repeated inside one union', () => {
+    const b = vn('  set A', '  set B', '  union A, A');
+    const findings = only(b, 'venn-self-union');
+    expect(findings).toHaveLength(1);
+    expect(findings[0].severity).toBe('warn');
+    expect(findings[0].line).toBe(4);
+    expect(findings[0].message).toContain('`A`');
+  });
+
+  it('flags a repeat among distinct identifiers, and normalizes quotes', () => {
+    const b = vn('  set A', '  set B', '  union A, B, "A"');
+    const findings = only(b, 'venn-self-union');
+    expect(findings).toHaveLength(1);
+    expect(findings[0].line).toBe(4);
+    expect(findings[0].message).toContain('`A`');
+  });
+
+  it('returns [] for a union over distinct sets', () => {
+    const b = vn(
+      '  set A',
+      '  set B',
+      '  set C',
+      '  union A, B',
+      '  union A, B, C',
+    );
+    expect(only(b, 'venn-self-union')).toEqual([]);
+  });
+});
+
+describe('venn statement scanning', () => {
+  it('matches keywords case-insensitively, as the mermaid lexer does', () => {
+    // Every rule in venn.jison carries the `i` flag, so `SET A` parses.
+    const b = vn('  SET A', '  Set A', '  set B', '  UNION A, A');
+    expect(only(b, 'venn-duplicate-set').map((f) => f.line)).toEqual([3]);
+    expect(only(b, 'venn-self-union').map((f) => f.line)).toEqual([5]);
+  });
+
+  it('skips comments and blank lines', () => {
+    const b = vn('  set A', '', '  %% set A', '  set B');
+    expect(only(b, 'venn-duplicate-set')).toEqual([]);
+  });
+
+  it('reads a statement carrying a trailing comment', () => {
+    const b = vn('  set A %% first', '  set A %% again', '  set B');
+    expect(only(b, 'venn-duplicate-set').map((f) => f.line)).toEqual([3]);
+  });
+
+  it('accepts identifiers containing dashes and underscores', () => {
+    const b = vn('  set a-b', '  set c_d', '  set a-b', '  union a-b, c_d');
+    expect(only(b, 'venn-duplicate-set').map((f) => f.line)).toEqual([4]);
+  });
+
+  it('reads every statement on a line, since newlines do not terminate them', () => {
+    // `document` is a list of `line`s and `line` is `statement | NEWLINE`, so
+    // a newline is a line of its own rather than a terminator and one physical
+    // line may carry several statements. Verified against mermaid 11.15.0:
+    // `set A set B` renders two circles, and `set A set A` renders the
+    // duplicate (4 regions, labels A, A, B, "").
+    expect(only(vn('  set A set B'), 'venn-single-set')).toEqual([]);
+    expect(
+      only(vn('  set A set A', '  set B'), 'venn-duplicate-set').map(
+        (f) => f.line,
+      ),
+    ).toEqual([2]);
+    // Both statements are on one line, so both findings cite that line.
+    expect(
+      only(vn('  set A set A set A', '  set B'), 'venn-duplicate-set').map(
+        (f) => f.line,
+      ),
+    ).toEqual([2, 2]);
+  });
+
+  it('does not scan past a keyword that swallows its line', () => {
+    // `title` lexes as `title\s[^#\n;]+`, so it takes the rest of the line
+    // with it: the `set B` here is title text, not a declaration. Reading one
+    // would invent a second set and silence `venn-single-set`.
+    const b = vn('  set A', '  title Comparing set B against set C');
+    expect(only(b, 'venn-single-set')).toHaveLength(1);
+    expect(only(b, 'venn-duplicate-set')).toEqual([]);
+  });
+
+  it('ends a quoted label at the closing quote, not the first bracket', () => {
+    // The lexer tries `["…"]` before `[…]` and its body is `[^"]*`, so a `]`
+    // is legal inside a quoted label. Cutting at the first `]` would leave the
+    // label's tail to be read as a size — mermaid renders this exactly as a
+    // plain two-set diagram, with A labelled `]: -5`.
+    expect(
+      only(vn('  set A["]: -5"]', '  set B'), 'venn-non-positive-size'),
+    ).toEqual([]);
+    // …and the converse: a real size after such a label must still be read.
+    expect(
+      only(vn('  set A["x]y"]: 0', '  set B'), 'venn-non-positive-size').map(
+        (f) => f.line,
+      ),
+    ).toEqual([2]);
+    // A bare label cannot contain `]` at all, so it ends at the first one.
+    expect(
+      only(vn('  set A[a, b]: 0', '  set B'), 'venn-non-positive-size').map(
+        (f) => f.line,
+      ),
+    ).toEqual([2]);
+  });
+
+  it('does not read a comment as a statement, but keeps one inside a label', () => {
+    // A `%%` between statements opens a comment; a `%%` inside a label was
+    // already consumed with it, the way the lexer takes `["50%% off"]` whole.
+    expect(
+      only(vn('  set A %% set A', '  set B'), 'venn-duplicate-set'),
+    ).toEqual([]);
+    expect(only(vn('  set A["50%% off"] set B'), 'venn-single-set')).toEqual(
+      [],
+    );
+  });
+
+  it('does not treat a keyword prefix as a statement', () => {
+    // `settings` is one `IDENTIFIER` to the lexer, not `set` + `tings`; the
+    // `\b` in the keyword pattern is what keeps it out.
+    const b = vn('  set A', '  set B', '  text settings');
+    expect(only(b, 'venn-duplicate-set')).toEqual([]);
+  });
+
+  it('scans a pathological line in linear time', () => {
+    // The scan is a left-to-right pass rather than one combined regex, which
+    // would stack quantifiers over overlapping character sets and backtrack
+    // super-linearly. A diagram body is user input and `checkSemantics` runs
+    // ahead of any parse, so an unparseable body still reaches it. Shape
+    // follows the magnitude test #143 established.
+    //
+    // The identifiers are *distinct* deliberately. A repeated one (`A, A, …`)
+    // exercises neither hot path: `venn-self-union` reports at the second
+    // identifier and stops, so a quadratic dedupe would pass this test — which
+    // is exactly what an earlier `indexOf`-based one did, at 255ms for this
+    // input. The clean union is the adversarial case for both.
+    const long = `  union ${Array.from({ length: 20_000 }, (_, i) => `A${i}`).join(', ')}`;
+    const started = performance.now();
+    expect(only(vn(long), 'venn-self-union')).toEqual([]);
+    expect(performance.now() - started).toBeLessThan(1_000);
+  });
+});
+
 // https://github.com/jasonworden/mermaid-lint/issues/123. Every case here goes
 // through the real extractor rather than `block()`: the rule gates on
 // `block.type === '---'`, so hardcoding the type would assert the rule's body
@@ -4465,6 +4718,6 @@ describe('line citations in rule messages', () => {
   // at a time, which is why this is a floor at today's count rather than a
   // loose lower bound. Raise it when you add a citing rule.
   it('still finds every citation it is meant to police', () => {
-    expect(cites.length).toBeGreaterThanOrEqual(29);
+    expect(cites.length).toBeGreaterThanOrEqual(30);
   });
 });
