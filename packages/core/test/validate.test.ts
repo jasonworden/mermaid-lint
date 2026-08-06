@@ -224,17 +224,33 @@ describe('syntax error position', () => {
     });
   });
 
-  it('reports no position when mermaid locates none', async () => {
-    // radar-beta prints a literal `on line ?, column ?`. There is nothing to
-    // recover, and inventing one would be worse than the block-level fallback.
-    const result = await validateWithMermaidJS(
-      'radar-beta\n  axis a, b\n  curve x{1, 2',
-    );
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
+  it('blames the last consumed line when input runs out mid-construct', async () => {
+    // radar-beta hits Chevrotain's end-of-input sentinel, which carries no
+    // position — mermaid prints a literal `on line ?, column ?`, so neither the
+    // offending token nor the prose names a line. The last token the parser did
+    // consume is positioned, and it sits on the line holding the unclosed `{`.
+    for (const [body, line] of [
+      ['radar-beta\n  axis a, b\n  curve x{1, 2', 3],
+      ['radar-beta\n  axis a, b\n  curve x{1, 2}\n  curve y{3, 4', 4],
+    ] as const) {
+      const result = await validateWithMermaidJS(body);
+      expect(result.ok).toBe(false);
+      if (result.ok) continue;
+      // The prose still says `?`: the position is our inference, not mermaid's.
       expect(result.error.message).toContain('on line ?');
-      expect(result.error.line).toBeUndefined();
+      expect(result.error.line).toBe(line);
+      const blamed = body.split('\n')[line - 1];
+      expect(result.error.col).toBeGreaterThanOrEqual(1);
+      expect(result.error.col).toBeLessThanOrEqual(blamed.length);
     }
+  });
+
+  it('reports no position when mermaid locates none', async () => {
+    // An unrecognized type is located by nothing at all: no `hash`, no
+    // `result`, and a message that is the user's own body echoed back.
+    const result = await validateWithMermaidJS('notADiagram\n  a\n  b');
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.line).toBeUndefined();
   });
 
   it('does not mine a position out of an echoed diagram body', async () => {
