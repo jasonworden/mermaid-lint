@@ -118,6 +118,10 @@ export type RuleId =
   | 'kanban-duplicate-task-id'
   | 'kanban-empty-column'
   | 'kanban-no-columns'
+  | 'ishikawa-no-causes'
+  | 'ishikawa-empty-category'
+  | 'ishikawa-deep-nesting'
+  | 'ishikawa-duplicate-sibling'
   | 'frontmatter-must-be-first'
   | 'suppression-unknown-rule'
   | 'suppression-unused'
@@ -155,6 +159,7 @@ export type RuleDocsScope =
   | 'gantt'
   | 'gitGraph'
   | 'graph'
+  | 'ishikawa-beta'
   | 'journey'
   | 'kanban'
   | 'mindmap'
@@ -456,6 +461,26 @@ export interface RuleMetadata {
  * so `title Board` declares an ordinary column and this rule stays silent on
  * it — pinned in `mermaid-behavior.test.ts`, since a bump that added the
  * keyword would turn that into a false negative.
+ *
+ * The ishikawa-beta rules cover the fishbone's structure, which its db never
+ * validates — `addNode` normalizes an indent and clamps it, and nothing else.
+ * `ishikawa-no-causes` (`warn`) flags a problem with no categories under it:
+ * the renderer draws the head, then a spine of *zero* length, so the diagram is
+ * a label and nothing more. `ishikawa-empty-category` (`warn`) flags a category
+ * with no causes, which draws its bone at one-fifth length (`lineLen = length *
+ * (children.length ? 1 : 0.2)`) — a labeled stub. It is scoped to categories
+ * because a childless *cause* is a leaf, which is the point of the diagram.
+ * `ishikawa-duplicate-sibling` (`warn`) is the analogue of
+ * `mindmap-duplicate-sibling`. `ishikawa-deep-nesting` follows
+ * `mindmap-deep-nesting` in defaulting to `off`: seven levels render fine, they
+ * just stop communicating, and a rule that is a matter of taste should not warn
+ * by default.
+ *
+ * An empty `ishikawa-beta` is *not* covered, though it is reachable on exactly
+ * the terms `kanban-no-columns` above was: `ishikawa-beta\n` parses clean and
+ * only the no-trailing-newline form fails. #147 excludes it, so it is left for
+ * the same follow-up treatment kanban got rather than widened into here;
+ * `mermaid-behavior.test.ts` pins the parse so the exclusion stays a choice.
  *
  * `frontmatter-must-be-first` is `error`, joining `duplicate-ids` and
  * `eventmodeling-undefined-frame` as the only non-advisory rules: a diagram
@@ -896,6 +921,26 @@ export const RULE_METADATA = {
     defaultSeverity: 'warn',
     docsScope: 'kanban',
     readmeDiagramKeywords: ['kanban'],
+  },
+  'ishikawa-no-causes': {
+    defaultSeverity: 'warn',
+    docsScope: 'ishikawa-beta',
+    readmeDiagramKeywords: ['ishikawa-beta'],
+  },
+  'ishikawa-empty-category': {
+    defaultSeverity: 'warn',
+    docsScope: 'ishikawa-beta',
+    readmeDiagramKeywords: ['ishikawa-beta'],
+  },
+  'ishikawa-deep-nesting': {
+    defaultSeverity: 'off',
+    docsScope: 'ishikawa-beta',
+    readmeDiagramKeywords: ['ishikawa-beta'],
+  },
+  'ishikawa-duplicate-sibling': {
+    defaultSeverity: 'warn',
+    docsScope: 'ishikawa-beta',
+    readmeDiagramKeywords: ['ishikawa-beta'],
   },
   // Document-shape rule. Like the directive-correctness rules below it
   // describes the body rather than any one diagram type, so it carries no

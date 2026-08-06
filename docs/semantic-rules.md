@@ -104,6 +104,10 @@ and `frontmatter-must-be-first` (Mermaid does not render the diagram at all).
 | `kanban-duplicate-task-id` | `warn` | A `kanban` card whose id is already taken by another card or a column; both render, but the document ends up with two elements carrying one DOM id | kanban |
 | `kanban-empty-column` | `warn` | A `kanban` column with no cards; renders as a header over empty space | kanban |
 | `kanban-no-columns` | `warn` | A `kanban` with no columns at all; parses but renders an empty diagram | kanban |
+| `ishikawa-no-causes` | `warn` | An `ishikawa-beta` problem with no categories under it; renders as the problem head above a zero-length spine | ishikawa-beta |
+| `ishikawa-empty-category` | `warn` | An `ishikawa-beta` category with no causes; its bone draws at a fifth of full length with nothing attached | ishikawa-beta |
+| `ishikawa-deep-nesting` | `off` | An `ishikawa-beta` node nested beyond five levels deep. Off by default because deep nesting is a matter of taste | ishikawa-beta |
+| `ishikawa-duplicate-sibling` | `warn` | Two `ishikawa-beta` nodes with identical text under one parent; the same cause renders twice | ishikawa-beta |
 | `frontmatter-must-be-first` | `error` | A `%%` comment or blank line before the YAML frontmatter; Mermaid parses it but the diagram fails to render | all |
 | `suppression-unknown-rule` | `warn` | A suppression directive naming a rule id that does not exist; the directive silently suppresses nothing | all |
 | `suppression-unused` | `warn` | A well-formed suppression directive that suppressed no finding; usually a stale directive left behind after a fix | all |

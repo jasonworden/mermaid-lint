@@ -558,7 +558,7 @@ measure of how much analysis a given type gets beyond "does it parse".
 | Radar | `radar-beta` | ✅ | `no-experimental`, `radar-no-curves`, `radar-curve-length-mismatch`, `radar-duplicate-axis` | Experimental |
 | Treemap | `treemap-beta` | ✅ | `no-experimental`, `treemap-zero-value`, `treemap-no-leaves`, `treemap-duplicate-sibling`, `treemap-branch-with-value` | Experimental |
 | Venn | `venn-beta` | ✅ | `no-experimental` | Experimental; no dedicated semantic rules yet |
-| Ishikawa | `ishikawa-beta` | ✅ | `no-experimental` | Experimental; no dedicated semantic rules yet |
+| Ishikawa | `ishikawa-beta` | ✅ | `no-experimental`, `ishikawa-no-causes`, `ishikawa-empty-category`, `ishikawa-deep-nesting`, `ishikawa-duplicate-sibling` | Experimental; one problem node, and every later line nests under it |
 | Wardley map | `wardley-beta` | ✅ | `no-experimental`, `wardley-undefined-component`, `wardley-orphan-component`, `wardley-no-components`, `wardley-mixed-coordinate-scale`, `wardley-duplicate-component` | Experimental; not covered by the Rust fast path — always falls back to mermaid.js |
 | Tree view | `treeView-beta` | ✅ | `no-experimental` | Experimental; no dedicated semantic rules yet |
 | ZenUML | `zenuml` | ❌ | - | Requires separate [`@mermaid-js/mermaid-zenuml`](https://github.com/mermaid-js/zenuml-core) package; not bundled in mermaid v11 |

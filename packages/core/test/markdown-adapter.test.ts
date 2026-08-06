@@ -214,6 +214,33 @@ describe('line citations in messages', () => {
     expect(found[0].message).toContain('first on line 9');
   });
 
+  it('cites the file line for an ishikawa duplicate sibling', async () => {
+    // The offset table below cannot catch `fileLine` handed the wrong variable
+    // — a wrong line still shifts by the offset — so the citing ishikawa rule
+    // gets a fixed-number case, as `pie-duplicate-label` does above.
+    const text = [
+      '# Title',
+      '',
+      'Prose.',
+      '',
+      '```mermaid',
+      'ishikawa-beta',
+      '  Problem',
+      '    Method',
+      '      Same',
+      '      Same',
+      '```',
+    ].join('\n');
+    const diags = await lintMarkdown('fishbone.md', text);
+    const found = diags.filter(
+      (d) => d.ruleId === 'ishikawa-duplicate-sibling',
+    );
+    expect(found).toHaveLength(1);
+    // The repeat is on file line 10; the first `Same` on file line 9.
+    expect(found[0].line).toBe(10);
+    expect(found[0].message).toContain('first on line 9');
+  });
+
   it('cites the same line as a standalone `.mmd`, where body is file', async () => {
     const text = ['pie', '  "A" : 40', '  "B" : 20', '  "A" : 10'].join('\n');
     const [block] = extractMermaidBlocks('lines.mmd', text);
@@ -429,6 +456,10 @@ const CITING_RULES: ReadonlyArray<readonly [string, string]> = [
     'quadrantChart\n  x-axis Low --> High\n  y-axis Low --> High\n  quadrant-1 X\n  quadrant-1 Y',
   ],
   ['c4-duplicate-id', 'C4Context\n  Person(a, "A")\n  Person(a, "B")'],
+  [
+    'ishikawa-duplicate-sibling',
+    'ishikawa-beta\n  P\n    M\n      Same\n      Same',
+  ],
 ];
 
 describe('line citations shift with the fence offset', () => {

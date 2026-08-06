@@ -330,6 +330,11 @@ const RULE_DESCRIPTIONS: Record<RuleId, string> = {
     'Mermaid: a Kanban card id is already used by another card or a column',
   'kanban-empty-column': 'Mermaid: a Kanban column has no cards',
   'kanban-no-columns': 'Mermaid: a Kanban board has no columns',
+  'ishikawa-no-causes': 'Mermaid: an Ishikawa problem has no causes',
+  'ishikawa-empty-category': 'Mermaid: an Ishikawa category has no causes',
+  'ishikawa-deep-nesting': 'Mermaid: an Ishikawa node is nested too deeply',
+  'ishikawa-duplicate-sibling':
+    'Mermaid: an Ishikawa node duplicates a sibling under the same parent',
   'frontmatter-must-be-first':
     'Mermaid: something precedes the YAML frontmatter, so the diagram will not render',
   'suppression-unknown-rule':
