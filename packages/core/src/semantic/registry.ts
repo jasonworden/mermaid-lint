@@ -3,17 +3,14 @@ import {
   architectureNoEdges,
   architectureNoElements,
 } from './rules/architecture.js';
-import {
-  blockNoBlocks,
-  packetEmptyLabels,
-  packetNoFields,
-} from './rules/block-packet.js';
+import { blockNoBlocks } from './rules/block.js';
 import {
   c4DuplicateId,
   c4UndefinedElementStyle,
   c4UndefinedRelationshipEndpoint,
   c4UndefinedRelationshipStyleEndpoint,
 } from './rules/c4.js';
+import { classDuplicateClass, noDuplicateMethods } from './rules/class.js';
 import {
   erDuplicateAttribute,
   erDuplicateEntity,
@@ -71,6 +68,7 @@ import {
   mindmapDuplicateSibling,
   mindmapNoNodes,
 } from './rules/mindmap.js';
+import { packetEmptyLabels, packetNoFields } from './rules/packet.js';
 import { pieDuplicateLabel, pieNoData, pieZeroValue } from './rules/pie.js';
 import {
   quadrantDuplicatePoint,
@@ -79,6 +77,11 @@ import {
   quadrantMissingYAxis,
   quadrantNoPoints,
 } from './rules/quadrant.js';
+import {
+  radarCurveLengthMismatch,
+  radarDuplicateAxis,
+  radarNoCurves,
+} from './rules/radar.js';
 import {
   requirementDuplicateId,
   requirementDuplicateName,
@@ -90,12 +93,10 @@ import {
   sankeySelfLoop,
 } from './rules/sankey.js';
 import {
-  classDuplicateClass,
   noActivateWithoutDeactivate,
-  noDuplicateMethods,
   preferExplicitParticipants,
   sequenceDuplicateParticipant,
-} from './rules/sequence-class.js';
+} from './rules/sequence.js';
 import {
   stateDuplicateState,
   stateDuplicateTransition,
@@ -130,14 +131,11 @@ import {
   wardleyUndefinedComponent,
 } from './rules/wardley.js';
 import {
-  radarCurveLengthMismatch,
-  radarDuplicateAxis,
-  radarNoCurves,
   xychartMissingXAxis,
   xychartMissingYAxis,
   xychartNoSeries,
   xychartSeriesLengthMismatch,
-} from './rules/xychart-radar.js';
+} from './rules/xychart.js';
 import type { Rule } from './types.js';
 
 export const RULES: Rule[] = [

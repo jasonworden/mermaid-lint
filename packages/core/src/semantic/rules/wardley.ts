@@ -1,7 +1,7 @@
 import type { Block } from '../../extract.js';
 import { type AccDescrState, scanAccDescr } from '../helpers.js';
+import { stripHeaderColon } from '../helpers.js';
 import type { Rule, RuleFinding } from '../types.js';
-import { stripHeaderColon } from './general.js';
 
 interface WardleyDeclaration {
   /** Quote-stripped, as mermaid's `resolveNodeId` would see it. */

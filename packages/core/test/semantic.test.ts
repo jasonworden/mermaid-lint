@@ -5570,6 +5570,6 @@ describe('line citations in rule messages', () => {
   // came back empty (moved again, renamed) would leave both checks above
   // passing over nothing at all.
   it('scans every rule module', () => {
-    expect(ruleFiles.length).toBeGreaterThanOrEqual(25);
+    expect(ruleFiles.length).toBeGreaterThanOrEqual(28);
   });
 });

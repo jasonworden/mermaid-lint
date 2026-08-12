@@ -1,4 +1,5 @@
 import { DIRECTION_RE, isFlowchartOrGraph } from '../helpers.js';
+import { stripHeaderColon } from '../helpers.js';
 import type { Rule } from '../types.js';
 
 /**
@@ -74,17 +75,6 @@ export const requireDirection: Rule = {
     ];
   },
 };
-
-/**
- * Strip the trailing colon `radar-beta:` is allowed to carry. Radar is the only
- * diagram whose grammar accepts a colon after the keyword — `xychart-beta:` and
- * `treemap-beta:` are both parse errors — and `detectDiagramType` reports the
- * header verbatim, so the colon reaches `block.type`. Every `-beta` suffix test
- * goes through here so that form is not silently exempt from the beta rules.
- */
-export function stripHeaderColon(type: string): string {
-  return type.endsWith(':') ? type.slice(0, -1) : type;
-}
 
 export const noExperimental: Rule = {
   id: 'no-experimental',

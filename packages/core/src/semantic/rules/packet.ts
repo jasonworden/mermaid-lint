@@ -1,7 +1,6 @@
 import type { Block } from '../../extract.js';
 import type { Rule } from '../types.js';
 
-const BLOCK_DECL_RE = /^\s*[A-Za-z_][\w-]*(?:\s*\[[^\]]*])?(?::\d+)?\s*$/;
 const PACKET_FIELD_RE =
   /^\s*(\+?\d+(?:\s*-\s*\d+)?)\s*:\s*(?:"([^"]*)"|'([^']*)')\s*(?:%%.*)?$/;
 
@@ -30,28 +29,6 @@ function collectPacketFields(lines: string[]): PacketField[] {
   }
   return fields;
 }
-
-export const blockNoBlocks: Rule = {
-  id: 'block-no-blocks',
-  appliesTo: (block) => block.type === 'block-beta',
-  evaluate: ({ lines, headerLine }) => {
-    if (
-      lines.some((line) => {
-        const trimmed = line.trim();
-        return trimmed !== 'block-beta' && BLOCK_DECL_RE.test(trimmed);
-      })
-    ) {
-      return [];
-    }
-    return [
-      {
-        message:
-          'block-beta has no blocks and renders empty; add at least one block declaration.',
-        line: headerLine,
-      },
-    ];
-  },
-};
 
 export const packetNoFields: Rule = {
   id: 'packet-no-fields',
