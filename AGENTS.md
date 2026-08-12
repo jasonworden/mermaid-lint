@@ -65,6 +65,15 @@ pnpm --filter mermaid-lint-vscode test:e2e     # VS Code extension-host e2e (nee
 pnpm lint                                       # biome check . (lint + format)
 ```
 
+**If a script stops with `ERR_PNPM_VERIFY_DEPS_BEFORE_RUN`, run `pnpm install`.**
+`verifyDepsBeforeRun: error` in `pnpm-workspace.yaml` checks `node_modules`
+against the lockfile before running any script, so a checkout that moved past a
+dependency change fails fast instead of failing later as unrelated test errors —
+a stale mermaid shows up as `mermaid-behavior.test.ts` probe failures, which
+read like a semantic regression. This matters most in a long-lived checkout that
+advances by `git pull` between installs. To bypass it deliberately (a patched
+`node_modules`, say), pass `--no-verify-deps-before-run`.
+
 CI (`.github/workflows/ci.yml`) has three jobs: a run-once `quality` job (lint →
 build → typedoc API-docs + Cloudflare safety check), a `test` job across a Node
 matrix (22/24/26), and a single-Node VS Code e2e job — see
