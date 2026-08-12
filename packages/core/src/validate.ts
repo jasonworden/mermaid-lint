@@ -3,7 +3,7 @@ import { locateHeader } from './header.js';
 import { validateWithMerman } from './merman.js';
 import { parsedLineToBodyLine } from './preprocess.js';
 import { RULE_DEFAULTS, type ResolvedRules } from './rules.js';
-import { type SemanticWarning, checkSemantics } from './semantic.js';
+import { type SemanticWarning, checkSemantics } from './semantic/index.js';
 import type { SuppressionIndex } from './suppress.js';
 import { detectDiagramType } from './type-detect.js';
 
