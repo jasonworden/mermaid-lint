@@ -46,8 +46,10 @@ core's `extractMermaidBlocks`.
 - `semantic/` — opt-in semantic warnings. `index.ts` is the entry point
   (`checkSemantics`); `registry.ts` holds the rule list, whose **order is the
   output order**; `types.ts` and `helpers.ts` are shared internals; and
-  `rules/<diagram>.ts` holds one diagram family's rules and its own helpers.
-  A new rule goes in its family's module and gets appended to `registry.ts`.
+  `rules/<diagram>.ts` holds one diagram type's rules and its own helpers —
+  nothing under `rules/` imports from a sibling, so a shared helper belongs in
+  `helpers.ts`. A new rule goes in its diagram's module and gets appended to
+  `registry.ts`; its tests go in the matching `test/semantic/<diagram>.test.ts`.
 - `markdown-adapter.ts` — `blockToDiagnostics` / `lintMarkdown` (the shared API).
 - `config.ts` — `.mermaidlintrc` / config-file loading.
 - `fix.ts` — `--fix` autofixer. `discover.ts` — file discovery. `type-detect.ts` — diagram-type sniffing.
@@ -123,10 +125,10 @@ ESLint** — and run the repo's pinned binaries rather than `npx`; see
   beside a `file:line` position, and inside a Markdown fence the two disagree.
   `RuleFinding.line` stays body-relative (suppression indexes body lines) —
   only the number you interpolate into message text gets mapped. The rule
-  tests in `semantic.test.ts` run on `.mmd` fixtures where both spaces
+  tests in `test/semantic/` run on `.mmd` fixtures where both spaces
   coincide, so also add a fenced-Markdown case in `markdown-adapter.test.ts`;
-  a source-scanning guard in `semantic.test.ts` catches the common phrasing
-  but cannot catch a wrong argument.
+  a source-scanning guard in `test/semantic/conventions.test.ts` catches the
+  common phrasing but cannot catch a wrong argument.
 - **Parser prose is body-relative too, and is mapped on the way out.** Every
   "on line N" mermaid prints counts from the diagram body, because the body is
   all it was handed. There is no interpolation site to wrap as there is for
