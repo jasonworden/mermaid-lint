@@ -62,7 +62,7 @@ diagram body
    │        parse(body) throws ──▶ syntax error  { message, line, col }
    │
    └── 2. LINT (any smells?) ──────────────────────────────────
-          checkSemantics(block, rules)         semantic.ts + rules.ts
+          checkSemantics(block, rules)         semantic/ + rules.ts
             e.g. duplicate node IDs ──▶ finding  { rule, message, line, severity }
 ```
 
@@ -94,7 +94,7 @@ Two layers, two meanings:
    is what makes the next false positive a CI failure instead of silence.
 
 2. **Linting / "is it good?"** — Stage 2,
-   [`checkSemantics`](../packages/core/src/semantic.ts), runs a set of rules over
+   [`checkSemantics`](../packages/core/src/semantic/index.ts), runs a set of rules over
    a diagram that *does* parse: the legacy `graph` keyword, a missing direction,
    experimental diagram types, duplicate IDs with conflicting labels, duplicate or
    self-looping edges, empty node labels, orphaned nodes, unbalanced sequence

@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { extractMermaidBlocks } from '../src/extract.js';
@@ -8,7 +8,7 @@ import {
   checkSemantics,
   parseEventModeling,
   parseWardley,
-} from '../src/semantic.js';
+} from '../src/semantic/index.js';
 
 // A whole-file `.mmd` block, so body lines and file lines coincide: a rule's
 // `line` and any line it cites in its message are then the same number, and
@@ -5529,14 +5529,19 @@ describe('frontmatter-must-be-first rule', () => {
 });
 
 describe('line citations in rule messages', () => {
-  const source = readFileSync(
-    resolve(import.meta.dirname, '../src/semantic.ts'),
-    'utf8',
+  // Every rule module, not one file: the rules live in `src/semantic/rules/`,
+  // and a guard that read a single path would silently stop covering a rule
+  // the moment it moved to a new module.
+  const rulesDir = resolve(import.meta.dirname, '../src/semantic/rules');
+  const ruleFiles = readdirSync(rulesDir).filter((name) =>
+    name.endsWith('.ts'),
   );
-  const cites = source
-    .split('\n')
-    .map((text, i) => ({ line: i + 1, text }))
-    .filter(({ text }) => /line \$\{/.test(text));
+  const cites = ruleFiles.flatMap((name) =>
+    readFileSync(resolve(rulesDir, name), 'utf8')
+      .split('\n')
+      .map((text, i) => ({ where: `${name}:${i + 1}`, text }))
+      .filter(({ text }) => /line \$\{/.test(text)),
+  );
 
   // A rule counts body lines, but its message is read beside a `file:line`
   // position, so a cited number must be mapped with `ctx.fileLine` first
@@ -5549,7 +5554,7 @@ describe('line citations in rule messages', () => {
   it('maps every cited line number through fileLine', () => {
     const unmapped = cites
       .filter(({ text }) => !/line \$\{fileLine\(/.test(text))
-      .map(({ line, text }) => `${line}: ${text.trim()}`);
+      .map(({ where, text }) => `${where}: ${text.trim()}`);
     expect(unmapped).toEqual([]);
   });
 
@@ -5559,5 +5564,12 @@ describe('line citations in rule messages', () => {
   // loose lower bound. Raise it when you add a citing rule.
   it('still finds every citation it is meant to police', () => {
     expect(cites.length).toBeGreaterThanOrEqual(33);
+  });
+
+  // The scan is only as wide as the directory listing: a rules directory that
+  // came back empty (moved again, renamed) would leave both checks above
+  // passing over nothing at all.
+  it('scans every rule module', () => {
+    expect(ruleFiles.length).toBeGreaterThanOrEqual(25);
   });
 });

@@ -8,7 +8,7 @@ export type {
   ValidationError,
   SemanticWarning,
 } from './src/validate.js';
-export { checkSemantics } from './src/semantic.js';
+export { checkSemantics } from './src/semantic/index.js';
 export {
   ALL_RULE_IDS,
   RULE_DEFAULTS,

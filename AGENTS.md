@@ -43,7 +43,11 @@ core's `extractMermaidBlocks`.
 - `validate.ts` + `merman.ts` — the two-tier parser (WASM → mermaid.js).
 - `preprocess.ts` — maps a line mermaid reports back to its body line, undoing
   the whole-line deletions mermaid makes before parsing.
-- `semantic.ts` — opt-in semantic warnings.
+- `semantic/` — opt-in semantic warnings. `index.ts` is the entry point
+  (`checkSemantics`); `registry.ts` holds the rule list, whose **order is the
+  output order**; `types.ts` and `helpers.ts` are shared internals; and
+  `rules/<diagram>.ts` holds one diagram family's rules and its own helpers.
+  A new rule goes in its family's module and gets appended to `registry.ts`.
 - `markdown-adapter.ts` — `blockToDiagnostics` / `lintMarkdown` (the shared API).
 - `config.ts` — `.mermaidlintrc` / config-file loading.
 - `fix.ts` — `--fix` autofixer. `discover.ts` — file discovery. `type-detect.ts` — diagram-type sniffing.
