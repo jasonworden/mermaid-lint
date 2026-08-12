@@ -1,6 +1,6 @@
 {
   "name": "@mermaid-lint/remark",
-  "version": "0.49.1",
+  "version": "0.50.0",
   "type": "module",
   "description": "remark-lint plugin for Mermaid diagram validation",
   "exports": {

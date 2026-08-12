@@ -567,8 +567,19 @@ export interface RuleMetadata {
  * `mindmap-duplicate-sibling` — two identical labels under one parent both
  * render, so the tree claims a distinction it does not draw.
  *
- * Both key on quoted labels, because that is all the grammar accepts: a bare
- * `root` after the header is a lexer error, not a node.
+ * Both once keyed on quoted labels, because that was all the grammar accepted:
+ * through mermaid 11.15 a bare `root` after the header was a lexer error, not
+ * a node. The file-tree work in 11.16.0 changed that in three ways the scan
+ * now has to model. A `BARE_NAME` terminal makes an unquoted word an ordinary
+ * node — so keying on quotes would have `treeview-no-nodes` warn about trees
+ * mermaid draws in full. A trailing `/` marks a node a directory and is
+ * dropped from its name, as are the `:::class`, `icon(…)`, and `## text`
+ * annotations, so `treeview-duplicate-sibling` has to compare the stored name
+ * rather than the written one. And a body may draw its hierarchy with
+ * `├── ` / `└── ` prefixes instead of indentation, which mermaid rewrites into
+ * indentation before parsing and which the scan therefore rewrites too. The
+ * same release stopped admitting a label after the header keyword, so
+ * `treeView-beta "root"` is a parse error rather than a one-node tree.
  *
  * #148 also proposed a `treeview-indent-jump` rule and asked for a call on it.
  * It is not implemented, because the defect it describes is not observable.
