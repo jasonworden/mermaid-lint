@@ -1,5 +1,8 @@
 packages:
   - "packages/*"
+
+# Stop a stale node_modules from surfacing as unrelated test failures.
+verifyDepsBeforeRun: error
 # Single source of truth for shared dev-tool versions. Packages reference these
 # with the `catalog:` protocol so every workspace resolves the same version and
 # a bump happens in one place. Keeps transitively-vulnerable phantoms (e.g. an
