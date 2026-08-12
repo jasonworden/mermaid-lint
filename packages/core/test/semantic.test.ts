@@ -5065,9 +5065,6 @@ describe('treeview-no-nodes rule', () => {
     expect(findings[0].severity).toBe('warn');
     expect(findings[0].line).toBe(1);
     expect(findings[0].message).toContain('renders as an empty tree');
-    // The syntax note the rule carries: an author who wrote bare words is one
-    // parse error away, not one rule away, so the message says so.
-    expect(findings[0].message).toContain('must be quoted');
   });
 
   it('flags a body that is metadata and comments only', () => {
@@ -5100,14 +5097,15 @@ describe('treeview-no-nodes rule', () => {
     ).toEqual([]);
   });
 
-  it('sees a node declared on the header line itself', () => {
-    // The grammar takes a `STRING2` straight after the keyword, so
-    // `treeView-beta "root"` is a one-node tree, not an empty one. A scan that
-    // started below the header would call this diagram empty while mermaid
-    // renders a node in it.
+  it('does not read a node off the header line', () => {
+    // Through 11.15 the grammar took a `STRING2` straight after the keyword
+    // and the scan resumed past it. 11.16.0 dropped that: `treeView-beta
+    // "root"` is a parse error now, so the only thing a scan can do with the
+    // header line is start below it. Still reading a node here would silence
+    // the rule on a body that renders nothing at all.
     expect(
       only(block('treeView-beta "root"', 'treeView-beta'), 'treeview-no-nodes'),
-    ).toEqual([]);
+    ).toHaveLength(1);
   });
 
   it('sees a node after an accDescr block closes on the same line', () => {
@@ -5133,11 +5131,48 @@ describe('treeview-no-nodes rule', () => {
     expect(only(tv('  title', '  "p"'), 'treeview-no-nodes')).toEqual([]);
   });
 
+  it('sees a node whose name is not a statement keyword after all', () => {
+    // `accTitle` and `accDescr` only exist as statements with their `:` or
+    // `{`; without one, mermaid 11.16.0 lexes the line as a bare name. Reading
+    // the keyword alone as metadata would call these trees empty.
+    expect(only(tv('  accTitle foo'), 'treeview-no-nodes')).toEqual([]);
+    expect(only(tv('  accDescr foo'), 'treeview-no-nodes')).toEqual([]);
+    // A lone `accDescr` opens a block only if a `{` actually follows it, so
+    // this one is a node called `accDescr`.
+    expect(only(tv('  accDescr'), 'treeview-no-nodes')).toEqual([]);
+    // And with the brace it is metadata again, across the newline.
+    expect(
+      only(tv('  accDescr', '  {', '    v1', '  }'), 'treeview-no-nodes'),
+    ).toHaveLength(1);
+  });
+
   it('returns [] once any node is declared', () => {
     expect(only(tv('  "root"'), 'treeview-no-nodes')).toEqual([]);
     // Either quote style is a node, and an empty label still is one.
     expect(only(tv("  'root'"), 'treeview-no-nodes')).toEqual([]);
     expect(only(tv('  ""'), 'treeview-no-nodes')).toEqual([]);
+    // As of mermaid 11.16.0 so is a bare word, which through 11.15 was a lexer
+    // error. Keying on quotes here would warn about a tree mermaid draws.
+    expect(only(tv('  root'), 'treeview-no-nodes')).toEqual([]);
+    expect(only(tv('  hello world'), 'treeview-no-nodes')).toEqual([]);
+    // Including one that is nothing but punctuation.
+    expect(only(tv('  >>>>'), 'treeview-no-nodes')).toEqual([]);
+  });
+
+  it('sees the nodes in a box-drawing body', () => {
+    // The file-tree notation declares its nodes behind `├── ` / `└── `
+    // prefixes rather than by indentation. A scan that only measured indents
+    // would still find these, but one that skipped unrecognized leading
+    // punctuation would call the whole tree empty.
+    expect(
+      only(
+        block(
+          ['treeView-beta', 'src/', '├── a.ts', '└── b.ts'].join('\n'),
+          'treeView-beta',
+        ),
+        'treeview-no-nodes',
+      ),
+    ).toEqual([]);
   });
 
   it('does not apply to other indented diagram types', () => {
@@ -5206,23 +5241,73 @@ describe('treeview-duplicate-sibling rule', () => {
     expect(findings[0].message).toContain('line 2');
   });
 
-  it('keeps a header-line node on the stack, so its children re-parent right', () => {
-    // The header-line node is a real parent. Missing it would drop `"p"` from
-    // the stack and land both `"x"` under the synthetic root as siblings —
-    // a duplicate mermaid does not have. Its edges here are `/ > p`,
-    // `p > x`, `/ > x`: the two `x` sit at different depths.
-    const b = block(
-      ['treeView-beta "p"', '  "x"', ' "x"'].join('\n'),
-      'treeView-beta',
-    );
+  it('keeps a mid-line node on the stack, so its children re-parent right', () => {
+    // The node declared after the closing `}` is a real parent. Missing it
+    // would drop `"p"` from the stack and land both `"x"` under the synthetic
+    // root as siblings — a duplicate mermaid does not have. The edges here are
+    // `/ > p`, `p > x`, `/ > x`: the two `x` sit at different depths.
+    const b = tv('  accDescr { d } "p"', '    "x"', ' "x"');
     expect(only(b, 'treeview-duplicate-sibling')).toEqual([]);
   });
 
-  it('keeps an accDescr tail node on the stack too', () => {
-    // Same shape, with the parent declared after a closing `}` instead of
-    // after the keyword.
-    const b = tv('  accDescr { d } "p"', '    "x"', ' "x"');
-    expect(only(b, 'treeview-duplicate-sibling')).toEqual([]);
+  it('reads bare names as nodes, and as the same label as quoted ones', () => {
+    // Bare names arrived in mermaid 11.16.0. Two of them under one parent
+    // collide exactly as two quoted ones do.
+    expect(
+      only(tv('  r', '    same', '    same'), 'treeview-duplicate-sibling').map(
+        (f) => f.line,
+      ),
+    ).toEqual([4]);
+    // And quoting one of a pair changes nothing: mermaid stores the same name
+    // either way, so it draws the same branch twice.
+    expect(
+      only(tv('  r', '    same', '    "same"'), 'treeview-duplicate-sibling'),
+    ).toHaveLength(1);
+  });
+
+  it('strips the trailing directory mark before comparing', () => {
+    // `a/` and `a` are one name — the `/` marks the node a directory and is
+    // not stored. Comparing the raw text would miss the repeat.
+    const findings = only(
+      tv('  r', '    a/', '    a'),
+      'treeview-duplicate-sibling',
+    );
+    expect(findings.map((f) => f.line)).toEqual([4]);
+    expect(findings[0].message).toContain('`a`');
+  });
+
+  it('strips annotations before comparing', () => {
+    // A class, an icon, and a description are metadata on the node, not part
+    // of its name, so two nodes that differ only there are still one branch
+    // drawn twice.
+    expect(
+      only(
+        tv('  r', '    a ##first', '    a ##second'),
+        'treeview-duplicate-sibling',
+      ).map((f) => f.line),
+    ).toEqual([4]);
+    expect(
+      only(
+        tv('  r', '    a :::one', '    a icon(folder)'),
+        'treeview-duplicate-sibling',
+      ),
+    ).toHaveLength(1);
+    // The annotation must be consumed, not merely stopped at: stepping a
+    // character into `##first` would read `#first` as a second node.
+    expect(only(tv('  a ##first'), 'treeview-duplicate-sibling')).toEqual([]);
+  });
+
+  it('reads a box-drawing body at the depth its prefixes imply', () => {
+    // The two `a` are siblings under `src`, and `c` is not — it nests under
+    // the first `a`. Reading the prefixes as part of the name, or ignoring
+    // them and measuring the raw indent, would get both of those wrong.
+    const b = block(
+      ['treeView-beta', 'src/', '├── a', '│   └── c', '└── a', ''].join('\n'),
+      'treeView-beta',
+    );
+    const findings = only(b, 'treeview-duplicate-sibling');
+    expect(findings.map((f) => f.line)).toEqual([5]);
+    expect(findings[0].message).toContain('line 3');
   });
 
   it('ignores quoted text inside metadata and comments', () => {
@@ -5249,20 +5334,24 @@ describe('treeView label scanning', () => {
     // completion before it can be reported.
     { timeout: 60_000 },
     () => {
-      // Writing the indent into `TREEVIEW_LABEL_RE` as a leading `([ \t]*)`
+      // Writing the indent into `TREEVIEW_NAME_RE` as a leading `([ \t]*)`
       // re-scans the whole whitespace run at every start position it fails
-      // from — quadratic on a line with no quote to anchor it. 80 000 spaces
+      // from — quadratic on a line with nothing to anchor it. 80 000 spaces
       // took ~2.8s that way; counting the run backwards from a match is O(n)
       // over the line and does the same 80 000 in under a millisecond.
       // Diagram bodies are user input and `checkSemantics` runs ahead of any
       // parse, so an unparseable body still reaches this.
+      //
+      // The bare-name alternative added for mermaid 11.16.0 has to preserve
+      // that: it starts on a character class that excludes whitespace, so
+      // every start position in this line still fails on its first character.
       const b = tv(' '.repeat(80_000));
 
       const start = performance.now();
       const findings = only(b, 'treeview-duplicate-sibling');
       const elapsed = performance.now() - start;
 
-      // The line quotes nothing, so it declares no node at all.
+      // Whitespace alone is not a name in either form, so no node at all.
       expect(findings).toEqual([]);
       expect(only(b, 'treeview-no-nodes').map((f) => f.line)).toEqual([1]);
       expect(elapsed).toBeLessThan(500);
@@ -5284,8 +5373,11 @@ describe('treeView label scanning', () => {
       const findings = only(b, 'treeview-no-nodes');
       const elapsed = performance.now() - start;
 
-      // No `{` ever opens, so every line is metadata and nothing is a node.
-      expect(findings.map((f) => f.line)).toEqual([1]);
+      // No `{` ever opens, so no line is an `accDescr` statement — as of
+      // mermaid 11.16.0 each is a bare name instead, and the tree has 60 000
+      // nodes in it. The lookahead still runs once per line, which is what
+      // this measures; the verdict just changed sides with the grammar.
+      expect(findings).toEqual([]);
       expect(elapsed).toBeLessThan(500);
     },
   );

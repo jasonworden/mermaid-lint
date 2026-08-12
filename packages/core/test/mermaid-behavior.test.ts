@@ -856,17 +856,84 @@ describe('mermaid behavior contracts', () => {
     );
   }, 20_000);
 
-  it('rejects an unquoted treeView-beta label', async () => {
-    // Why every treeView rule keys on quoted text: a bare word never becomes a
-    // node, it dies in the lexer. A scan that accepted unquoted words would
-    // invent nodes in bodies the syntax pass has already rejected.
-    expect((await validateWithMermaidJS('treeView-beta\n  root\n')).ok).toBe(
-      false,
-    );
-    // Either quote style works, though, so the scan must accept both.
+  it('reads an unquoted treeView-beta label as a node', async () => {
+    // Why the treeView rules stopped keying on quoted text. Through 11.15 a
+    // bare word died in the lexer, so quotes were all a scan could count; the
+    // file-tree work in 11.16.0 added a `BARE_NAME` terminal and a bare word
+    // is now an ordinary node. A scan still keyed on quotes would report
+    // `treeview-no-nodes` against a tree mermaid draws in full.
+    expect(await treeViewEdges('treeView-beta\n  root\n')).toEqual([
+      '/ > root',
+    ]);
+    // Either quote style works too, so the scan must accept all three.
     expect(await treeViewEdges("treeView-beta\n  'root'\n")).toEqual([
       '/ > root',
     ]);
+    // A bare name runs to the end of its line — spaces and all — so it is
+    // always the last name on it. A quoted one ends at its closing quote, so
+    // names after it keep lexing. The two orders are therefore not symmetric.
+    expect(await treeViewEdges('treeView-beta\n  hello world\n')).toEqual([
+      '/ > hello world',
+    ]);
+    expect(await treeViewEdges('treeView-beta\n  a "b"\n')).toEqual([
+      '/ > a "b"',
+    ]);
+    expect(await treeViewEdges('treeView-beta\n  "a" b\n')).toEqual([
+      '/ > a',
+      '/ > b',
+    ]);
+  }, 20_000);
+
+  it('strips a treeView-beta node of its annotations and directory mark', async () => {
+    // Both are why the scan cannot take a name as written. A trailing `/`
+    // marks the node a directory and is dropped from its name, so `a/` and `a`
+    // are one label that `treeview-duplicate-sibling` has to see as a repeat.
+    expect(await treeViewEdges('treeView-beta\n  r\n    a/\n    a\n')).toEqual([
+      '/ > r',
+      'r > a',
+      'r > a',
+    ]);
+    // Quoting does not protect it: the mark is read after the quotes come off.
+    expect(await treeViewEdges('treeView-beta\n  "src/"\n    a\n')).toEqual([
+      '/ > src',
+      'src > a',
+    ]);
+    // The three annotations are metadata on the node, not part of its name,
+    // and each ends the name it follows.
+    expect(
+      await treeViewEdges('treeView-beta\n  a ##desc\n  b :::cls\n'),
+    ).toEqual(['/ > a', '/ > b']);
+    expect(await treeViewEdges('treeView-beta\n  a icon(folder)\n')).toEqual([
+      '/ > a',
+    ]);
+    // Only behind whitespace, though — glued on, they are just more name.
+    expect(await treeViewEdges('treeView-beta\n  a##d\n')).toEqual([
+      '/ > a##d',
+    ]);
+  }, 20_000);
+
+  it('reads a treeView-beta box-drawing body as an indented one', async () => {
+    // The other half of the 11.16.0 file-tree work. `├── ` / `└── ` prefixes
+    // are not taught to the grammar: a preprocessor rewrites each prefixed
+    // line to the indent its depth implies and the ordinary parser reads that,
+    // which is why the scan gets the same tree by doing the same rewrite.
+    expect(
+      await treeViewEdges('treeView-beta\nroot\n├── a\n│   └── c\n└── b\n'),
+    ).toEqual(['/ > root', 'root > a', 'a > c', 'root > b']);
+    // Depth is the branch column over the width the body's own first indented
+    // branch established, so any consistent connector width works.
+    expect(
+      await treeViewEdges('treeView-beta\nroot\n├─ a\n│  └─ c\n└─ b\n'),
+    ).toEqual(['/ > root', 'root > a', 'a > c', 'root > b']);
+    // A line of nothing but rules is a spacer between branches, not a node.
+    expect(
+      await treeViewEdges('treeView-beta\nroot\n├── a\n│\n└── b\n'),
+    ).toEqual(['/ > root', 'root > a', 'root > b']);
+    // Mixing the two notations is the one thing it refuses: once any line
+    // carries a box character, an indented line with no prefix is an error.
+    expect(
+      (await validateWithMermaidJS('treeView-beta\n  root\n  ├── a\n')).ok,
+    ).toBe(false);
   }, 20_000);
 
   it('keeps both treeView-beta siblings that share a label', async () => {
@@ -898,13 +965,17 @@ describe('mermaid behavior contracts', () => {
   }, 20_000);
 
   it('keeps lexing treeView-beta nodes after a mid-line construct', async () => {
-    // Three places where a treeView statement ends mid-line and the rest goes
+    // Two places where a treeView statement ends mid-line and the rest goes
     // on declaring nodes. `parseTreeViewNodes` resumes at an offset for each;
     // skipping the whole line would call these diagrams empty while mermaid
     // renders a node in every one.
     //
-    // The keyword: the grammar takes a `STRING2` straight after it.
-    expect(await treeViewEdges('treeView-beta "root"\n')).toEqual(['/ > root']);
+    // The header keyword was a third until 11.16.0, which stopped admitting a
+    // name after it. It is pinned here because the scan used to resume past
+    // the keyword and must not any more: nothing follows it now.
+    expect((await validateWithMermaidJS('treeView-beta "root"\n')).ok).toBe(
+      false,
+    );
     // `ACC_DESCR` stops at the first `}`, in either brace form.
     expect(
       await treeViewEdges('treeView-beta\n  accDescr { d } "p"\n'),
@@ -919,13 +990,29 @@ describe('mermaid behavior contracts', () => {
     ]);
     expect(await treeViewEdges('treeView-beta\n  title "p"\n')).toEqual([]);
     expect(await treeViewEdges('treeView-beta\n  title\t"p"\n')).toEqual([]);
-    // And each of those nodes is a real parent, not a node the scan may drop:
-    // `x` at a deeper indent nests under it, and the shallower `x` does not.
-    expect(await treeViewEdges('treeView-beta "p"\n  "x"\n "x"\n')).toEqual([
-      '/ > p',
-      'p > x',
-      '/ > x',
+    // The lexer prefers that empty alternative to a bare name, so `title` is
+    // never the start of one. Both of these are an empty title plus a node,
+    // and reading the line as one bare name would name it `titlep`.
+    expect(await treeViewEdges('treeView-beta\n  titlep\n')).toEqual(['/ > p']);
+    expect(await treeViewEdges('treeView-beta\n  title-x\n')).toEqual([
+      '/ > -x',
     ]);
+    // `accTitle` and `accDescr` have no empty alternative, so without their
+    // `:` or `{` they are not statements at all — just the start of a name.
+    expect(await treeViewEdges('treeView-beta\n  accTitle foo\n')).toEqual([
+      '/ > accTitle foo',
+    ]);
+    expect(await treeViewEdges('treeView-beta\n  accDescr\n  "p"\n')).toEqual([
+      '/ > accDescr',
+      '/ > p',
+    ]);
+    // And the node is a real parent, not one the scan may drop: `x` at a
+    // deeper indent nests under it, and the shallower `x` does not.
+    expect(
+      await treeViewEdges(
+        'treeView-beta\n  accDescr { d } "p"\n    "x"\n "x"\n',
+      ),
+    ).toEqual(['/ > p', 'p > x', '/ > x']);
   }, 20_000);
 
   it('indents a second treeView-beta label from the space before it', async () => {
