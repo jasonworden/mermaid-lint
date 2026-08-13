@@ -44,7 +44,14 @@ interface DiagramResult {
   col: number;
   type: string;
   ok: boolean;
-  error?: { message: string; line?: number; col?: number };
+  error?: {
+    message: string;
+    line?: number;
+    col?: number;
+    raw?: string;
+    suggestion?: string;
+    fixable?: boolean;
+  };
   warnings: Array<{
     rule: string;
     message: string;
@@ -227,9 +234,13 @@ async function runTextMode(
         if (d.ruleId === SYNTAX_RULE_ID) {
           failures++;
           const msg = d.message.replace(/\s*\n\s*/g, ' | ');
+          const fixableSuffix = d.fixable ? ' (fixable with --fix)' : '';
           process.stdout.write(
-            `${chalk.bold(block.path)}:${d.line}:${d.column}: ${chalk.red('parse error:')} ${msg}\n`,
+            `${chalk.bold(block.path)}:${d.line}:${d.column}: ${chalk.red('parse error:')} ${msg}${fixableSuffix}\n`,
           );
+          if (d.suggestion !== undefined) {
+            process.stdout.write(`  did you mean: ${d.suggestion}\n`);
+          }
         } else if (d.severity === 'error') {
           // An "error"-severity finding fails the run like a parse error.
           failures++;
@@ -337,6 +348,9 @@ async function runJsonMode(
           message: syntaxDiag.message,
           line: syntaxDiag.line,
           col: syntaxDiag.column,
+          raw: syntaxDiag.raw,
+          suggestion: syntaxDiag.suggestion,
+          fixable: syntaxDiag.fixable,
         };
       }
       diagrams.push(dr);
