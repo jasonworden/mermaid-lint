@@ -608,7 +608,7 @@ describe('suggestions round-trip through mermaid', () => {
       expect(before.ok, 'fixture should not already parse').toBe(false);
       const error = before.ok ? undefined : before.error;
 
-      const got = explain(error?.message ?? '', body, error?.line);
+      const got = explain(error?.raw ?? '', body, error?.line);
       expect(got?.suggestion, `no suggestion for ${name}`).toBeDefined();
 
       const lines = body.split('\n');
@@ -629,7 +629,7 @@ describe('suggestions round-trip through mermaid', () => {
     const body = 'flowchart LR\n  A[call foo(bar --> B';
     const before = await validateWithMermaidJS(body);
     const error = before.ok ? undefined : before.error;
-    const got = explain(error?.message ?? '', body, error?.line);
+    const got = explain(error?.raw ?? '', body, error?.line);
     expect(got?.id).toBe('flowchart-unclosed-shape');
     expect(got?.suggestion).toBeUndefined();
   });
@@ -650,7 +650,7 @@ describe('suggestions round-trip through mermaid', () => {
       const before = await validateWithMermaidJS(body);
       expect(before.ok, 'fixture should not parse').toBe(false);
       const error = before.ok ? undefined : before.error;
-      const got = explain(error?.message ?? '', body, error?.line);
+      const got = explain(error?.raw ?? '', body, error?.line);
       expect(got?.id).toBe('flowchart-unclosed-shape');
       expect(got?.suggestion).toBeUndefined();
     },
@@ -678,7 +678,7 @@ describe('suggestions round-trip through mermaid', () => {
     async (body) => {
       const before = await validateWithMermaidJS(body);
       const error = before.ok ? undefined : before.error;
-      const got = explain(error?.message ?? '', body, error?.line);
+      const got = explain(error?.raw ?? '', body, error?.line);
       expect(got?.id).toBe('flowchart-mismatched-shape');
       expect(got?.suggestion).toBeUndefined();
     },
@@ -694,7 +694,7 @@ describe('regressions', () => {
     const result = await validateWithMermaidJS(body);
     expect(result.ok, `fixture should not parse: ${body}`).toBe(false);
     const error = result.ok ? undefined : result.error;
-    return explain(error?.message ?? '', body, error?.line);
+    return explain(error?.raw ?? '', body, error?.line);
   }
 
   // `graph TD;` is the README spelling. Splitting the header on whitespace

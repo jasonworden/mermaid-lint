@@ -168,11 +168,12 @@ describe('syntax error position', () => {
       async (_type, body) => {
         // A diagnostic printed as `file:2:1: Parse error on line 3` contradicts
         // itself in public. Both numbers are body-relative here, so they must be
-        // the same number.
+        // the same number. `raw` is where mermaid's citations live now; the
+        // translated `message` cites nothing, so it cannot contradict anything.
         const result = await validateWithMermaidJS(body);
         expect(result.ok).toBe(false);
         if (result.ok) return;
-        const cited = /on line (\d+)/.exec(result.error.message);
+        const cited = /on line (\d+)/.exec(result.error.raw ?? '');
         expect(cited).not.toBeNull();
         expect(Number(cited?.[1])).toBe(result.error.line);
       },
@@ -294,8 +295,9 @@ describe('syntax error position', () => {
       const result = await validateWithMermaidJS(body);
       expect(result.ok).toBe(false);
       if (result.ok) continue;
-      // The prose still says `?`: the position is our inference, not mermaid's.
-      expect(result.error.message).toContain('on line ?');
+      // mermaid's own prose still says `?`: the position is our inference, not
+      // its own — and that prose is now reached through `raw`.
+      expect(result.error.raw).toContain('on line ?');
       expect(result.error.line).toBe(line);
       const blamed = body.split('\n')[line - 1];
       expect(result.error.col).toBeGreaterThanOrEqual(1);
@@ -374,7 +376,9 @@ describe('syntax error position', () => {
     );
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error.message).toContain('No diagram type detected');
+      expect(result.error.raw).toContain('No diagram type detected');
+      // And the echoed body is not mined for a position by the translation
+      // either: the citation the user typed stays theirs.
       expect(result.error.line).toBeUndefined();
     }
   });
@@ -392,6 +396,67 @@ describe('validateWithMermaidJS', () => {
     );
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.message).toBeTruthy();
+  });
+});
+
+// `message` is now the translated text and cites no line at all; mermaid's own
+// wording moves to `raw`, which is what carries the citations and therefore
+// what `mapParserMessageLines` acts on. See `ValidationError`.
+describe('translated parser errors', () => {
+  it('translates a missing sequence colon and keeps mermaid text in raw', async () => {
+    const result = await validateWithMermaidJS(
+      'sequenceDiagram\n  Alice->>Bob hello',
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.message).toBe('sequence message is missing a colon');
+    expect(result.error.suggestion).toBe('  Alice->>Bob: hello');
+    expect(result.error.fixable).toBe(true);
+    expect(result.error.raw).toContain("Expecting 'TXT'");
+    expect(result.error.line).toBe(2);
+  });
+
+  it('names the likely diagram type instead of echoing the body', async () => {
+    const result = await validateWithMermaidJS('flowchat LR\n  A --> B');
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.message).toBe(
+      'unknown diagram type `flowchat`; did you mean `flowchart`?',
+    );
+    expect(result.error.message).not.toContain('A --> B');
+    expect(result.error.raw).toContain('No diagram type detected');
+  });
+
+  it('maps the citations in raw and leaves message citing nothing', async () => {
+    // The leading `%%` comment is stripped before mermaid counts lines, so the
+    // defect on body line 4 is cited as line 3 — a body whose mapping is
+    // observable, so "raw was mapped" is a claim with teeth.
+    const result = await validateWithMermaidJS(
+      '%% note\nflowchart TD\n  A --> B\n  B -> C',
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.line).toBe(4);
+    expect(result.error.raw).toContain('Parse error on line 4:');
+    expect(result.error.message).not.toMatch(/on line \d/);
+  });
+
+  it('never runs a suggestion through the citation mapper', async () => {
+    // The corrected line quotes the author's own text back, and here that text
+    // spells out a citation the mapper would happily rewrite: `on line 2`
+    // starts the line, exactly where `mapParserMessageLines` looks. The `%%`
+    // comment makes the mapping a visible +1, so a suggestion that had been
+    // mapped would read `on line 3` instead.
+    const result = await validateWithMermaidJS(
+      '%% note\nsequenceDiagram\n  Parse error on line 2->>Bob hello',
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.suggestion).toBe(
+      '  Parse error on line 2->>Bob: hello',
+    );
+    // The same +1 that the suggestion must not receive, applied where it belongs.
+    expect(result.error.raw).toContain('Parse error on line 3:');
   });
 });
 

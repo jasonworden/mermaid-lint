@@ -1,4 +1,6 @@
 import { FLOWCHART_DIRECTIONS } from './directions.js';
+import { explainParseError } from './explain/index.js';
+import { parseRawError } from './explain/parse-raw.js';
 import type { Block } from './extract.js';
 import { locateHeader } from './header.js';
 import { validateWithMerman } from './merman.js';
@@ -20,12 +22,36 @@ export interface ValidationError {
   /**
    * Human-readable error message.
    *
-   * Any line number mermaid quotes inside this text is body-relative, matching
-   * {@link ValidationError.line}. `blockToDiagnostics` maps both when it builds
-   * a `Diagnostic`; code calling `validateBlock` directly and printing this
-   * beside a file position should do the same.
+   * For a parser failure this is the *translated* text from `explainParseError`
+   * — it names the defect and cites no line at all, because the position is
+   * already carried structurally in {@link ValidationError.line}. So nothing in
+   * here needs body→file mapping; a caller printing it beside a file position
+   * may use it verbatim. {@link ValidationError.raw} is what carries mermaid's
+   * own citations, and is what any such mapping should act on.
    */
   message: string;
+  /**
+   * mermaid's original message, verbatim except that every line number it cites
+   * has been mapped into body coordinates, matching {@link ValidationError.line}.
+   *
+   * Present only for parser failures — structural defects never reach a parser.
+   * `blockToDiagnostics` maps these citations on to file coordinates when it
+   * builds a `Diagnostic`; code calling `validateBlock` directly and surfacing
+   * this beside a file position should do the same.
+   */
+  raw?: string;
+  /**
+   * The one corrected source line the explanation is confident about, when it
+   * is confident about one — the author's own line, rewritten.
+   *
+   * Quoted text, not prose: it holds whatever the author wrote, so it must
+   * never be run through `mapParserMessageLines`. A line reading `Parse error
+   * on line 2->>Bob: hi` is a sequence message, not a citation, and rewriting
+   * the number in it would corrupt the user's own source.
+   */
+  suggestion?: string;
+  /** True when `--fix` writes exactly {@link ValidationError.suggestion}. */
+  fixable?: boolean;
   /** 1-indexed line within the diagram body, when known. */
   line?: number;
   /** 1-indexed column within the diagram body, when known. */
@@ -449,10 +475,32 @@ async function runMermaidValidation(
     const line =
       found === undefined ? await bisectedLine(body, raw) : toBody(found.line);
 
+    // `raw` inherits what `message` used to do: it is the only field left
+    // carrying mermaid's citations, so it is the only one mapped. Mapped once,
+    // here, and handed to both consumers — the explain layer echoes this string
+    // verbatim for the `module` family, so feeding it the unmapped copy would
+    // put a parsed-copy line number inside an otherwise body-relative message.
+    const mapped = mapParserMessageLines(raw, toBody);
+
+    // Translated last, because the rules re-read the source line mermaid blamed
+    // and `line` is only final here — after the signal chain, the body mapping
+    // and any bisection have all had their say.
+    const explanation = explainParseError({
+      parsed: parseRawError(mapped),
+      raw: mapped,
+      type: detectDiagramType(body),
+      body,
+      line,
+    });
+
     return {
       ok: false as const,
       error: {
-        message: mapParserMessageLines(raw, toBody),
+        message: explanation.message,
+        raw: mapped,
+        // Deliberately unmapped — see `ValidationError.suggestion`.
+        suggestion: explanation.suggestion,
+        fixable: explanation.fixable,
         line,
         col: refineColumn(
           body,

@@ -261,7 +261,11 @@ describe('@mermaid-lint/markdownlint — autofix (--fix)', () => {
     // One finding, not one for the error and a second for the same fix.
     expect(rest).toEqual([]);
     expect(finding.lineNumber).toBe(3);
-    expect(finding.errorDetail).toContain('Parse error');
+    // The parser's half, in its translated wording — the message no longer
+    // opens with mermaid's `Parse error on line N:`, so match what it says now.
+    expect(finding.errorDetail).toContain(
+      '`->` is not a flowchart arrow — flowchart arrows need two dashes',
+    );
     expect(finding.errorDetail).toContain('`A -> B` → `A --> B`');
     expect(finding.fixInfo).toBeDefined();
   });

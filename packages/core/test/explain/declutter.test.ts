@@ -275,10 +275,10 @@ describe('golden output over the invalid parity fixtures', () => {
       const result = await validateWithMermaidJS(body);
       expect(result.ok, `${file} unexpectedly parsed`).toBe(false);
       if (result.ok) continue;
-      // `message` is still mermaid's own text at this point in the branch —
-      // body-relative, which is exactly what `validate.ts` will hand the
-      // explain layer once it is wired in.
-      const raw = result.error.message;
+      // `raw` is mermaid's own text, body-relative — exactly what `validate.ts`
+      // hands the explain layer, so this replays the real call rather than an
+      // approximation of it.
+      const raw = result.error.raw ?? '';
       out[file] = {
         family: parseRawError(raw).family,
         explanation: explainParseError(toInput(raw, body, result.error.line)),
