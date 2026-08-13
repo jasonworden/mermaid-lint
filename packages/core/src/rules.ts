@@ -617,7 +617,12 @@ export interface RuleMetadata {
  * `x.md` exists), or a URL-encoded space (`click A "./my%20file.md"` where
  * `my file.md` exists) all read as broken to this heuristic while being
  * perfectly valid links — opt in where the docs site is known to mirror the
- * source tree file-for-file.
+ * source tree file-for-file. The heuristic can also miss real breakage: on a
+ * case-insensitive filesystem (macOS, Windows) `existsSync` treats
+ * `click A "./Architecture.md"` as resolved against an on-disk
+ * `architecture.md`, even though the same link 404s on a case-sensitive host
+ * (Linux CI, GitHub Pages) — `off` by default limits how often that false
+ * quiet matters.
  *
  * @internal
  */

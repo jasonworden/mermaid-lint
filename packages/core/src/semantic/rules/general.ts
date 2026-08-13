@@ -119,9 +119,14 @@ const URI_SCHEME_RE = /^[a-zA-Z][a-zA-Z0-9+.-]*:/;
  * `click X href "..."` in `classDiagram` and `stateDiagram-v2`. Covering
  * those is a known follow-up, not part of this rule.
  *
- * Only runs when `block.path` exists on disk: `<stdin>` (CLI stdin mode) and
- * other virtual paths have no real containing directory to resolve a
- * relative target against, so every target would otherwise read as broken.
+ * Only runs when `block.path` exists on disk — see the guard below for why.
+ *
+ * `CLICK_HREF_RE` requires `click` to open the line, so a `;`-separated
+ * statement sharing a line with something else (`A-->B; click A "..."`) is
+ * never seen. That's the same one-statement-per-line assumption every rule
+ * in this codebase makes (`edges.ts`'s `SKIP_KEYWORDS`, every other file in
+ * `semantic/rules/`) — a shared, pre-existing limitation of the line-based
+ * scanner, not something specific to this rule.
  */
 export const clickTargetNotFound: Rule = {
   id: 'click-target-not-found',

@@ -320,18 +320,11 @@ describe('click-target-not-found rule', () => {
     expect(only(b, 'click-target-not-found', WARN_ON)).toEqual([]);
   });
 
-  it('does not flag a remote URL', () => {
-    const b = clickBlock(
-      'flowchart LR\n  A --> B\n  click A "https://example.com/docs"',
-    );
-    expect(only(b, 'click-target-not-found', WARN_ON)).toEqual([]);
-  });
-
-  it('does not flag a mailto: target', () => {
-    const b = clickBlock(
-      'flowchart LR\n  A --> B\n  click A "mailto:a@example.com"',
-    );
-    expect(only(b, 'click-target-not-found', WARN_ON)).toEqual([]);
+  it('does not flag a scheme-prefixed target (remote URL, mailto:)', () => {
+    for (const target of ['https://example.com/docs', 'mailto:a@example.com']) {
+      const b = clickBlock(`flowchart LR\n  A --> B\n  click A "${target}"`);
+      expect(only(b, 'click-target-not-found', WARN_ON)).toEqual([]);
+    }
   });
 
   it('does not flag a Windows drive letter target', () => {
