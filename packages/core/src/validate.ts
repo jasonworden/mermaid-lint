@@ -34,11 +34,11 @@ export interface ValidationError {
    * mermaid's own prose through byte for byte, because that prose is written
    * for humans already and every transformation available would make it worse.
    * A module is free to cite a line inside that sentence, and treeView-beta
-   * does — `Line 2: Unexpected indentation...`. Such a citation is neither
-   * mapped nor guaranteed to agree with {@link ValidationError.line}: it does
-   * not match `citationRe`, so nothing here ever touches it. See #190. For that
-   * family {@link ValidationError.raw} is byte-identical to this field, so a
-   * caller rendering both will print the same sentence twice.
+   * does — `Line 2: Unexpected indentation...`. {@link citationRe} recognizes
+   * this module citation form so its line participates in position extraction
+   * and body mapping, matching {@link ValidationError.line}. For that family
+   * {@link ValidationError.raw} is byte-identical to this field, so a caller
+   * rendering both will print the same sentence twice.
    */
   message: string;
   /**
@@ -46,11 +46,9 @@ export interface ValidationError {
    * `citationRe` has been mapped into body coordinates, matching
    * {@link ValidationError.line}.
    *
-   * "Matching `citationRe`" is the whole of the guarantee: a module-raised
-   * error can word a citation in a shape that pattern does not recognize, and
-   * that number stays exactly as mermaid wrote it — see the note on
-   * {@link ValidationError.message}, which is byte-identical to this field for
-   * that family.
+   * "Matching `citationRe`" is the whole of the guarantee: recognized parser
+   * and module citations (including treeView's `Line N:`) are mapped into
+   * body coordinates, matching {@link ValidationError.line}.
    *
    * Present only for parser failures — structural defects never reach a parser.
    * `blockToDiagnostics` maps these citations on to file coordinates when it
@@ -179,11 +177,22 @@ const JISON_SOURCE = String.raw`^([^\S\n]*${CITATION})(\d+)`;
  */
 const LANGIUM_SOURCE = String.raw`(${CITATION})(\d+)(?=, column )`;
 
-/** Both families, in read-one and rewrite-all forms. Group 1 = head, 2 = digits. */
+/**
+ * Module errors (e.g. treeView-beta) open with a leading `Line N:` citation.
+ *
+ * Anchored strictly to the start of the message (without `m`) so it only
+ * matches the module's own opening citation and never user-authored content
+ * echoed later in the error. Group 1 = head, 2 = digits.
+ */
+const MODULE_SOURCE = String.raw`^([^\S\n]*Line )(\d+)(?=:)`;
+
+/** All three citation families, in read-one and rewrite-all forms. Group 1 = head, 2 = digits. */
 const JISON_RE = new RegExp(JISON_SOURCE, 'm');
 const JISON_RE_ALL = new RegExp(JISON_SOURCE, 'gm');
 const LANGIUM_RE = new RegExp(LANGIUM_SOURCE);
 const LANGIUM_RE_ALL = new RegExp(LANGIUM_SOURCE, 'g');
+const MODULE_RE = new RegExp(MODULE_SOURCE);
+const MODULE_RE_ALL = new RegExp(MODULE_SOURCE, 'g');
 
 /** Langium follows the line with a column; jison stops at the line. */
 const PARSER_COL_RE = /^, column (\d+)/;
@@ -192,6 +201,7 @@ const PARSER_COL_RE = /^, column (\d+)/;
 function citationRe(message: string, all: boolean): RegExp {
   if (message.startsWith(LANGIUM_PREFIX))
     return all ? LANGIUM_RE_ALL : LANGIUM_RE;
+  if (MODULE_RE.test(message)) return all ? MODULE_RE_ALL : MODULE_RE;
   return all ? JISON_RE_ALL : JISON_RE;
 }
 
