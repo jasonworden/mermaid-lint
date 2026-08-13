@@ -594,6 +594,10 @@ describe('suggestions round-trip through mermaid', () => {
       'flowchart LR\n  A[Phase 1 -- Phase 2',
     'flowchart-unclosed-shape (edge text before a link)':
       'flowchart LR\n  A[Start -- x --- B',
+    // `[/…/]` is a shape of its own; with the closing slash already written,
+    // the `]` is genuinely the only missing character.
+    'flowchart-unclosed-shape (asymmetric shape)':
+      'flowchart LR\n  A[/foo/ --> B',
     'flowchart-unquoted-paren': 'flowchart LR\n  A[call foo(bar)] --> B',
     'flowchart-reserved-end': 'flowchart LR\n  A --> end',
   };
@@ -629,6 +633,28 @@ describe('suggestions round-trip through mermaid', () => {
     expect(got?.id).toBe('flowchart-unclosed-shape');
     expect(got?.suggestion).toBeUndefined();
   });
+
+  // Same for an asymmetric shape (`[/…/]`, `[\…\]`) with no closing slash: the
+  // bare `]` this rule inserts spells no shape at all, and mermaid rejected the
+  // result. Which slash the author meant cannot be recovered from the line.
+  it.each([
+    'flowchart LR\n  A[/foo --> B',
+    'flowchart LR\n  A[/foo bar --> B',
+    'flowchart LR\n  A --> B[/foo',
+    'flowchart LR\n  A[\\foo --> B',
+    'flowchart LR\n  A[\\foo bar --> B',
+    'flowchart LR\n  A --> B[\\foo',
+  ])(
+    'offers no suggestion for an unfinished asymmetric shape %j',
+    async (body) => {
+      const before = await validateWithMermaidJS(body);
+      expect(before.ok, 'fixture should not parse').toBe(false);
+      const error = before.ok ? undefined : before.error;
+      const got = explain(error?.message ?? '', body, error?.line);
+      expect(got?.id).toBe('flowchart-unclosed-shape');
+      expect(got?.suggestion).toBeUndefined();
+    },
+  );
 
   // Same for a mistyped closer that leaves another shape open — whether that
   // shape encloses the mismatch (`A([foo}`, a stadium) or follows it

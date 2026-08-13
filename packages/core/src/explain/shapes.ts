@@ -231,14 +231,63 @@ export function scanShapes(line: string): ShapeDefect | undefined {
  * rejects. Checking the postcondition needs no per-branch threshold and cannot
  * miss a delimiter the scan never reached.
  *
- * Necessary, though, is not sufficient: balance is generic nesting and a
- * mermaid shape is a specific token, so `withCloserCorrected` ANDs this with a
- * shape check rather than resting on it. `withCloserInserted` needs nothing
- * more — one inserted closer cannot clear two unmatched openers, so balance
- * alone already implies the opener it repairs was the only one live.
+ * Necessary, though, is not sufficient, and *neither* rewrite may rest on it:
+ * balance is generic nesting, and a mermaid shape is a specific token. Both
+ * therefore AND this with a check of their own.
+ *
+ * What balance does settle, for `withCloserInserted` alone, is *how many*
+ * openers were live — one inserted closer cannot clear two, so a balanced
+ * result implies the opener it repaired was the only one. What it says nothing
+ * about, for either of them, is whether the token that came out is a shape
+ * mermaid has. Reading the first half as covering the second is what let
+ * `A[/foo --> B` be answered with `A[/foo] --> B` for four rounds: perfectly
+ * balanced, and not a node — see `closesAsymmetricShape`.
  */
 function ifBalanced(candidate: string): string | undefined {
   return scanShapes(candidate) === undefined ? candidate : undefined;
+}
+
+/**
+ * The half of an asymmetric shape that this scanner does not track.
+ *
+ * `[/…/]`, `[\…\]` and their two crossings are shapes too, and a `[` followed
+ * by one of these is opening one of them — mermaid reads the slash as part of
+ * the token, not as label text, which is why `A[/foo]` is not a node at all.
+ */
+const SLASH_SIDE = /[/\\]/;
+
+/**
+ * Whether inserting the plain closer would finish the shape `defect.opener`
+ * opens, given the label ends at `labelEnd`.
+ *
+ * Only interesting for the asymmetric shapes. `A[/foo --> B` opens one, and
+ * appending `]` gave `A[/foo] --> B`, which mermaid rejects; the closing slash
+ * is missing and *which* one it should be is a coin flip, since `A[/foo/]` and
+ * `A[/foo\]` both parse and mean different shapes. So this declines unless the
+ * author already wrote a closing slash, as in `A[/foo/ --> B`, where the sole
+ * missing character really is the `]`.
+ *
+ * Only `[` opens these, hence the `openerRun` test: `A(/foo --> B` is an
+ * ordinary round node whose label starts with a slash, and `A(/foo) --> B` is
+ * the right answer for it. A run of more than one opener needs no test at all,
+ * since two live openers cannot be balanced by one inserted closer anyway.
+ *
+ * The label has to be non-empty on its own account: `A[/]` and `A[//]` are both
+ * rejected, so the closing slash must sit at least two places past the opening
+ * one. A quoted label is invisible here, which is correct — `A["/x" --> B` is a
+ * plain rectangle whose label merely starts with a slash.
+ */
+function closesAsymmetricShape(
+  blanked: string,
+  defect: ShapeDefect,
+  labelEnd: number,
+): boolean {
+  const openerIndex = defect.openerIndex;
+  if (defect.openerRun !== '[') return true;
+  if (!SLASH_SIDE.test(blanked[openerIndex + 1] ?? '')) return true;
+  return (
+    labelEnd >= openerIndex + 3 && SLASH_SIDE.test(blanked[labelEnd] ?? '')
+  );
 }
 
 /**
@@ -248,8 +297,9 @@ function ifBalanced(candidate: string): string | undefined {
  *
  * Returns `undefined` rather than a broken guess when the repair is not a
  * single insertion: more than one opener is still unmatched (one `]` would
- * leave the outer one open), or there is no label text to close around, since
- * `C[]` is no better than `C[`.
+ * leave the outer one open), there is no label text to close around (since
+ * `C[]` is no better than `C[`), or the shape is an asymmetric one this cannot
+ * finish — see `SLASH_SIDE`.
  *
  * The link is located in the *blanked* line. Searching the raw line let an
  * arrow inside a quoted label choose the cut point, splitting the label and
@@ -263,11 +313,14 @@ export function withCloserInserted(
   const closer = CLOSER_FOR.get(defect.opener);
   if (closer === undefined) return undefined;
 
-  const after = blankQuoted(line).slice(defect.openerIndex + 1);
+  const blanked = blankQuoted(line);
+  const after = blanked.slice(defect.openerIndex + 1);
   const link = LINK_START_RE.exec(after);
   const cut = link === null ? line.length : defect.openerIndex + 1 + link.index;
   const head = line.slice(0, cut).trimEnd();
   if (head.length <= defect.openerIndex + 1) return undefined;
+  if (!closesAsymmetricShape(blanked, defect, head.length - 1))
+    return undefined;
 
   const tail = line.slice(cut);
   return ifBalanced(

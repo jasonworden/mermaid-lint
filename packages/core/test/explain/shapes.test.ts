@@ -164,6 +164,50 @@ describe('withCloserInserted', () => {
     expect(defect).toBeDefined();
     expect(defect && withCloserInserted(line, defect)).toBeUndefined();
   });
+
+  // `[/` opens a shape whose closer is `/]` or `\]`, so a bare `]` spells
+  // nothing mermaid has — `A[/foo] --> B` is not a node. Which slash was meant
+  // is a coin flip (`A[/foo/]` and `A[/foo\]` both parse, and mean different
+  // shapes), so there is nothing to offer.
+  it('declines an asymmetric shape whose closing slash is missing', () => {
+    expect(insert('  A[/foo --> B')).toBeUndefined();
+    expect(insert('  A[/foo bar --> B')).toBeUndefined();
+    expect(insert('  A --> B[/foo')).toBeUndefined();
+    expect(insert('  A[\\foo --> B')).toBeUndefined();
+    expect(insert('  A[\\foo bar --> B')).toBeUndefined();
+    expect(insert('  A --> B[\\foo')).toBeUndefined();
+  });
+
+  // With the closing slash already written, the one missing character really is
+  // the `]`, and all four crossings are real shapes.
+  it('closes an asymmetric shape whose closing slash is there', () => {
+    expect(insert('  A[/foo/ --> B')).toBe('  A[/foo/] --> B');
+    expect(insert('  A[/foo\\ --> B')).toBe('  A[/foo\\] --> B');
+    expect(insert('  A[\\foo\\ --> B')).toBe('  A[\\foo\\] --> B');
+    expect(insert('  A[\\foo/ --> B')).toBe('  A[\\foo/] --> B');
+    expect(insert('  A --> B[/foo/')).toBe('  A --> B[/foo/]');
+  });
+
+  // The second slash has to close a label, not be the opening one over again:
+  // mermaid rejects `A[/]` and `A[//]` alike.
+  it('declines an asymmetric shape with nothing between the slashes', () => {
+    expect(insert('  A[/ --> B')).toBeUndefined();
+    expect(insert('  A[// --> B')).toBeUndefined();
+  });
+
+  // Only `[` opens an asymmetric shape. A round or rhombus label may start with
+  // a slash, and closing it plainly is the right answer.
+  it('leaves a slash label alone under any other opener', () => {
+    expect(insert('  A(/foo --> B')).toBe('  A(/foo) --> B');
+    expect(insert('  A{/foo --> B')).toBe('  A{/foo} --> B');
+  });
+
+  // A quoted label is not a shape token, and a label that merely *ends* with a
+  // slash never was one either.
+  it('leaves a slash alone when it does not open the shape', () => {
+    expect(insert('  A["/x" --> B')).toBe('  A["/x"] --> B');
+    expect(insert('  A[foo/ --> B')).toBe('  A[foo/] --> B');
+  });
 });
 
 describe('withCloserCorrected', () => {
