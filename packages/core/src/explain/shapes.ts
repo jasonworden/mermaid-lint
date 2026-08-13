@@ -66,6 +66,88 @@ const CLOSER_FOR = new Map([
 ]);
 const CLOSERS = new Set(CLOSER_FOR.values());
 
+/**
+ * The opening tokens of every mermaid node shape spelled with these three
+ * bracket pairs alone.
+ *
+ * A node shape is a *token*, not generic nesting: `([` opens a stadium and is
+ * closed only by `])`, `[[` opens a subroutine and is closed only by `]]`.
+ * Balance is therefore necessary but nowhere near sufficient —
+ * `A([foo] bar) --> B` nests perfectly and mermaid rejects it. Anything not in
+ * this set is a bracket run mermaid has no shape for, so a rewrite around it
+ * cannot be vouched for.
+ *
+ * Shapes that involve other characters (`>...]`, `[/.../]`, `[\...\]`) are
+ * deliberately absent: they are outside what this scanner tracks, and leaving
+ * them out costs declines rather than lies.
+ */
+const SHAPE_OPENINGS = new Set([
+  '[', // rectangle
+  '(', // round
+  '{', // rhombus
+  '([', // stadium
+  '[[', // subroutine
+  '[(', // cylinder
+  '((', // circle
+  '{{', // hexagon
+  '(((', // double circle
+]);
+
+/**
+ * The closing token for a shape opening — the run *mirrored*, not merely each
+ * delimiter paired: `([` closes with `])`, and `[(` with `)]`.
+ */
+function closingFor(opening: string): string {
+  return [...opening]
+    .reverse()
+    .map((char) => CLOSER_FOR.get(char) ?? '')
+    .join('');
+}
+
+const isOpener = (char: string) => CLOSER_FOR.has(char);
+const isCloser = (char: string) => CLOSERS.has(char);
+
+/**
+ * `[start, end)` of the run of like delimiters that `index` sits inside.
+ *
+ * Shape tokens are runs — `([`, `]]`, `)))` — so every question this module
+ * asks about one is a question about the run around a position, never about the
+ * single character there.
+ */
+function runAround(
+  text: string,
+  index: number,
+  member: (char: string) => boolean,
+): [number, number] {
+  let start = index;
+  while (start > 0 && member(text[start - 1])) start--;
+  let end = index + 1;
+  while (end < text.length && member(text[end])) end++;
+  return [start, end];
+}
+
+/**
+ * The shape opening `openerIndex` belongs to, or `''` when some delimiter still
+ * open at that moment sits outside it.
+ *
+ * The run is taken from the *text*, not from the stack, because a compound
+ * opening can be half closed already: on `A([foo]] --> B` the `[` was matched
+ * by the first `]` and only `(` is still open, yet the shape being repaired is
+ * still the stadium `([`. Requiring every live opener to fall inside the run is
+ * what keeps this a claim about one node — on `A[x ([foo} --> B` the `[` of
+ * `A[x` is live and outside, so there is no single shape to reason about.
+ */
+function shapeOpeningAt(
+  blanked: string,
+  openerIndex: number,
+  live: { index: number }[],
+): string {
+  const [start, end] = runAround(blanked, openerIndex, isOpener);
+  for (const entry of live)
+    if (entry.index < start || entry.index >= end) return '';
+  return blanked.slice(start, end);
+}
+
 export interface ShapeDefect {
   kind: 'unclosed' | 'mismatched';
   opener: string;
@@ -74,18 +156,32 @@ export interface ShapeDefect {
   closer: string;
   /** Index of that closer; `-1` for `'unclosed'`. */
   closerIndex: number;
+  /**
+   * The shape opening `opener` belongs to — the run of openers around it — or
+   * `''` when anything else was still open at that point, so the run is not the
+   * whole story.
+   *
+   * Measured *at* the defect, which for a mismatch is the only place it can be
+   * measured: the scan stops there, so this deliberately says nothing about the
+   * rest of the line. Balance on the rewritten line is the separate check that
+   * covers that.
+   */
+  openerRun: string;
 }
 
 /**
  * The first unbalanced node-shape delimiter on a line, or `undefined` when
  * every opener pairs with its own closer.
  *
- * Shape *multiplicity* is deliberately ignored — `[[`, `[(` and `[` all count
- * as one `[`, and mermaid's expected-token list already said a closer was
- * wanted. A surplus closer with nothing open is not a defect: on
- * `A[Start]] --> B` the pair really does agree and the extra `]` is the
- * surplus, so both shape rules stand down rather than name delimiters that
- * match.
+ * *Pairing* deliberately ignores shape multiplicity — `[[`, `[(` and `[` all
+ * push one `[`, and mermaid's expected-token list already said a closer was
+ * wanted — so the delimiter this blames is the one a human would point at.
+ * `openerRun` carries the multiplicity alongside, for the rewrites that need to
+ * know which shape they are inside without changing which one is blamed.
+ *
+ * A surplus closer with nothing open is not a defect: on `A[Start]] --> B` the
+ * pair really does agree and the extra `]` is the surplus, so both shape rules
+ * stand down rather than name delimiters that match.
  */
 export function scanShapes(line: string): ShapeDefect | undefined {
   const blanked = blankQuoted(line);
@@ -107,6 +203,7 @@ export function scanShapes(line: string): ShapeDefect | undefined {
         openerIndex: open.index,
         closer: char,
         closerIndex: i,
+        openerRun: shapeOpeningAt(blanked, open.index, [...stack, open]),
       };
   }
 
@@ -118,6 +215,7 @@ export function scanShapes(line: string): ShapeDefect | undefined {
     openerIndex: unclosed.index,
     closer: '',
     closerIndex: -1,
+    openerRun: shapeOpeningAt(blanked, unclosed.index, stack),
   };
 }
 
@@ -132,6 +230,12 @@ export function scanShapes(line: string): ShapeDefect | undefined {
  * measured zero survivors and produced `A[foo] --> B[bar`, which mermaid
  * rejects. Checking the postcondition needs no per-branch threshold and cannot
  * miss a delimiter the scan never reached.
+ *
+ * Necessary, though, is not sufficient: balance is generic nesting and a
+ * mermaid shape is a specific token, so `withCloserCorrected` ANDs this with a
+ * shape check rather than resting on it. `withCloserInserted` needs nothing
+ * more — one inserted closer cannot clear two unmatched openers, so balance
+ * alone already implies the opener it repairs was the only one live.
  */
 function ifBalanced(candidate: string): string | undefined {
   return scanShapes(candidate) === undefined ? candidate : undefined;
@@ -174,10 +278,31 @@ export function withCloserInserted(
 /**
  * The line with a disagreeing closer replaced by the opener's own.
  *
- * Declines when the swap would leave the line unbalanced anyway — on
- * `A([foo} --> B`, a stadium `([` whose closer was mistyped, turning `}` into
- * `]` gives `A([foo] --> B`, which still leaves `(` open and which mermaid
- * rejects. Same for an opener further right, as in `A[foo} --> B[bar`.
+ * Two independent things have to hold, and neither implies the other:
+ *
+ * 1. **The rewritten line balances** (`ifBalanced`). This is what catches an
+ *    opener the scan never reached, since it stops at the first defect: on
+ *    `A[foo} --> B[bar`, `A[foo] --> B[bar` is still short a `]`.
+ * 2. **The repaired node is spelled with a shape mermaid actually has.**
+ *    Balance is only nesting, and mermaid's shapes are tokens: on
+ *    `A([foo} bar) --> B` the rewrite `A([foo] bar) --> B` nests perfectly and
+ *    mermaid rejects it, because a stadium's `([` is closed by `])` and by
+ *    nothing else. So the opener run must be a known shape opening
+ *    (`defect.openerRun` — `''` when another opener is live outside it), the
+ *    closer run around the repaired delimiter must be exactly that shape's
+ *    closing token, and the label between them must hold no bare delimiter.
+ *
+ * Each clause is load-bearing on a different input: `A[foo} --> B[bar` fails
+ * only (1); `A([foo} bar) --> B` and `A[foo}] --> B` fail only the closing-token
+ * half of (2); `A[x ([foo} --> B` fails only its opener-run half; and
+ * `A[foo (bar) baz) --> B` fails only its label half.
+ *
+ * What the two together guarantee is narrow but real: the one node this touches
+ * comes out spelled as a shape mermaid has, and the rest of the line is left
+ * balanced. It is not a promise that mermaid accepts the whole line — a *second*
+ * defect elsewhere on it is still a second defect, and `A[foo} bar --> B`
+ * corrects to `A[foo] bar --> B`, where the stray `bar` was never this rule's to
+ * see — but every way of getting the *brackets* wrong is ruled out.
  */
 export function withCloserCorrected(
   line: string,
@@ -186,7 +311,31 @@ export function withCloserCorrected(
   if (defect.kind !== 'mismatched') return undefined;
   const closer = CLOSER_FOR.get(defect.opener);
   if (closer === undefined) return undefined;
+  if (!SHAPE_OPENINGS.has(defect.openerRun)) return undefined;
+
   const before = line.slice(0, defect.closerIndex);
   const after = line.slice(defect.closerIndex + 1);
-  return ifBalanced(`${before}${closer}${after}`);
+  const candidate = `${before}${closer}${after}`;
+
+  // Runs are located in the blanked line so a bracket inside a label can neither
+  // pad a run nor split one; swapping one delimiter for another cannot move a
+  // quote, so the blanked candidate has these same boundaries.
+  const blanked = blankQuoted(line);
+  const [, openEnd] = runAround(blanked, defect.openerIndex, isOpener);
+  const [closeStart, closeEnd] = runAround(
+    blanked,
+    defect.closerIndex,
+    isCloser,
+  );
+  if (candidate.slice(closeStart, closeEnd) !== closingFor(defect.openerRun))
+    return undefined;
+
+  // Delimiters left in the label mean the two tokens just matched are not the
+  // whole shape after all: on `A[foo (bar) baz) --> B` the `[` and the `)`
+  // mirror as a rectangle, but `A[foo (bar) baz]` is a label mermaid will not
+  // take with the parens unquoted. Quoted brackets are blanked, so a properly
+  // quoted label passes.
+  if (/[[\](){}]/.test(blanked.slice(openEnd, closeStart))) return undefined;
+
+  return ifBalanced(candidate);
 }

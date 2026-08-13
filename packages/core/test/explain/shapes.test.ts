@@ -87,6 +87,24 @@ describe('scanShapes', () => {
   it('treats brackets as balanced when only a quote is unterminated', () => {
     expect(scanShapes('  A["Start] --> B')).toBeUndefined();
   });
+
+  it('reports the shape opening its opener belongs to', () => {
+    expect(scanShapes('  A[Start) --> B')?.openerRun).toBe('[');
+    expect(scanShapes('  A([foo} --> B')?.openerRun).toBe('([');
+    expect(scanShapes('  A[[foo} --> B')?.openerRun).toBe('[[');
+  });
+
+  // The `[` was matched by the first `]`, so it is no longer on the stack — but
+  // the shape being repaired is still the stadium `([`, which is why the run is
+  // read off the text rather than the stack.
+  it('reports the whole opening even when part of it is already closed', () => {
+    expect(scanShapes('  A([foo]] --> B')?.openerRun).toBe('([');
+  });
+
+  // Two live openers that do not touch are two different nodes.
+  it('reports no opening when an unrelated opener is also live', () => {
+    expect(scanShapes('  A[x ([foo} --> B')?.openerRun).toBe('');
+  });
 });
 
 describe('withCloserInserted', () => {
@@ -167,11 +185,23 @@ describe('withCloserCorrected', () => {
     expect(defect && withCloserCorrected(line, defect)).toBeUndefined();
   });
 
-  // `A([foo}` is a stadium whose closer was mistyped. Swapping `}` for `]`
-  // leaves `(` open, so there is no single-substitution repair.
-  it('declines when an enclosing opener is still unmatched', () => {
+  // `A([foo}` is a stadium whose closer was mistyped and whose `(` never closes
+  // at all, so one substitution cannot repair the line.
+  it('declines when an enclosing opener stays unmatched to end of line', () => {
     expect(correct('  A([foo} --> B')).toBeUndefined();
     expect(correct('  A[(foo} --> B')).toBeUndefined();
+  });
+
+  // The same shape of input, except the enclosing opener *does* close later on
+  // the line — so the rewrite balances, and balance alone waves it through. It
+  // still does not parse: a stadium closes with `])`, and `A([foo] bar)` puts
+  // text between the two halves. This is the case the balance check cannot see.
+  it('declines when an enclosing opener closes later on the line', () => {
+    expect(correct('  A([foo} bar) --> B')).toBeUndefined();
+    expect(correct('  A((foo} bar) --> B')).toBeUndefined();
+    expect(correct('  A((foo} bar)) --> B')).toBeUndefined();
+    expect(correct('  A[[foo} bar] --> B')).toBeUndefined();
+    expect(correct('  A --> B([x} y)')).toBeUndefined();
   });
 
   // The opener that survives can also sit to the *right* of the mismatch, where
@@ -185,6 +215,46 @@ describe('withCloserCorrected', () => {
 
   it('still corrects when the rest of the line is balanced', () => {
     expect(correct('  A[foo} --> B[bar]')).toBe('  A[foo] --> B[bar]');
+  });
+
+  // Balance is not the bar — a compound shape has to come out whole. All of
+  // these do, and mermaid accepts every result.
+  it('corrects a compound shape when the repair completes it', () => {
+    expect(correct('  A([foo}) --> B')).toBe('  A([foo]) --> B');
+    expect(correct('  A[[foo}] --> B')).toBe('  A[[foo]] --> B');
+    expect(correct('  A((foo}) --> B')).toBe('  A((foo)) --> B');
+    expect(correct('  A[(foo}] --> B')).toBe('  A[(foo)] --> B');
+  });
+
+  // The mistyped half can be the outer one, which the scan sees only after the
+  // inner pair has already matched and left the stack.
+  it('corrects a compound shape whose outer closer was mistyped', () => {
+    expect(correct('  A([foo]] --> B')).toBe('  A([foo]) --> B');
+    expect(correct('  A((foo)] --> B')).toBe('  A((foo)) --> B');
+  });
+
+  // `]]` is not how a rectangle closes; the surplus `]` is a second defect.
+  it('declines when the closer run is longer than the shape', () => {
+    expect(correct('  A[foo}] --> B')).toBeUndefined();
+    expect(correct('  A((foo})) --> B')).toBeUndefined();
+  });
+
+  // `[([` is not a shape mermaid has, so nothing can be vouched for around it.
+  it('declines when the opener run is not a shape mermaid has', () => {
+    expect(correct('  A[([foo})] --> B')).toBeUndefined();
+  });
+
+  // The delimiters mirror, but the label carries unquoted parens, which mermaid
+  // rejects — so the two tokens matched are not the whole shape.
+  it('declines when the label still holds a bare delimiter', () => {
+    expect(correct('  A[foo (bar) baz) --> B')).toBeUndefined();
+    expect(correct('  A([foo] bar] --> B')).toBeUndefined();
+  });
+
+  // Quoting is how mermaid takes brackets in a label, and quoted text is blank
+  // to the scan, so it must not trip the same guard.
+  it('corrects around a quoted label containing brackets', () => {
+    expect(correct('  A["[x] y") --> B')).toBe('  A["[x] y"] --> B');
   });
 });
 

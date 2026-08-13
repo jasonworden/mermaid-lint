@@ -571,6 +571,13 @@ describe('suggestions round-trip through mermaid', () => {
     'flowchart-mismatched-shape': 'flowchart LR\n  A[Start) --> B',
     'flowchart-mismatched-shape (round opener)':
       'flowchart LR\n  A(Start] --> B',
+    // A compound shape: `([` is closed by `])`, so repairing the `}` completes
+    // the stadium rather than leaving `(` dangling.
+    'flowchart-mismatched-shape (compound shape)':
+      'flowchart LR\n  A([foo}) --> B',
+    // …and the mistyped half can be the outer one.
+    'flowchart-mismatched-shape (compound shape, outer closer)':
+      'flowchart LR\n  A([foo]] --> B',
     'flowchart-unclosed-shape': 'flowchart LR\n  A[Start --> B',
     'flowchart-unclosed-shape (arrow inside the label)':
       'flowchart LR\n  A["a -->  b" --> B',
@@ -626,11 +633,20 @@ describe('suggestions round-trip through mermaid', () => {
   // Same for a mistyped closer that leaves another shape open — whether that
   // shape encloses the mismatch (`A([foo}`, a stadium) or follows it
   // (`A[foo} --> B[bar`, where the scan had not yet reached the second `[`).
+  //
+  // The `bar` cases are the ones balance alone waves through: the enclosing
+  // opener *does* close later on the line, so the rewrite balances, and it
+  // still does not parse because a stadium's `])` cannot have text inside it.
   it.each([
     'flowchart LR\n  A([foo} --> B',
     'flowchart LR\n  A[(foo} --> B',
     'flowchart LR\n  A[foo} --> B[bar',
     'flowchart LR\n  A[foo} --> B(bar',
+    'flowchart LR\n  A([foo} bar) --> B',
+    'flowchart LR\n  A((foo} bar) --> B',
+    'flowchart LR\n  A((foo} bar)) --> B',
+    'flowchart LR\n  A[[foo} bar] --> B',
+    'flowchart LR\n  A --> B([x} y)',
   ])(
     'offers no suggestion when one substitution cannot repair %j',
     async (body) => {
