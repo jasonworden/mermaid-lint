@@ -4,7 +4,7 @@
  * mermaid's parser rejects an unrecognized header keyword with
  * `No diagram type detected matching given configuration for text: ...`.
  *
- * Seeded from the {@link ReadmeDiagramKeyword} union in `../rules.ts` (kept
+ * Seeded from the `ReadmeDiagramKeyword` union in `../rules.ts` (kept
  * in sync by a source-scanning drift test in
  * `test/explain/diagram-types.test.ts`), plus the header aliases mermaid
  * also accepts that aren't part of that union: `stateDiagram` (mermaid

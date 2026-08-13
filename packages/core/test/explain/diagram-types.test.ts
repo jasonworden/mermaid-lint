@@ -17,8 +17,10 @@ describe('nearestDiagramType', () => {
   it('declines when nothing is close', () => {
     expect(nearestDiagramType('xyzchart_nonexistent')).toBeUndefined();
   });
-  it('is deterministic for an ambiguous input', () => {
-    expect(nearestDiagramType('grapha')).toBe(nearestDiagramType('grapha'));
+  it('breaks a real tie deterministically', () => {
+    // 'ganh' is distance 2 from both 'gantt' and 'graph'; same length, so
+    // the alphabetical rule decides.
+    expect(nearestDiagramType('ganh')).toBe('gantt');
   });
 });
 
