@@ -39,10 +39,10 @@ export interface Diagnostic {
   /**
    * Human-readable message (no rule-id prefix; see `ruleId`).
    *
-   * For a syntax error this is `ValidationError.message` verbatim: the
-   * translated text cites no line, so there is nothing here to map into
-   * document coordinates. See that field's doc comment for the one family
-   * (module-raised errors) that can still word a citation of its own.
+   * For translated syntax errors this names the defect and contains no line
+   * citation. For module-raised errors that pass mermaid's own prose through
+   * verbatim (e.g. treeView-beta), citations matching `citationRe` are mapped
+   * into document coordinates.
    */
   message: string;
   /**
@@ -315,9 +315,11 @@ async function blockDiagnostics(
     diagnostics.push({
       line: toAbsLine(block, error.line),
       column: error.col ?? 1,
-      // Already citation-free, so it crosses the body→file hop untouched — see
-      // `ValidationError.message`.
-      message: error.message,
+      // Translated errors are citation-free; module errors passing through
+      // mermaid's prose verbatim have citations mapped to document coordinates.
+      message: mapParserMessageLines(error.message, (bodyLine) =>
+        bodyLineToFileLine(block, bodyLine),
+      ),
       // The one field that still carries mermaid's citations, and so the only
       // one mapped: the parser counts in body lines, the diagnostic is read in
       // file lines.

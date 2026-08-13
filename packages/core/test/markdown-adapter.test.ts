@@ -736,6 +736,50 @@ describe('parser prose cites file lines, not body lines', () => {
     expect(raw).toContain('Parse error on line 9:');
   });
 
+  it('maps treeView module citations to file lines and agrees with diagnostic line', async () => {
+    const md = [
+      '# Title',
+      '',
+      'Some prose here.',
+      '',
+      'More prose.',
+      '',
+      '```mermaid',
+      'treeView-beta',
+      '  root',
+      '  ├── a',
+      '  └── b',
+      '```',
+    ].join('\n');
+    const d = await syntaxDiag('tree.md', md);
+    // Fence opener is on file line 7; defect is on body line 2 ("  root") -> file line 9.
+    expect(d.line).toBe(9);
+    expect(d.raw).toContain('Line 9: Unexpected indentation');
+    expect(d.raw).not.toContain('Line 2:');
+    expect(d.message).toContain('Line 9: Unexpected indentation');
+    expect(d.message).not.toContain('Line 2:');
+  });
+
+  it('maps treeView empty node citations to file lines', async () => {
+    const md = [
+      '# Title',
+      '',
+      '```mermaid',
+      'treeView-beta',
+      'root',
+      '├── a',
+      '└── ',
+      '```',
+    ].join('\n');
+    const d = await syntaxDiag('tree-empty.md', md);
+    // Fence opener is on file line 3; defect is on body line 4 -> file line 7.
+    expect(d.line).toBe(7);
+    expect(d.raw).toContain('Line 7: Empty node');
+    expect(d.raw).not.toContain('Line 4:');
+    expect(d.message).toContain('Line 7: Empty node');
+    expect(d.message).not.toContain('Line 4:');
+  });
+
   it('carries no raw or suggestion on a structural defect', async () => {
     // An unclosed fence never reaches a parser, so there is no mermaid prose to
     // map and no corrected line to offer. Both fields must stay absent rather
