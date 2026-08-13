@@ -587,16 +587,32 @@ describe('parser prose cites file lines, not body lines', () => {
   // Covers the fence offset reaching the parser's own prose, across every
   // message shape mermaid emits. Why the mapping lives on the finished string
   // rather than at an interpolation site: see `mapParserMessageLines`.
+  //
+  // The prose under test is `raw`, not `message`: `message` is the translated
+  // text, which cites no line at all and so has nothing to map. `raw` is the
+  // one field still carrying mermaid's own citations, so it is the one that
+  // has to cross the body→file hop.
   const OFFSET = 3; // fence opener on file line 3, so body N is file N + 3
   const fence = (body: string) =>
     ['# Doc', '', '```mermaid', body, '```'].join('\n');
 
-  const syntaxMessage = async (path: string, text: string): Promise<string> => {
+  const syntaxDiag = async (
+    path: string,
+    text: string,
+  ): Promise<Diagnostic> => {
     const errors = (await lintMarkdown(path, text)).filter(
       (d) => d.ruleId === 'mermaid',
     );
     expect(errors).toHaveLength(1);
-    return errors[0].message;
+    return errors[0];
+  };
+
+  const syntaxRaw = async (path: string, text: string): Promise<string> => {
+    const { raw } = await syntaxDiag(path, text);
+    // Non-vacuity: every fixture here is a parser failure, so a missing `raw`
+    // is a regression, not a shape to skip past with `?? ''`.
+    expect(raw).toBeDefined();
+    return raw as string;
   };
 
   const linesIn = (message: string): number[] =>
@@ -606,12 +622,48 @@ describe('parser prose cites file lines, not body lines', () => {
     // Body line 3 holds the bad arrow; the fence opener is file line 3, so the
     // defect is on file line 6. A fixed number, not a shift — a shift alone
     // cannot tell a mapped citation from a double-mapped one.
-    const message = await syntaxMessage(
+    const raw = await syntaxRaw(
       'doc.md',
       fence('flowchart TD\n  A --> B\n  B -> C'),
     );
-    expect(message).toContain('Parse error on line 6:');
-    expect(message).not.toContain('on line 3:');
+    expect(raw).toContain('Parse error on line 6:');
+    expect(raw).not.toContain('on line 3:');
+  });
+
+  it('maps raw citations to file lines but leaves the suggestion alone', async () => {
+    // The load-bearing pairing: one diagnostic, one field mapped and one not.
+    // Body line 2 is file line 5, so a `raw` still reading 2 means the mapping
+    // was dropped — and a `suggestion` reading anything but the author's own
+    // corrected line means the citation regex was let loose on quoted source.
+    const d = await syntaxDiag(
+      'x.md',
+      fence('sequenceDiagram\n  Alice->>Bob hello'),
+    );
+    expect(d.line).toBe(5);
+    expect(d.message).toBe('sequence message is missing a colon');
+    expect(d.raw).toContain('Parse error on line 5:');
+    expect(d.raw).not.toContain('on line 2:');
+    expect(d.suggestion).toBe('  Alice->>Bob: hello');
+    expect(d.fixable).toBe(true);
+  });
+
+  it('leaves a suggestion that reads exactly like a citation untouched', async () => {
+    // The hazard `ValidationError.suggestion` documents, made real: a
+    // participant named `Parse error on line 2` puts a perfect jison citation —
+    // line-leading, whitespace-prefixed, digits and all — at the head of the
+    // author's own line. `mapParserMessageLines` would rewrite that 2 to a 5
+    // and hand back source the author never wrote, so the only defense is
+    // never running it over this field at all.
+    //
+    // The same diagnostic's `raw` opens with a real citation of the same shape
+    // and *does* get mapped, which is what makes this a test of the
+    // field-by-field rule rather than of the regex's anchoring.
+    const d = await syntaxDiag(
+      'x.md',
+      fence('sequenceDiagram\n  Parse error on line 2->>Bob hello'),
+    );
+    expect(d.suggestion).toBe('  Parse error on line 2->>Bob: hello');
+    expect(d.raw).toContain('Parse error on line 5:');
   });
 
   // One body per message shape mermaid emits with a line number in it. The
@@ -626,12 +678,12 @@ describe('parser prose cites file lines, not body lines', () => {
   ];
 
   it.each(SHAPES)('shifts every number in a %s', async (_shape, body) => {
-    const bare = await syntaxMessage('x.mmd', body);
+    const bare = await syntaxRaw('x.mmd', body);
     // Non-vacuity: a fixture that stopped producing a numbered message would
     // otherwise pass by comparing two empty lists.
     expect(linesIn(bare).length).toBeGreaterThan(0);
 
-    const fenced = await syntaxMessage('x.md', fence(body));
+    const fenced = await syntaxRaw('x.md', fence(body));
     expect(linesIn(fenced)).toEqual(linesIn(bare).map((n) => n + OFFSET));
   });
 
@@ -640,8 +692,8 @@ describe('parser prose cites file lines, not body lines', () => {
     // the second citation lands mid-line rather than at the start of one.
     // Mapping only the line-leading citation would leave a single message
     // quoting two different coordinate systems with nothing to tell them apart.
-    const message = await syntaxMessage('x.md', fence('gitGraph\nX\n@@@@'));
-    const cited = linesIn(message);
+    const raw = await syntaxRaw('x.md', fence('gitGraph\nX\n@@@@'));
+    const cited = linesIn(raw);
     expect(cited.length).toBeGreaterThan(1);
     // Body lines 1..3 are file lines 4..6; nothing may still read as 1..3.
     for (const n of cited) expect(n).toBeGreaterThan(OFFSET);
@@ -650,41 +702,48 @@ describe('parser prose cites file lines, not body lines', () => {
   it('leaves a standalone .mmd message untouched', async () => {
     // The offset is zero for a whole-file block, so mapping must be an
     // identity here rather than shifting by the block's own line.
-    const message = await syntaxMessage(
-      'x.mmd',
-      'flowchart TD\n  A --> B\n  B -> C',
-    );
-    expect(message).toContain('Parse error on line 3:');
+    const raw = await syntaxRaw('x.mmd', 'flowchart TD\n  A --> B\n  B -> C');
+    expect(raw).toContain('Parse error on line 3:');
   });
 
   it('leaves a non-numeric line reference alone', async () => {
     // radar-beta reports `on line ?, column ?` when it cannot locate the error.
-    const message = await syntaxMessage(
+    const raw = await syntaxRaw(
       'x.md',
       fence('radar-beta\n  axis a, b\n  curve x{1, 2'),
     );
-    expect(message).toContain('on line ?');
+    expect(raw).toContain('on line ?');
   });
 
   it('does not rewrite a line number inside the echoed diagram source', async () => {
     // jison echoes a snippet of the user's own source into the message. A
     // number that appears there is the user's text, not a parser citation, and
     // shifting it would corrupt the echo.
-    const message = await syntaxMessage(
+    const raw = await syntaxRaw(
       'x.md',
       fence('flowchart TD\n  X["Lexical error on line 7"]\n  B -> C'),
     );
     // jison truncates the echo, so match only the tail it is guaranteed to keep.
-    expect(message).toContain('on line 7"');
+    expect(raw).toContain('on line 7"');
   });
 
   it('does not rewrite line numbers in a body echoed verbatim', async () => {
     // An unrecognized diagram type makes mermaid quote the whole body back and
     // cite no line at all, so there is nothing to map and everything to break.
     const body = 'notADiagram\n  Parse error on line 9: whatever';
-    const message = await syntaxMessage('x.md', fence(body));
-    expect(message).toContain('No diagram type detected');
-    expect(message).toContain('Parse error on line 9:');
+    const raw = await syntaxRaw('x.md', fence(body));
+    expect(raw).toContain('No diagram type detected');
+    expect(raw).toContain('Parse error on line 9:');
+  });
+
+  it('carries no raw or suggestion on a structural defect', async () => {
+    // An unclosed fence never reaches a parser, so there is no mermaid prose to
+    // map and no corrected line to offer. Both fields must stay absent rather
+    // than surfacing a stale or empty string.
+    const d = await syntaxDiag('x.md', '# Doc\n\n```mermaid\nflowchart TD\n');
+    expect(d.raw).toBeUndefined();
+    expect(d.suggestion).toBeUndefined();
+    expect(d.fixable).toBeUndefined();
   });
 });
 

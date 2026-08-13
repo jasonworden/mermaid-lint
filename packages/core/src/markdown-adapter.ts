@@ -36,8 +36,35 @@ export interface Diagnostic {
   line: number;
   /** 1-indexed column in the source document. */
   column: number;
-  /** Human-readable message (no rule-id prefix; see `ruleId`). */
+  /**
+   * Human-readable message (no rule-id prefix; see `ruleId`).
+   *
+   * For a syntax error this is `ValidationError.message` verbatim: the
+   * translated text cites no line, so there is nothing here to map into
+   * document coordinates. See that field's doc comment for the one family
+   * (module-raised errors) that can still word a citation of its own.
+   */
   message: string;
+  /**
+   * mermaid's own message for a syntax error, with every citation it recognizes
+   * rewritten into *document* lines — so a fenced block's parse error quotes the
+   * line the reader sees, not the line inside the fence.
+   *
+   * Present only for parser failures: semantic findings and structural defects
+   * (unclosed fence, empty block) never reach a parser and carry none.
+   */
+  raw?: string;
+  /**
+   * The one corrected source line the explanation is confident about, when it
+   * is confident about one — the author's own line, rewritten.
+   *
+   * Deliberately *not* line-mapped, unlike {@link Diagnostic.raw}: this is
+   * quoted source, not parser prose, so a number in it is something the author
+   * typed. See `ValidationError.suggestion`.
+   */
+  suggestion?: string;
+  /** True when `--fix` writes exactly {@link Diagnostic.suggestion}. */
+  fixable?: boolean;
   /** Stable id: `'mermaid'` for syntax errors, else the semantic rule name. */
   ruleId: string;
   severity: Severity;
@@ -284,13 +311,26 @@ async function blockDiagnostics(
     !result.ok &&
     (!suppressible || !index.isSuppressed(SYNTAX_RULE_ID, result.error.line))
   ) {
+    const { error } = result;
     diagnostics.push({
-      line: toAbsLine(block, result.error.line),
-      column: result.error.col ?? 1,
-      // The parser counts in body lines; the diagnostic is read in file lines.
-      message: mapParserMessageLines(result.error.message, (bodyLine) =>
-        bodyLineToFileLine(block, bodyLine),
-      ),
+      line: toAbsLine(block, error.line),
+      column: error.col ?? 1,
+      // Already citation-free, so it crosses the body→file hop untouched — see
+      // `ValidationError.message`.
+      message: error.message,
+      // The one field that still carries mermaid's citations, and so the only
+      // one mapped: the parser counts in body lines, the diagnostic is read in
+      // file lines.
+      raw:
+        error.raw === undefined
+          ? undefined
+          : mapParserMessageLines(error.raw, (bodyLine) =>
+              bodyLineToFileLine(block, bodyLine),
+            ),
+      // Never mapped. It quotes the author's own line, where a number is text
+      // they typed rather than a citation — see `ValidationError.suggestion`.
+      suggestion: error.suggestion,
+      fixable: error.fixable,
       ruleId: SYNTAX_RULE_ID,
       severity: 'error',
     });
