@@ -151,9 +151,11 @@ export type RulesConfig = Partial<Record<RuleId, RuleSeverity>>;
 export type ResolvedRules = Record<RuleId, RuleSeverity>;
 
 /**
- * Scope labels used in docs/semantic-rules.md's Rule Reference table.
+ * A semantic rule's documentation scope — the diagram type(s) it applies to,
+ * or `'all'`. Matches the Scope column in docs/semantic-rules.md's Rule
+ * Reference table, and is part of {@link explainRule}'s return type.
  *
- * @internal
+ * @public
  */
 export type RuleDocsScope =
   | 'all'
