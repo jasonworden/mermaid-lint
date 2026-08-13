@@ -88,6 +88,12 @@ describe('mermaid-lint CLI', () => {
       expect(r.stderr).toContain('unknown rule id');
     });
 
+    it('rejects a rule id with mismatched case', () => {
+      const r = run(['explain', 'Duplicate-Ids'], '.');
+      expect(r.status).toBe(2);
+      expect(r.stderr).toContain('unknown rule id');
+    });
+
     it('exits 2 when no rule id is given', () => {
       const r = run(['explain'], '.');
       expect(r.status).toBe(2);

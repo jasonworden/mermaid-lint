@@ -3,10 +3,8 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import {
   ALL_FENCE_MARKERS,
-  ALL_RULE_IDS,
   type FenceMarker,
   type ResolvedRules,
-  type RuleId,
   SYNTAX_RULE_ID,
   blockToDiagnostics,
   discoverFiles,
@@ -14,6 +12,7 @@ import {
   extractMermaidBlocks,
   fixText,
   isFenceMarker,
+  isRuleId,
   isRuleSeverity,
   loadConfig,
   resolveRules,
@@ -438,15 +437,13 @@ function runExplain(ruleArg: string | undefined): number {
     printExplainUsage();
     return 2;
   }
-  if (!(ALL_RULE_IDS as readonly string[]).includes(ruleArg)) {
+  if (!isRuleId(ruleArg)) {
     process.stderr.write(
       `error: unknown rule id "${ruleArg}"\nSee docs/semantic-rules.md or README.md for the full rule list.\n`,
     );
     return 2;
   }
-  const { defaultSeverity, docsScope, description } = explainRule(
-    ruleArg as RuleId,
-  );
+  const { defaultSeverity, docsScope, description } = explainRule(ruleArg);
   process.stdout.write(
     `${chalk.bold(ruleArg)} (${defaultSeverity}, ${docsScope})\n\n${description}.\n\nConfigure: rules: { "${ruleArg}": "off" | "warn" | "error" }\n`,
   );

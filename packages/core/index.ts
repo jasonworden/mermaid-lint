@@ -13,6 +13,7 @@ export {
   ALL_RULE_IDS,
   RULE_DEFAULTS,
   explainRule,
+  isRuleId,
   isRuleSeverity,
   resolveRules,
 } from './src/rules.js';
