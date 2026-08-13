@@ -1,3 +1,6 @@
+import { FLOWCHART_DIRECTIONS } from './directions.js';
+import { explainParseError } from './explain/index.js';
+import { parseRawError } from './explain/parse-raw.js';
 import type { Block } from './extract.js';
 import { locateHeader } from './header.js';
 import { validateWithMerman } from './merman.js';
@@ -19,12 +22,54 @@ export interface ValidationError {
   /**
    * Human-readable error message.
    *
-   * Any line number mermaid quotes inside this text is body-relative, matching
-   * {@link ValidationError.line}. `blockToDiagnostics` maps both when it builds
-   * a `Diagnostic`; code calling `validateBlock` directly and printing this
-   * beside a file position should do the same.
+   * For a parser failure this is the *translated* text from `explainParseError`
+   * — it names the defect and cites no line, because the position is already
+   * carried structurally in {@link ValidationError.line}. So nothing in here
+   * needs body→file mapping; a caller printing it beside a file position may
+   * use it verbatim. {@link ValidationError.raw} is what carries mermaid's own
+   * citations, and is what any such mapping should act on.
+   *
+   * One exception, and it is mermaid's rather than ours: for failures a diagram
+   * *module* raises after parsing succeeds, the translation layer passes
+   * mermaid's own prose through byte for byte, because that prose is written
+   * for humans already and every transformation available would make it worse.
+   * A module is free to cite a line inside that sentence, and treeView-beta
+   * does — `Line 2: Unexpected indentation...`. Such a citation is neither
+   * mapped nor guaranteed to agree with {@link ValidationError.line}: it does
+   * not match `citationRe`, so nothing here ever touches it. See #190. For that
+   * family {@link ValidationError.raw} is byte-identical to this field, so a
+   * caller rendering both will print the same sentence twice.
    */
   message: string;
+  /**
+   * mermaid's original message, verbatim except that every line number matching
+   * `citationRe` has been mapped into body coordinates, matching
+   * {@link ValidationError.line}.
+   *
+   * "Matching `citationRe`" is the whole of the guarantee: a module-raised
+   * error can word a citation in a shape that pattern does not recognize, and
+   * that number stays exactly as mermaid wrote it — see the note on
+   * {@link ValidationError.message}, which is byte-identical to this field for
+   * that family.
+   *
+   * Present only for parser failures — structural defects never reach a parser.
+   * `blockToDiagnostics` maps these citations on to file coordinates when it
+   * builds a `Diagnostic`; code calling `validateBlock` directly and surfacing
+   * this beside a file position should do the same.
+   */
+  raw?: string;
+  /**
+   * The one corrected source line the explanation is confident about, when it
+   * is confident about one — the author's own line, rewritten.
+   *
+   * Quoted text, not prose: it holds whatever the author wrote, so it must
+   * never be run through `mapParserMessageLines`. A line reading `Parse error
+   * on line 2->>Bob: hi` is a sequence message, not a citation, and rewriting
+   * the number in it would corrupt the user's own source.
+   */
+  suggestion?: string;
+  /** True when `--fix` writes exactly {@link ValidationError.suggestion}. */
+  fixable?: boolean;
   /** 1-indexed line within the diagram body, when known. */
   line?: number;
   /** 1-indexed column within the diagram body, when known. */
@@ -448,10 +493,32 @@ async function runMermaidValidation(
     const line =
       found === undefined ? await bisectedLine(body, raw) : toBody(found.line);
 
+    // `raw` inherits what `message` used to do: it is the only field left
+    // carrying mermaid's citations, so it is the only one mapped. Mapped once,
+    // here, and handed to both consumers — the explain layer echoes this string
+    // verbatim for the `module` family, so feeding it the unmapped copy would
+    // put a parsed-copy line number inside an otherwise body-relative message.
+    const mapped = mapParserMessageLines(raw, toBody);
+
+    // Translated last, because the rules re-read the source line mermaid blamed
+    // and `line` is only final here — after the signal chain, the body mapping
+    // and any bisection have all had their say.
+    const explanation = explainParseError({
+      parsed: parseRawError(mapped),
+      raw: mapped,
+      type: detectDiagramType(body),
+      body,
+      line,
+    });
+
     return {
       ok: false as const,
       error: {
-        message: mapParserMessageLines(raw, toBody),
+        message: explanation.message,
+        raw: mapped,
+        // Deliberately unmapped — see `ValidationError.suggestion`.
+        suggestion: explanation.suggestion,
+        fixable: explanation.fixable,
         line,
         col: refineColumn(
           body,
@@ -504,34 +571,6 @@ export async function validateWithMermaidJS(
  * regression into a CI failure instead of silence — see `parity.test.ts`.
  */
 const MERMAN_UNTRUSTED_TYPES = new Set(['eventmodeling', 'kanban']);
-
-/**
- * Direction tokens mermaid's flowchart grammar accepts, case-sensitively.
- *
- * merman accepts *any* token in the direction slot — `ZZZZ`, `TB2`, and the
- * lowercase spellings all pass — while mermaid rejects each with a lexer error.
- * Same failure shape as {@link MERMAN_UNTRUSTED_TYPES}, but it can't be handled
- * the same way: denylisting `flowchart` and `graph` would put the two most
- * common diagram types on the slow path, which is most of the fast path's
- * value. So the header is checked instead, and only a bad direction defects.
- *
- * Deliberately *not* `semantic.ts`'s `DIRECTION_RE`, which omits `v ^ < >`.
- * That regex answers a style question — did the author state a conventional
- * direction — and this set answers a grammar one. Merging them would either
- * push valid `flowchart v` onto the slow path or let `require-direction` start
- * accepting arrows as directions.
- */
-const FLOWCHART_DIRECTIONS = new Set([
-  'TB',
-  'TD',
-  'BT',
-  'RL',
-  'LR',
-  'v',
-  '^',
-  '<',
-  '>',
-]);
 
 /**
  * Decide whether merman's `valid` verdict is strong enough to skip mermaid.js.

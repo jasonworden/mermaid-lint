@@ -12,7 +12,7 @@ npx mermaid-lint --format json --all
 
 ```json
 {
-  "version": "0.50.0",
+  "version": "0.51.0",
   "files": [
     {
       "path": "docs/api.md",
@@ -20,7 +20,9 @@ npx mermaid-lint --format json --all
         { "line": 42, "col": 1, "type": "flowchart", "ok": true,
           "warnings": [{ "rule": "duplicate-ids", "message": "node \"A\" declared with label \"Start\" (line 44) and \"Begin\" (line 49)", "line": 49, "severity": "error" }] },
         { "line": 89, "col": 1, "type": "sequenceDiagram", "ok": false,
-          "error": { "message": "Expecting 'SPACE'", "line": 91, "col": 5 }, "warnings": [] }
+          "error": { "message": "sequence message is missing a colon", "line": 91, "col": 5,
+                     "raw": "Expecting 'TXT', got 'NEWLINE'", "suggestion": "Alice->>Bob: hello", "fixable": true },
+          "warnings": [] }
       ]
     }
   ],
@@ -41,7 +43,22 @@ npx mermaid-lint --format json --all
     - **`type`** — detected diagram type (e.g. `flowchart`, `sequenceDiagram`).
     - **`ok`** — `true` if the diagram parses.
     - **`error`** — present when `ok` is `false`: `{ message, line, col }` with the
-      precise location of the syntax error.
+      precise location of the syntax error, plus three optional fields:
+      - **`message`** — human-readable and, for a parser failure, *translated*:
+        it names the defect (see [error-messages.md](error-messages.md)) rather
+        than echoing mermaid's grammar-level wording, and cites no line of its
+        own — the position is already carried structurally in `line`/`col`.
+      - **`raw`** — mermaid's own original message, present only for parser
+        failures (structural defects like an unclosed fence never reach a
+        parser and carry none). Any line number mermaid cites inside it is
+        mapped into file coordinates exactly like every other `line` in this
+        report — see the callout below.
+      - **`suggestion`** — the one corrected version of the offending source
+        line the translation is confident about, when it is confident about
+        one. This is quoted source, not prose, so unlike `raw` it is never
+        line-mapped: rewriting a number inside it could corrupt a number the
+        author actually typed.
+      - **`fixable`** — `true` when `--fix` would write `suggestion` verbatim.
     - **`warnings[]`** — semantic findings: `{ rule, message, line, severity }`. See
       [semantic-rules.md](semantic-rules.md) for the rule list and how to tune
       severity.
@@ -52,7 +69,13 @@ line number quoted inside a `message` — is a line in the **file**, not an offs
 within the diagram body. So they are directly comparable: a warning at `line`
 49 sits 7 lines below a diagram whose fence opens at 42. (Core's `checkSemantics`
 API is the exception: it returns body-relative lines, which the CLI maps before
-they reach this report.)
+they reach this report.) `error.raw`, when present, follows the same rule as
+everything else here: any line number mermaid cited inside its own message text
+is mapped body→file the same way `message` used to be, so it is file-relative
+too — not an offset into the diagram body. `error.suggestion` is the one field
+that is deliberately exempt: it quotes the author's source line verbatim, and
+running the same mapping over it would risk rewriting a number the author
+actually typed.
 
 ## Example: fail CI on errors (any language)
 

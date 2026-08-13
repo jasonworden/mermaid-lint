@@ -48,7 +48,7 @@ Text output points at the source file, line, column, severity, parser message,
 and detected diagram type:
 
 ```text
-docs/architecture.md:42:5: error: Expecting 'SPACE', got 'TXT' (sequenceDiagram)
+docs/architecture.md:42:5: error: sequence message is missing a colon (sequenceDiagram)
 ```
 
 JSON output is documented in [json-output.md](json-output.md).

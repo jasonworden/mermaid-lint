@@ -24,7 +24,7 @@ npx mermaid-lint            # validate every Mermaid block in your git-tracked M
 No install, no config. mermaid-lint discovers your `.md` / `.mdx` / `.markdown` / `.mmd` files, validates every ` ```mermaid ` block, and reports the precise line and column of any error:
 
 ```text
-docs/architecture.md:42:5: error: Expecting 'SPACE', got 'TXT' (sequenceDiagram)
+docs/architecture.md:42:5: error: sequence message is missing a colon (sequenceDiagram)
 ```
 
 The exit code is non-zero on failure, so it drops straight into CI or a pre-commit hook. From here:
@@ -438,6 +438,7 @@ flowchart LR
 - **Discovery:** `git ls-files -- '*.md' '*.mdx' '*.markdown' '*.mmd'` by default; `--all` falls back to recursive filesystem scan. Add extensions with `--ext crv,foo` or `extensions: ['crv']` in config to discover other fenced-Markdown file types (e.g. [Carve](https://github.com/markup-carve/carve) `.crv`). Files you name explicitly are always linted, whatever their extension.
 - **Extraction:** Parses CommonMark fenced `mermaid` blocks — backtick (` ```mermaid ` ) and tilde (`~~~mermaid`) markers, variable-length fences (4+ chars, so a body can contain ` ``` `), CRLF, indentation, info-strings, and unclosed fences. Restrict recognized markers with the [`fences`](#configuration) config option. Only `.mmd` files are treated as a single whole-file diagram — every other extension uses fenced-block extraction
 - **Validation:** Primary pass via [`@mermanjs/web`](https://github.com/Latias94/merman) WASM (Rust, ~3.7–4.4× faster). On any error, falls back to `mermaid.parse()` via jsdom for precise line/col locations and authoritative verdict
+- **Error messages:** where the defect matches a recognized shape (a missing sequence-message colon, a single-dash flowchart arrow, an unclosed node shape, …), the reported message names it directly instead of echoing mermaid's grammar-token wording, and includes a corrected-line suggestion when the fix is mechanical. mermaid's original message is still available via `--format json`'s `error.raw`. See [docs/error-messages.md](docs/error-messages.md).
 
 ## Semantic rules
 

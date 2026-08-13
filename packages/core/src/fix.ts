@@ -76,7 +76,15 @@ function normalizeFlowchartArrows(body: string): string {
 // consumed by the preceding `\s*`. Allowing both to match the same space run made
 // the target `\w+` fail with quadratic backtracking on arrows followed by long
 // space runs (js/polynomial-redos).
-const SEQ_MISSING_COLON_RE =
+//
+// `explain/rules.ts` reuses this as the confirm gate for its
+// `sequence-missing-colon` rule, and rebuilds its suggestion from the same
+// captures. One regex means the explanation and the autofix can never disagree
+// about which lines are "a sequence message missing its colon" — a second copy
+// would let `--fix` decline a line the message promised was fixable.
+//
+// @internal — not part of the published API; exported only for that reuse.
+export const SEQ_MISSING_COLON_RE =
   /^(\s*)([\w][\w ]*)((?:-->>|-->|->>|->|-x|--x)\s*(?:[+-]\s*)?)(\w+)\s+([^:\s].*)$/;
 
 function fixSequenceColons(body: string): string {

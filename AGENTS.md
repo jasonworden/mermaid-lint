@@ -145,8 +145,25 @@ ESLint** — and run the repo's pinned binaries rather than `npx`; see
   `markdown-adapter.ts`) maps the finished string. It matches only mermaid's own
   error *headers*, anchored to the start of a message line — jison echoes the
   user's diagram into the message, and a diagram may legitimately contain the
-  text "Parse error on line 9". Keep any new pattern anchored, and leave
-  `ValidationError.message` body-relative so the mapping stays in one place.
+  text "Parse error on line 9". Keep any new pattern anchored.
+
+  `ValidationError` now splits mermaid's failure across three fields, and the
+  mapping duty above moved with the citations rather than staying on
+  `message`. `message` is the *translated* text from `packages/core/src/explain/`
+  (see `docs/error-messages.md`) — it names the defect and cites no line of its
+  own, because the position is already carried structurally in
+  `ValidationError.line`. The one exception is mermaid's, not ours: a
+  diagram-*module* failure (raised after parsing already succeeded, e.g.
+  treeView-beta's "Unexpected indentation") passes mermaid's own prose through
+  byte for byte, and that prose can still word its own citation — one that is
+  neither mapped nor guaranteed to agree with `ValidationError.line`. `raw` is
+  what inherited `message`'s old mapping duty: it is mermaid's original text
+  with every citation `mapParserMessageLines` recognizes rewritten into body
+  coordinates (and, one hop further out, `markdown-adapter.ts` maps those into
+  file coordinates alongside everything else in a `Diagnostic`). `suggestion`
+  must never be mapped — it quotes the author's own corrected source line, and
+  running the citation regex over it risks rewriting a number the author
+  actually typed rather than one mermaid cited.
 - **Syntax-error positions come from `loc.first_line`, not `hash.line`.**
   mermaid offers several signals and none is reliable alone, so `validate.ts`
   falls back in this order: the offending token's own start line

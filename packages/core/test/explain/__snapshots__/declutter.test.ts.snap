@@ -1,0 +1,115 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`golden output over the invalid parity fixtures > translates all 18 invalid fixtures 1`] = `
+{
+  "class-bad-relationship.mmd": {
+    "explanation": {
+      "message": "expected \`[\`, \`{\`, \`}\`, the end of the line, the end of the diagram, or 13 more, found a generic type",
+    },
+    "family": "jison-parse",
+  },
+  "class-unclosed-body.mmd": {
+    "explanation": {
+      "message": "expected \`}\` or a class member, found an unclosed block",
+    },
+    "family": "jison-parse",
+  },
+  "eventmodeling-stray-token.mmd": {
+    "explanation": {
+      "message": "unexpected input",
+    },
+    "family": "langium",
+  },
+  "eventmodeling-trailing-arrow.mmd": {
+    "explanation": {
+      "message": "expected the end of the diagram, found \`->>\`",
+    },
+    "family": "langium",
+  },
+  "flowchart-bad-bracket.mmd": {
+    "explanation": {
+      "message": "node label opened with \`[\` was never closed",
+      "suggestion": "  A[unclosed bracket] --> B",
+    },
+    "family": "jison-parse",
+  },
+  "flowchart-invalid-direction.mmd": {
+    "explanation": {
+      "message": "\`ZZZZ\` is not a valid flowchart direction",
+    },
+    "family": "jison-lexical",
+  },
+  "flowchart-missing-target.mmd": {
+    "explanation": {
+      "message": "expected \`&\`, \`:\`, \`|\`, \`v\`, \`default\`, or 8 more, found the end of the diagram",
+    },
+    "family": "jison-parse",
+  },
+  "flowchart-unclosed-label.mmd": {
+    "explanation": {
+      "message": "expected \`]\`, \`)))\`, \`)\`, \`])\`, \`]]\`, or 9 more, found the end of the line",
+    },
+    "family": "jison-parse",
+  },
+  "kanban-unrecognized-text.mmd": {
+    "explanation": {
+      "message": "unrecognized text",
+    },
+    "family": "jison-lexical",
+  },
+  "radar-unclosed-curve.mmd": {
+    "explanation": {
+      "message": "expected \`ID\`, found \`2\`",
+    },
+    "family": "langium",
+  },
+  "sequence-bad-arrow.mmd": {
+    "explanation": {
+      "message": "expected the end of the line, message text, \`,\`, \`()\`, \`SOLID_OPEN_ARROW\`, or 25 more, found an unexpected character",
+    },
+    "family": "jison-parse",
+  },
+  "sequence-missing-end.mmd": {
+    "explanation": {
+      "message": "expected message text, found \`,\`",
+    },
+    "family": "jison-parse",
+  },
+  "state-bad-syntax.mmd": {
+    "explanation": {
+      "message": "expected \`note\`, a space, the end of the line, \`HIDE_EMPTY\`, \`scale\`, or 19 more, found \`{\`",
+    },
+    "family": "jison-parse",
+  },
+  "treemap-unrecognized-text.mmd": {
+    "explanation": {
+      "message": "expected \`STRING2\` or \`CLASS_DEF\`, found \` \`",
+    },
+    "family": "langium",
+  },
+  "treeview-box-drawing-mixed-indent.mmd": {
+    "explanation": {
+      "message": "Line 2: Unexpected indentation without box-drawing characters. In box-drawing format, use ├── or └── prefixes for indented nodes.",
+    },
+    "family": "module",
+  },
+  "unknown-diagram-type.mmd": {
+    "explanation": {
+      "message": "unknown diagram type \`xyzchart_nonexistent\`",
+    },
+    "family": "no-diagram-type",
+  },
+  "venn-unrecognized-text.mmd": {
+    "explanation": {
+      "message": "expected the end of the diagram, the end of the line, text, \`TITLE\`, \`SET\`, or 3 more, found an identifier",
+    },
+    "family": "jison-parse",
+  },
+  "wardley-missing-coordinate.mmd": {
+    "explanation": {
+      "message": "expected \`,\`, found \`]\`",
+    },
+    "family": "langium",
+  },
+}
+`;

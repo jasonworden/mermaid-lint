@@ -40,6 +40,24 @@ describe('mermaid-lint CLI', () => {
     expect(r.stdout).toContain('parse error');
   });
 
+  it('text mode prints a suggestion line and the fixable marker for a fixable parse error', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(
+      join(tmp, 'bad.md'),
+      '```mermaid\nsequenceDiagram\n  Alice->>Bob hello there\n```\n',
+    );
+    const r = run([join(tmp, 'bad.md')], tmp);
+    expect(r.status).toBe(1);
+    const lines = r.stdout.split('\n');
+    const msgLine = lines.find((l) => l.includes('parse error:'));
+    expect(msgLine).toContain('sequence message is missing a colon');
+    expect(msgLine).toContain('(fixable with --fix)');
+    const msgIndex = lines.indexOf(msgLine ?? '');
+    expect(lines[msgIndex + 1]).toBe(
+      '  did you mean:   Alice->>Bob: hello there',
+    );
+  });
+
   it('exits 2 when no files matched', () => {
     const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
     const r = run(['/nonexistent/file.md'], tmp);
@@ -87,7 +105,7 @@ describe('mermaid-lint CLI', () => {
     const r = run(['--format', 'json', join(tmp, 'ok.md')], tmp);
     expect(r.status).toBe(0);
     const json = JSON.parse(r.stdout);
-    expect(json.version).toBe('0.50.0');
+    expect(json.version).toBe('0.51.0');
     expect(json.files).toHaveLength(1);
     expect(json.files[0].diagrams[0].ok).toBe(true);
     expect(json.files[0].diagrams[0].type).toBe('flowchart');
@@ -108,6 +126,28 @@ describe('mermaid-lint CLI', () => {
     expect(json.summary.errors).toBe(1);
     expect(json.files[0].diagrams[0].ok).toBe(false);
     expect(json.files[0].diagrams[0].error.message).toBeTruthy();
+    // No Tier 1 rule claims this failure, so the declutter fallback carries
+    // no suggestion/fixable — confirm they're genuinely absent, not null.
+    const error = json.files[0].diagrams[0].error as Record<string, unknown>;
+    expect('suggestion' in error).toBe(false);
+    expect('fixable' in error).toBe(false);
+  });
+
+  it('--format json includes raw, suggestion, and fixable for a fixable parse error', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(
+      join(tmp, 'bad.md'),
+      '```mermaid\nsequenceDiagram\n  Alice->>Bob hello there\n```\n',
+    );
+    const r = run(['--format', 'json', join(tmp, 'bad.md')], tmp);
+    expect(r.status).toBe(1);
+    const json = JSON.parse(r.stdout);
+    const error = json.files[0].diagrams[0].error;
+    expect(error.message).toBe('sequence message is missing a colon');
+    expect(error.suggestion).toBe('  Alice->>Bob: hello there');
+    expect(error.fixable).toBe(true);
+    expect(typeof error.raw).toBe('string');
+    expect(error.raw.length).toBeGreaterThan(0);
   });
 
   it('--format json is silent on stderr', () => {
@@ -258,7 +298,7 @@ describe('mermaid-lint CLI', () => {
     // An error-severity finding fails the run even though the diagram parses.
     expect(r.status).toBe(1);
     const json = JSON.parse(r.stdout);
-    expect(json.version).toBe('0.50.0');
+    expect(json.version).toBe('0.51.0');
     expect(json.files[0].diagrams[0].ok).toBe(true);
     expect(json.files[0].diagrams[0].warnings).toHaveLength(1);
     expect(json.files[0].diagrams[0].warnings[0].rule).toBe('duplicate-ids');
