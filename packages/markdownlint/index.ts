@@ -354,6 +354,8 @@ const RULE_DESCRIPTIONS: Record<RuleId, string> = {
     'Mermaid: a suppression directive suppressed no finding',
   'suppression-malformed':
     'Mermaid: a suppression directive is missing its reason, names no rules, or closes nothing',
+  'click-target-not-found':
+    'Mermaid: a click target is a local relative path that does not exist',
 };
 
 /**

@@ -35,6 +35,7 @@ import {
   ganttUndefinedDependency,
 } from './rules/gantt.js';
 import {
+  clickTargetNotFound,
   frontmatterMustBeFirst,
   noExperimental,
   preferFlowchart,
@@ -238,4 +239,5 @@ export const RULES: Rule[] = [
   ishikawaEmptyCategory,
   ishikawaDeepNesting,
   ishikawaDuplicateSibling,
+  clickTargetNotFound,
 ];

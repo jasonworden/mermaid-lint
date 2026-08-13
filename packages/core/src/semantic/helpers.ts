@@ -20,6 +20,10 @@ export function isFlowchartOrGraph(block: Block): boolean {
   return block.type === 'flowchart' || block.type === 'graph';
 }
 
+export function isGantt(block: Block): boolean {
+  return block.type === 'gantt';
+}
+
 /**
  * Count of leading whitespace characters (each counts as one column). The
  * mindmap, treemap, kanban, and ishikawa hierarchies are all indentation-based, and

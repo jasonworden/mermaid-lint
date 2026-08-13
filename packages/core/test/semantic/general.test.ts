@@ -1,3 +1,6 @@
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { extractMermaidBlocks } from '../../src/extract.js';
 import { RULE_DEFAULTS } from '../../src/rules.js';
@@ -231,5 +234,219 @@ describe('frontmatter-must-be-first rule', () => {
     const findings = only(b, 'frontmatter-must-be-first');
     expect(findings).toHaveLength(1);
     expect(findings[0].line).toBe(2);
+  });
+});
+
+describe('click-target-not-found rule', () => {
+  // Off by default (false-positive risk: mermaid resolves a click href
+  // against the rendered page URL, not the source file on disk — see the
+  // rationale beside `RULE_METADATA['click-target-not-found']`). Every test
+  // below that exercises the rule's actual matching/skip logic opts it on
+  // explicitly, the same pattern the other rules' "returns [] when
+  // configured off" tests use, just inverted: this rule needs an explicit
+  // *on* override to be exercised at all.
+  const WARN_ON: ResolvedRules = {
+    ...RULE_DEFAULTS,
+    'click-target-not-found': 'warn',
+  };
+
+  // Every `click`-line test below writes its `body` to a real temp file and
+  // builds the matching `Block` in one step, so the diagram source appears
+  // exactly once per test instead of twice (as a file-write argument and
+  // again as a separately typed `body` field). `extraFiles` writes sibling
+  // files into the same temp dir first, for tests whose target must resolve.
+  function clickBlock(
+    body: string,
+    type = 'flowchart',
+    extraFiles: Record<string, string> = {},
+  ) {
+    const dir = mkdtempSync(join(tmpdir(), 'mermaid-lint-click-target-'));
+    for (const [name, content] of Object.entries(extraFiles)) {
+      writeFileSync(join(dir, name), content);
+    }
+    const path = join(dir, 'diagram.mmd');
+    writeFileSync(path, body);
+    return { path, line: 1, col: 1, type, body };
+  }
+
+  it('flags a click target that does not resolve to a real file (warn)', () => {
+    const b = clickBlock('flowchart LR\n  A --> B\n  click A "./missing.md"');
+    const warnings = only(b, 'click-target-not-found', WARN_ON);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].severity).toBe('warn');
+    expect(warnings[0].line).toBe(3);
+    expect(warnings[0].message).toContain('./missing.md');
+  });
+
+  it('defaults to off, so a broken target produces no findings without an explicit override', () => {
+    const b = clickBlock('flowchart LR\n  A --> B\n  click A "./missing.md"');
+    // No `rules` argument: `only()` falls back to `RULE_DEFAULTS`, which is
+    // exactly the config a real run uses unless the user opts in.
+    expect(only(b, 'click-target-not-found')).toEqual([]);
+  });
+
+  it('does not flag a click target that resolves to a real file', () => {
+    const b = clickBlock(
+      'flowchart LR\n  A --> B\n  click A "./architecture.md"',
+      'flowchart',
+      { 'architecture.md': '# Architecture\n' },
+    );
+    expect(only(b, 'click-target-not-found', WARN_ON)).toEqual([]);
+  });
+
+  it('supports the `href` keyword form', () => {
+    const b = clickBlock(
+      'flowchart LR\n  A --> B\n  click A href "./missing.md"',
+    );
+    expect(only(b, 'click-target-not-found', WARN_ON)).toHaveLength(1);
+  });
+
+  it('ignores a trailing tooltip and _blank after the target', () => {
+    const b = clickBlock(
+      'flowchart LR\n  A --> B\n  click A "./missing.md" "tooltip" _blank',
+    );
+    expect(only(b, 'click-target-not-found', WARN_ON)).toHaveLength(1);
+  });
+
+  it('does not flag a bare callback (no href target)', () => {
+    const b = clickBlock('flowchart LR\n  A --> B\n  click A myCallback');
+    expect(only(b, 'click-target-not-found', WARN_ON)).toEqual([]);
+  });
+
+  it('does not flag `call callback(...)` even with a tooltip string', () => {
+    const b = clickBlock(
+      'flowchart LR\n  A --> B\n  click A call myCallback() "tooltip"',
+    );
+    expect(only(b, 'click-target-not-found', WARN_ON)).toEqual([]);
+  });
+
+  it('does not flag a scheme-prefixed target (remote URL, mailto:)', () => {
+    for (const target of ['https://example.com/docs', 'mailto:a@example.com']) {
+      const b = clickBlock(`flowchart LR\n  A --> B\n  click A "${target}"`);
+      expect(only(b, 'click-target-not-found', WARN_ON)).toEqual([]);
+    }
+  });
+
+  it('does not flag a Windows drive letter target', () => {
+    // Unlike the other URI_SCHEME_RE cases above, this one is not a real
+    // scheme — it's the regex's deliberate side effect (see the comment on
+    // URI_SCHEME_RE) of treating `C:` the same way it treats `http:`.
+    const b = clickBlock('flowchart LR\n  A --> B\n  click A "C:/docs/x.md"');
+    expect(only(b, 'click-target-not-found', WARN_ON)).toEqual([]);
+  });
+
+  it('does not flag an absolute path', () => {
+    const b = clickBlock('flowchart LR\n  A --> B\n  click A "/docs/foo.md"');
+    expect(only(b, 'click-target-not-found', WARN_ON)).toEqual([]);
+  });
+
+  it('does not flag a pure same-page anchor', () => {
+    const b = clickBlock('flowchart LR\n  A --> B\n  click A "#some-heading"');
+    expect(only(b, 'click-target-not-found', WARN_ON)).toEqual([]);
+  });
+
+  it('ignores the anchor and checks only the file part', () => {
+    const b = clickBlock(
+      'flowchart LR\n  A --> B\n  click A "./architecture.md#some-heading"',
+      'flowchart',
+      { 'architecture.md': '# Architecture\n' },
+    );
+    expect(only(b, 'click-target-not-found', WARN_ON)).toEqual([]);
+  });
+
+  it('flags a missing file even with an anchor appended', () => {
+    const b = clickBlock(
+      'flowchart LR\n  A --> B\n  click A "./missing.md#some-heading"',
+    );
+    expect(only(b, 'click-target-not-found', WARN_ON)).toHaveLength(1);
+  });
+
+  it('applies to gantt diagrams', () => {
+    const b = clickBlock(
+      'gantt\n  section S\n    A :a1, 2024-01-01, 3d\n  click a1 "./missing.md"',
+      'gantt',
+    );
+    expect(only(b, 'click-target-not-found', WARN_ON)).toHaveLength(1);
+  });
+
+  it('does not match a `call cb(a:b)` line at all, on a gantt click line', () => {
+    // This does not exercise URI_SCHEME_RE — CLICK_HREF_RE itself never
+    // matches a `call cb(...)` line (no quoted string in href position), so
+    // the colon inside `cb(after x, foo)` never reaches the scheme check.
+    // See "does not flag a Windows drive letter target" above for a case
+    // that actually exercises URI_SCHEME_RE.
+    const b = clickBlock(
+      'gantt\n  section S\n    A :a1, 2024-01-01, 3d\n  click a1 call cb(after x, foo)',
+      'gantt',
+    );
+    expect(only(b, 'click-target-not-found', WARN_ON)).toEqual([]);
+  });
+
+  it('does not apply outside flowchart/graph/gantt, even with a broken-looking click line', () => {
+    // `appliesTo` gates on diagram type before the line scan ever runs — a
+    // pie chart never has real `click` syntax, but this proves the gate
+    // itself (not just "no click line present") is what suppresses it.
+    const b = clickBlock(
+      'pie\n  title T\n  click A "./missing.md"\n  "A" : 10',
+      'pie',
+    );
+    expect(only(b, 'click-target-not-found', WARN_ON)).toEqual([]);
+  });
+
+  it('ignores a %% comment line even when it looks like a broken click', () => {
+    // Proves the `%%`-comment skip is load-bearing: without it, this line
+    // would match CLICK_HREF_RE and report a finding for a target that is
+    // commented out, not live diagram content.
+    const b = clickBlock(
+      'flowchart LR\n  A --> B\n  %% click A "./missing.md"',
+    );
+    expect(only(b, 'click-target-not-found', WARN_ON)).toEqual([]);
+  });
+
+  it('does not flag when the containing file does not exist on disk (e.g. stdin)', () => {
+    // The shared `block()` helper stubs path: 'test.mmd', which does not
+    // exist relative to the test runner's cwd — this is also what a `<stdin>`
+    // CLI run looks like. There is no real directory to resolve a relative
+    // target against, so the rule must decline rather than flag every target.
+    const b = block(
+      'flowchart LR\n  A --> B\n  click A "./definitely-missing.md"',
+      'flowchart',
+    );
+    expect(only(b, 'click-target-not-found', WARN_ON)).toEqual([]);
+  });
+
+  it('is suppressed by %% mermaid-lint-disable-diagram click-target-not-found', () => {
+    const b = clickBlock(
+      'flowchart LR\n  %% mermaid-lint-disable-diagram click-target-not-found: legacy suppression test\n  A --> B\n  click A "./missing.md"',
+    );
+    expect(only(b, 'click-target-not-found', WARN_ON)).toEqual([]);
+  });
+
+  it('returns [] when explicitly configured off, same as the default', () => {
+    const b = clickBlock('flowchart LR\n  A --> B\n  click A "./missing.md"');
+    const rules: ResolvedRules = {
+      ...RULE_DEFAULTS,
+      'click-target-not-found': 'off',
+    };
+    expect(only(b, 'click-target-not-found', rules)).toEqual([]);
+  });
+
+  it('is exercised through extractMermaidBlocks on a real fenced-Markdown file', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mermaid-lint-click-target-'));
+    const mdPath = join(dir, 'doc.md');
+    const md = [
+      '# Doc',
+      '',
+      '```mermaid',
+      'flowchart LR',
+      '  A --> B',
+      '  click A "./missing.md"',
+      '```',
+      '',
+    ].join('\n');
+    writeFileSync(mdPath, md);
+    const [b] = extractMermaidBlocks(mdPath, md);
+    const warnings = only(b, 'click-target-not-found', WARN_ON);
+    expect(warnings).toHaveLength(1);
   });
 });

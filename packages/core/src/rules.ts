@@ -133,7 +133,8 @@ export type RuleId =
   | 'frontmatter-must-be-first'
   | 'suppression-unknown-rule'
   | 'suppression-unused'
-  | 'suppression-malformed';
+  | 'suppression-malformed'
+  | 'click-target-not-found';
 
 /**
  * User-facing `rules` configuration: a partial map of rule id to desired
@@ -166,6 +167,7 @@ export type RuleDocsScope =
   | 'erDiagram'
   | 'eventmodeling'
   | 'flowchart / graph'
+  | 'flowchart / graph / gantt'
   | 'gantt'
   | 'gitGraph'
   | 'graph'
@@ -603,6 +605,24 @@ export interface RuleMetadata {
  * `eventmodeling-undefined-frame`, and `venn-no-sets` as the only
  * non-advisory rules: a diagram whose frontmatter is preceded by anything does
  * not render at all, so there is no judgment call to defer to the user.
+ *
+ * `click-target-not-found` defaults to `off`, joining `no-orphan-nodes`,
+ * `prefer-explicit-participants`, `er-standalone-entity`, and
+ * `wardley-orphan-component` as opt-in due to false-positive risk: mermaid
+ * resolves a click href relative to the *rendered page URL*, not the source
+ * file on disk, so "no file next to the diagram source" is a heuristic, not
+ * the real semantics. An extensionless route (`click A "./architecture"`, the
+ * normal shape of a Docusaurus/MkDocs page link), a query string
+ * (`click A "./x.md?plain=1"`, a valid GitHub blob-view link even though
+ * `x.md` exists), or a URL-encoded space (`click A "./my%20file.md"` where
+ * `my file.md` exists) all read as broken to this heuristic while being
+ * perfectly valid links — opt in where the docs site is known to mirror the
+ * source tree file-for-file. The heuristic can also miss real breakage: on a
+ * case-insensitive filesystem (macOS, Windows) `existsSync` treats
+ * `click A "./Architecture.md"` as resolved against an on-disk
+ * `architecture.md`, even though the same link 404s on a case-sensitive host
+ * (Linux CI, GitHub Pages) — `off` by default limits how often that false
+ * quiet matters.
  *
  * @internal
  */
@@ -1320,6 +1340,13 @@ export const RULE_METADATA = {
       'A suppression directive with no reason, no rule ids, an `enable` closing nothing, or `mermaid` named at line scope',
     docsScope: 'all',
     readmeDiagramKeywords: [],
+  },
+  'click-target-not-found': {
+    defaultSeverity: 'off',
+    description:
+      'A `click` statement whose target is a local relative file path that does not exist relative to the containing file',
+    docsScope: 'flowchart / graph / gantt',
+    readmeDiagramKeywords: ['flowchart', 'graph', 'gantt'],
   },
 } satisfies Record<RuleId, RuleMetadata>;
 
