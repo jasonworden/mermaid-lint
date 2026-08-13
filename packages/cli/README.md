@@ -24,7 +24,7 @@ mermaid-lint --quiet                # failures only
 mermaid-lint --format json          # machine-readable JSON output
 mermaid-lint --strict               # treat semantic warnings as errors (exit 1)
 mermaid-lint --no-semantic          # skip semantic checks (syntax errors only)
-mermaid-lint explain <rule-id>      # print a rule's default severity, scope, and rationale
+mermaid-lint explain no-self-loop   # print a rule's default severity, scope, and rationale
 ```
 
 **Exit codes:** `0` = all valid · `1` = validation failures (or warnings with `--strict`) · `2` = usage/IO error
