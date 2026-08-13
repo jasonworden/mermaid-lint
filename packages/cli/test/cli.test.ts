@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -126,6 +126,24 @@ describe('mermaid-lint CLI', () => {
     expect(r.status).toBe(0);
     expect(r.stderr).toContain('checked 2 diagrams');
   });
+
+  it.runIf(process.platform === 'win32')(
+    'expands glob patterns containing backslash path separators',
+    () => {
+      const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+      const sub = join(tmp, 'sub');
+      mkdirSync(sub);
+      writeFileSync(
+        join(sub, 'a.md'),
+        '```mermaid\nflowchart LR\n  A-->B\n```\n',
+      );
+      // Explicitly use backslashes in pattern
+      const pattern = `${tmp.replaceAll('/', '\\')}\\sub\\*.md`;
+      const r = run([pattern], tmp);
+      expect(r.status).toBe(0);
+      expect(r.stderr).toContain('checked 1 diagram');
+    },
+  );
 
   it('--format json outputs valid JSON to stdout', () => {
     const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));

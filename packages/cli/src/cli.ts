@@ -157,8 +157,9 @@ function parseArgs(argv: string[]): Args {
 function expandGlobs(paths: string[]): string[] {
   return paths.flatMap((p) => {
     if (!/[*?{[]/.test(p)) return [p];
+    const pattern = process.platform === 'win32' ? p.replaceAll('\\', '/') : p;
     try {
-      return fg.sync(p, { dot: false, onlyFiles: true });
+      return fg.sync(pattern, { dot: false, onlyFiles: true });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       process.stderr.write(

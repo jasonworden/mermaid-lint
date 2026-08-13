@@ -1,3 +1,4 @@
+import { basename } from 'node:path';
 import { applyFixes } from 'markdownlint';
 import type { LintResults, Rule } from 'markdownlint';
 import { lint } from 'markdownlint/promise';
@@ -335,7 +336,7 @@ describe('@mermaid-lint/markdownlint — markdownlint-cli2 integration', () => {
     });
     expect(exitCode).toBeTruthy();
     expect(results).toHaveLength(1);
-    expect(results[0].fileName).toBe('bad.md');
+    expect(basename(results[0].fileName)).toBe('bad.md');
     expect(results[0].lineNumber).toBe(3);
   });
 });
