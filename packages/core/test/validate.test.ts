@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { Block } from '../src/extract.js';
 import { detectDiagramType } from '../src/type-detect.js';
-import { validateBlock, validateWithMermaidJS } from '../src/validate.js';
+import {
+  mapParserMessageLines,
+  validateBlock,
+  validateWithMermaidJS,
+} from '../src/validate.js';
 
 function makeBlock(body: string): Block {
   return {
@@ -360,6 +364,41 @@ describe('syntax error position', () => {
     });
   });
 
+  describe('module-raised errors with explicit line citations', () => {
+    it('blames the cited line rather than falling through to bisection for treeView unexpected indentation', async () => {
+      const body = 'treeView-beta\n  root\n  ├── a\n  └── b';
+      const result = await validateWithMermaidJS(body);
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      // Mermaid cites Line 2; bisection would fall through to line 3.
+      expect(result.error.line).toBe(2);
+      expect(result.error.raw).toContain(
+        'Line 2: Unexpected indentation without box-drawing characters.',
+      );
+      expect(result.error.message).toContain(
+        'Line 2: Unexpected indentation without box-drawing characters.',
+      );
+    });
+
+    it('blames the cited line for treeView empty node', async () => {
+      const body = 'treeView-beta\nroot\n├── a\n└── ';
+      const result = await validateWithMermaidJS(body);
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error.line).toBe(4);
+      expect(result.error.raw).toContain('Line 4: Empty node');
+    });
+
+    it('maps treeView citations across preprocessed comments', async () => {
+      const body = '%% comment\ntreeView-beta\n  root\n  ├── a\n  └── b';
+      const result = await validateWithMermaidJS(body);
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error.line).toBe(3);
+      expect(result.error.raw).toContain('Line 3: Unexpected indentation');
+    });
+  });
+
   it('reports no position when mermaid locates none', async () => {
     // An unrecognized type is located by nothing at all: no `hash`, no
     // `result`, and a message that is the user's own body echoed back.
@@ -536,5 +575,51 @@ describe('validateBlock: flowchart directions merman does not check', () => {
   it('still accepts a flowchart with no direction', async () => {
     const result = await validateBlock(makeBlock('flowchart\n  A --> B'));
     expect(result.ok).toBe(true);
+  });
+});
+
+describe('mapParserMessageLines', () => {
+  it('maps leading Line N: citation for treeView errors', () => {
+    const msg =
+      'Line 2: Unexpected indentation without box-drawing characters. In box-drawing format, use ├── or └── prefixes for indented nodes.';
+    expect(mapParserMessageLines(msg, (n) => n + 7)).toBe(
+      'Line 9: Unexpected indentation without box-drawing characters. In box-drawing format, use ├── or └── prefixes for indented nodes.',
+    );
+  });
+
+  it('maps leading Line N: citation for treeView empty node errors', () => {
+    const msg =
+      'Line 4: Empty node — expected a filename or directory name after the box-drawing prefix';
+    expect(mapParserMessageLines(msg, (n) => n + 5)).toBe(
+      'Line 9: Empty node — expected a filename or directory name after the box-drawing prefix',
+    );
+  });
+
+  it('preserves leading horizontal whitespace on module citations', () => {
+    const msg = '  Line 2: Unexpected indentation';
+    expect(mapParserMessageLines(msg, (n) => n + 3)).toBe(
+      '  Line 5: Unexpected indentation',
+    );
+  });
+
+  it('does not rewrite arbitrary mid-message occurrences of Line N:', () => {
+    const msg = 'some unrelated prose Line 12: filename';
+    expect(mapParserMessageLines(msg, (n) => n + 7)).toBe(
+      'some unrelated prose Line 12: filename',
+    );
+  });
+
+  it('does not rewrite user-authored Line N: content on later lines', () => {
+    const msg = 'Some error header\nLine 12: user-authored content';
+    expect(mapParserMessageLines(msg, (n) => n + 7)).toBe(
+      'Some error header\nLine 12: user-authored content',
+    );
+  });
+
+  it('does not match when preceded by a newline', () => {
+    const msg = '\nLine 2: Unexpected indentation';
+    expect(mapParserMessageLines(msg, (n) => n + 7)).toBe(
+      '\nLine 2: Unexpected indentation',
+    );
   });
 });
