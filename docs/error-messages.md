@@ -10,16 +10,17 @@ on Langium). When it rejects a diagram, the error it throws is written for
 someone who knows the grammar, not someone who wrote the diagram:
 
 ```text
-Parse error on line 91:
-...    Alice-Bob: hello
+Parse error on line 2:
+...ce->>Bob hello there
 -----------------------^
-Expecting 'SPACE', got 'TXT'
+Expecting 'TXT', got 'NEWLINE'
 ```
 
-`SPACE` and `TXT` are token classes from the grammar, not words the author
-typed. The message is technically correct — the parser wanted a space token
-and found text instead — but it does not say *what a sequence message needs*
-(a colon after the arrow), which is what the author actually needs to know.
+`TXT` and `NEWLINE` are token classes from the grammar, not words the author
+typed. The message is technically correct — the parser wanted the message text
+and found the end of the line instead — but it does not say *what a sequence
+message needs* (a colon after the arrow), which is what the author actually
+needs to know.
 Worse, the caret line is frequently misleading: mermaid collapses newlines out
 of the diagram before handing it to the parser, so the column the caret
 underlines in the *echoed* snippet routinely does not correspond to the real
@@ -104,7 +105,7 @@ These are the Tier 1 rules shipped today, in the order they run
 | Rule | Confirms | Example message |
 |---|---|---|
 | `unknown-diagram-type` | the header's first word isn't a registered diagram-type keyword | `` unknown diagram type `flowchrt`; did you mean `flowchart`? `` |
-| `flowchart-bad-direction` | the flowchart header's direction token isn't one of `TB TD BT RL LR v ^ < >` | `` `TP` is not a valid flowchart direction; did you mean `TD`? `` |
+| `flowchart-bad-direction` | the flowchart header's direction token isn't one of `TB TD BT RL LR v ^ < >` | `` `td` is not a valid flowchart direction; did you mean `TD`? `` |
 | `sequence-note-missing-colon` | a `Note over/left of/right of ...` line has no colon before its text | `` `Note` is missing a colon before its text `` |
 | `sequence-missing-colon` | a sequence message line (`A->>B ...`) has no colon before its text | `sequence message is missing a colon` |
 | `flowchart-single-dash-arrow` | a `->` appears where a flowchart link token was expected | `` `->` is not a flowchart arrow — flowchart arrows need two dashes `` |

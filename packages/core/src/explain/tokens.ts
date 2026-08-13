@@ -91,7 +91,7 @@ function classify(token: string): Classified {
   return { phrase: `\`${token}\``, rank: 2 };
 }
 
-/** A human phrase for one grammar token name. */
+/** A human phrase for one grammar token name. @internal */
 export function humanizeToken(token: string): string {
   return classify(token).phrase;
 }
@@ -104,7 +104,7 @@ function joinPhrases(shown: string[], remainder: number): string {
   return `${shown.slice(0, -1).join(', ')}, or ${shown[shown.length - 1]}`;
 }
 
-/** A humanized, deduped, capped list: "`]`, a node name, or 24 more". */
+/** A humanized, deduped, capped list: "`]`, a node name, or 24 more". @internal */
 export function summarizeExpected(expected: string[], max = 5): string {
   const seen = new Map<string, Rank>();
   for (const token of expected) {

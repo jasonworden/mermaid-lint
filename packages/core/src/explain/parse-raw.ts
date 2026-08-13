@@ -1,3 +1,4 @@
+/** Which parser produced a failure, which decides how its text is read. @internal */
 export type ErrorFamily =
   | 'jison-parse'
   | 'jison-lexical'
@@ -5,6 +6,7 @@ export type ErrorFamily =
   | 'no-diagram-type'
   | 'module';
 
+/** One parser failure, normalized to a token signature every rule can read. @internal */
 export interface ParsedParserError {
   family: ErrorFamily;
   /** Token names mermaid listed as acceptable. Empty when none are carried. */
@@ -39,6 +41,7 @@ function unquote(text: string): string {
   return m ? m[1] : text.trim();
 }
 
+/** Read mermaid's own error text into that signature. @internal */
 export function parseRawError(raw: string): ParsedParserError {
   if (raw.startsWith(ECHOES_BODY))
     return { family: 'no-diagram-type', expected: [], got: undefined };

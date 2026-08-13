@@ -11,6 +11,8 @@
  * accepts the un-suffixed form as well as `stateDiagram-v2`). The other
  * aliases mermaid supports (`graph`, `gitGraph`, `classDiagram`,
  * `erDiagram`, `C4Context`) are already members of `ReadmeDiagramKeyword`.
+ *
+ * @internal
  */
 export const KNOWN_DIAGRAM_TYPES: readonly string[] = [
   'architecture-beta',
@@ -90,6 +92,8 @@ function levenshtein(a: string, b: string, maxDistance: number): number {
  * Levenshtein distance would otherwise tie it with other candidates.
  * Otherwise, among known types within distance 2, ties break toward the
  * shorter candidate and then alphabetically, so the result is deterministic.
+ *
+ * @internal
  */
 export function nearestDiagramType(word: string): string | undefined {
   const lower = word.toLowerCase();

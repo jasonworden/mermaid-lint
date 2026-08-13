@@ -21,7 +21,7 @@ npx mermaid-lint --format json --all
           "warnings": [{ "rule": "duplicate-ids", "message": "node \"A\" declared with label \"Start\" (line 44) and \"Begin\" (line 49)", "line": 49, "severity": "error" }] },
         { "line": 89, "col": 1, "type": "sequenceDiagram", "ok": false,
           "error": { "message": "sequence message is missing a colon", "line": 91, "col": 5,
-                     "raw": "Expecting 'SPACE', got 'TXT'", "suggestion": "Alice->>Bob: hello", "fixable": true },
+                     "raw": "Expecting 'TXT', got 'NEWLINE'", "suggestion": "Alice->>Bob: hello", "fixable": true },
           "warnings": [] }
       ]
     }
