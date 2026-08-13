@@ -133,7 +133,8 @@ export type RuleId =
   | 'frontmatter-must-be-first'
   | 'suppression-unknown-rule'
   | 'suppression-unused'
-  | 'suppression-malformed';
+  | 'suppression-malformed'
+  | 'click-target-not-found';
 
 /**
  * User-facing `rules` configuration: a partial map of rule id to desired
@@ -166,6 +167,7 @@ export type RuleDocsScope =
   | 'erDiagram'
   | 'eventmodeling'
   | 'flowchart / graph'
+  | 'flowchart / graph / gantt'
   | 'gantt'
   | 'gitGraph'
   | 'graph'
@@ -1320,6 +1322,13 @@ export const RULE_METADATA = {
       'A suppression directive with no reason, no rule ids, an `enable` closing nothing, or `mermaid` named at line scope',
     docsScope: 'all',
     readmeDiagramKeywords: [],
+  },
+  'click-target-not-found': {
+    defaultSeverity: 'warn',
+    description:
+      'A `click` statement whose target is a local relative file path that does not exist relative to the containing file',
+    docsScope: 'flowchart / graph / gantt',
+    readmeDiagramKeywords: ['flowchart', 'graph', 'gantt'],
   },
 } satisfies Record<RuleId, RuleMetadata>;
 

@@ -535,13 +535,13 @@ measure of how much analysis a given type gets beyond "does it parse".
 
 | Type | Keyword | Supported | Related rules | Notes |
 |---|---|---|---|---|
-| Flowchart | `flowchart` / `graph` | ✅ | `duplicate-ids`, `prefer-flowchart`, `require-direction`, `no-duplicate-edges`, `no-self-loop`, `no-empty-labels`, `no-orphan-nodes`, `no-duplicate-node-declarations` | `graph` is an alias for `flowchart` |
+| Flowchart | `flowchart` / `graph` | ✅ | `duplicate-ids`, `prefer-flowchart`, `require-direction`, `no-duplicate-edges`, `no-self-loop`, `no-empty-labels`, `no-orphan-nodes`, `no-duplicate-node-declarations`, `click-target-not-found` | `graph` is an alias for `flowchart` |
 | Sequence | `sequenceDiagram` | ✅ | `no-activate-without-deactivate`, `prefer-explicit-participants`, `sequence-duplicate-participant` | |
 | Class | `classDiagram` | ✅ | `class-duplicate-class`, `no-duplicate-methods` | |
 | State | `stateDiagram-v2` | ✅ | `state-duplicate-state`, `state-duplicate-transition`, `state-empty-composite`, `state-self-transition` | |
 | Entity-Relationship | `erDiagram` | ✅ | `er-duplicate-attribute`, `er-duplicate-entity`, `er-standalone-entity` | |
 | Pie chart | `pie` | ✅ | `pie-duplicate-label`, `pie-zero-value`, `pie-no-data` | |
-| Gantt | `gantt` | ✅ | `gantt-duplicate-task-id`, `gantt-undefined-dependency`, `gantt-empty-section` | |
+| Gantt | `gantt` | ✅ | `gantt-duplicate-task-id`, `gantt-undefined-dependency`, `gantt-empty-section`, `click-target-not-found` | |
 | Git graph | `gitGraph` | ✅ | `gitgraph-duplicate-commit-id`, `gitgraph-duplicate-tag`, `gitgraph-no-commits` | |
 | User journey | `journey` | ✅ | `journey-empty-section`, `journey-score-out-of-range`, `journey-task-without-actor`, `journey-no-tasks` | |
 | Mindmap | `mindmap` | ✅ | `mindmap-duplicate-sibling`, `mindmap-no-nodes`, `mindmap-deep-nesting` | |
