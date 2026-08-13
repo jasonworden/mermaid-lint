@@ -576,6 +576,14 @@ describe('suggestions round-trip through mermaid', () => {
     'flowchart-unclosed-shape (headless link)': 'flowchart LR\n  A[Start --- B',
     'flowchart-unclosed-shape (thick open link)':
       'flowchart LR\n  A[Start === B',
+    // The other half of that: two bare dashes are label text, so the closer
+    // belongs at the end of the line rather than before them.
+    'flowchart-unclosed-shape (bare dashes in the label)':
+      'flowchart LR\n  A[Start--End',
+    'flowchart-unclosed-shape (spaced bare dashes)':
+      'flowchart LR\n  A[Phase 1 -- Phase 2',
+    'flowchart-unclosed-shape (edge text before a link)':
+      'flowchart LR\n  A[Start -- x --- B',
     'flowchart-unquoted-paren': 'flowchart LR\n  A[call foo(bar)] --> B',
     'flowchart-reserved-end': 'flowchart LR\n  A --> end',
   };
@@ -611,6 +619,19 @@ describe('suggestions round-trip through mermaid', () => {
     expect(got?.id).toBe('flowchart-unclosed-shape');
     expect(got?.suggestion).toBeUndefined();
   });
+
+  // Same for a mistyped closer on a nested shape: `A([foo}` is a stadium, and
+  // swapping `}` for `]` would still leave `(` open.
+  it.each(['flowchart LR\n  A([foo} --> B', 'flowchart LR\n  A[(foo} --> B'])(
+    'offers no suggestion when one substitution cannot repair %j',
+    async (body) => {
+      const before = await validateWithMermaidJS(body);
+      const error = before.ok ? undefined : before.error;
+      const got = explain(error?.message ?? '', body, error?.line);
+      expect(got?.id).toBe('flowchart-mismatched-shape');
+      expect(got?.suggestion).toBeUndefined();
+    },
+  );
 });
 
 /**
@@ -640,12 +661,34 @@ describe('regressions', () => {
     expect(got?.id).not.toBe('flowchart-bad-direction');
   });
 
-  // Isolates the header-line requirement from the semicolon strip: here the
-  // `;` is mid-token, so stripping a trailing one cannot rescue `TD;A-->B`.
+  // Isolates the header-line requirement: the `;` is mid-token, so cutting the
+  // direction at it still leaves the header line blamed.
   // `graph TD;A-->B` on its own is valid mermaid.
   it('does not blame a header holding an inline statement', async () => {
     const got = await explainReal('graph TD;A-->B\n  C[Start] --> D)');
     expect(got?.id).not.toBe('flowchart-bad-direction');
+  });
+
+  // Isolates cutting the direction at `;`: the whole statement is on the
+  // header line, so mermaid blames line 1 and the header-line gate passes.
+  // Stripping only a *trailing* `;` left the direction as `TD;A-->B)`.
+  it('does not blame an inline statement on the header line itself', async () => {
+    const got = await explainReal('graph TD;A-->B)');
+    expect(got?.id).not.toBe('flowchart-bad-direction');
+  });
+
+  // The header-line gate compares against `locateHeader`, not against line 1.
+  // mermaid shifts the line it blames for a bad direction in lockstep with
+  // anything that pushes the header down, so the rule must still fire — this
+  // pins the mermaid behaviour the gate relies on.
+  it.each([
+    ['a comment', '%% a comment\nflowchart zzz\n  A --> B'],
+    ['a blank line', '\nflowchart zzz\n  A --> B'],
+    ['frontmatter', '---\ntitle: x\n---\nflowchart zzz\n  A --> B'],
+  ])('still fires when the header follows %s', async (_label, body) => {
+    const got = await explainReal(body);
+    expect(got?.id).toBe('flowchart-bad-direction');
+    expect(got?.message).toContain('zzz');
   });
 
   // `loop`, `rect` and friends are sequence keywords and legal flowchart node

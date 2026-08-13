@@ -16,16 +16,23 @@
  * `end`-as-node-id pattern from `.source` rather than re-spelling it.
  *
  * Headed links (`-->`, `==>`, `--x`) come first so they win at a given index,
- * but the headless ones (`--`, `---`, `===`, `-.-`) have to be here too: they
- * are real mermaid links, and without them `A[Start -- B` got its closer
- * appended at end of line, yielding `A[Start -- B]` — a single node labelled
- * "Start -- B" that parses cleanly and means something the author never wrote.
+ * but the headless ones (`---`, `===`, `-.-`) have to be here too: they are
+ * real mermaid links, and without them `A[Start --- B` got its closer appended
+ * at end of line, yielding `A[Start --- B]` — a single node labelled
+ * "Start --- B" that parses cleanly and means something the author never wrote.
+ *
+ * The headless runs require *three* characters, not two. A bare `--` or `==`
+ * is not a link — mermaid's shortest open link is `---`, and `A -- B` is a
+ * parse error — so two dashes inside a label are just text. Accepting `-{2,}`
+ * cut `A[Start--End` into `A[Start] --End`, which mermaid rejects; with the
+ * run required to be complete, no link is found and the closer is appended to
+ * give `A[Start--End]`, which it accepts.
  *
  * Deliberately written `-{1,2}>` rather than with a literal two-dash arrow: a
  * CodeQL rule fails CI on the literal form.
  */
 export const LINK_START_RE =
-  /(?:-{1,2}|={1,2})(?:>|[ox])|-\.-{0,2}>|-{2,}|={2,}|-\.-/;
+  /(?:-{1,2}|={1,2})(?:>|[ox])|-\.-{0,2}>|-{3,}|={3,}|-\.-/;
 
 /**
  * Complete double-quoted segments.
@@ -153,12 +160,22 @@ export function withCloserInserted(
   return tail.length === 0 ? `${head}${closer}` : `${head}${closer} ${tail}`;
 }
 
-/** The line with a disagreeing closer replaced by the opener's own. */
+/**
+ * The line with a disagreeing closer replaced by the opener's own.
+ *
+ * Declines when any *other* opener is still unmatched, for the same reason
+ * {@link withCloserInserted} does: on `A([foo} --> B` — a stadium `([` whose
+ * closer was mistyped — swapping `}` for `]` yields `A([foo] --> B`, which
+ * still leaves `(` open and which mermaid rejects. The guard is `> 0` rather
+ * than `> 1` because a mismatched pair has already been popped, so
+ * `unclosedCount` here counts only the openers this rewrite does not touch.
+ */
 export function withCloserCorrected(
   line: string,
   defect: ShapeDefect,
 ): string | undefined {
-  if (defect.kind !== 'mismatched') return undefined;
+  if (defect.kind !== 'mismatched' || defect.unclosedCount > 0)
+    return undefined;
   const closer = CLOSER_FOR.get(defect.opener);
   if (closer === undefined) return undefined;
   const before = line.slice(0, defect.closerIndex);

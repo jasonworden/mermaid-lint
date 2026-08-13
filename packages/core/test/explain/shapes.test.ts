@@ -111,7 +111,22 @@ describe('withCloserInserted', () => {
   it('closes before a headless link too', () => {
     expect(insert('  A[Start --- B')).toBe('  A[Start] --- B');
     expect(insert('  A[Start === B')).toBe('  A[Start] === B');
-    expect(insert('  A[Start -- x --- B')).toBe('  A[Start] -- x --- B');
+    expect(insert('  A[a -.- b')).toBe('  A[a] -.- b');
+  });
+
+  // A bare `--`/`==` is not a link (mermaid's shortest open link is `---`), so
+  // it is label text and the closer belongs at the end. Cutting there gave
+  // `A[Start] --End`, which mermaid rejects.
+  it('does not cut at two bare dashes inside a label', () => {
+    expect(insert('  A[Start--End')).toBe('  A[Start--End]');
+    expect(insert('  A[Phase 1 -- Phase 2')).toBe('  A[Phase 1 -- Phase 2]');
+    expect(insert('  A[Start == End')).toBe('  A[Start == End]');
+  });
+
+  // `-- x ---` is the edge-text form, so the first complete run wins and the
+  // bare `--` stays where the author put it.
+  it('cuts at the first complete link in an edge-text run', () => {
+    expect(insert('  A[Start -- x --- B')).toBe('  A[Start -- x] --- B');
   });
 
   // The arrow inside the label must not choose the cut point.
@@ -154,6 +169,13 @@ describe('withCloserCorrected', () => {
     expect(defect).toBeDefined();
     expect(defect && withCloserCorrected(line, defect)).toBeUndefined();
   });
+
+  // `A([foo}` is a stadium whose closer was mistyped. Swapping `}` for `]`
+  // leaves `(` open, so there is no single-substitution repair.
+  it('declines when another opener is still unmatched', () => {
+    expect(correct('  A([foo} --> B')).toBeUndefined();
+    expect(correct('  A[(foo} --> B')).toBeUndefined();
+  });
 });
 
 describe('LINK_START_RE', () => {
@@ -167,8 +189,8 @@ describe('LINK_START_RE', () => {
     '--o',
     '==x',
     // Headless links are links too; missing them mislocated the label end.
-    '--',
     '---',
+    '----',
     '===',
     '-.-',
   ])('matches %s', (link) => {
@@ -180,7 +202,9 @@ describe('LINK_START_RE', () => {
     expect(LINK_START_RE.exec('A -.-> B')?.index).toBe(2);
   });
 
-  it.each(['-', '=', 'A B'])('does not match %s', (text) => {
+  // `--` and `==` are not links: mermaid's shortest open link is `---`, and
+  // `A -- B` is a parse error. Two dashes in a label are just text.
+  it.each(['-', '--', '=', '==', 'A B'])('does not match %s', (text) => {
     expect(LINK_START_RE.test(`A ${text} B`)).toBe(false);
   });
 });

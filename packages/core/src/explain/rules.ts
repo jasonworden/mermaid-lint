@@ -269,18 +269,30 @@ export const EXPLAIN_RULES: readonly ExplainRule[] = [
     confirm(_sourceLine, input) {
       const header = headerOf(input.body);
       if (header === undefined) return undefined;
-      // mermaid rejects a bad direction on the header line itself. Any other
-      // blamed line means the lexer tripped further down and the header is a
-      // bystander — `FLOWCHART_DIRECTIONS` is a fail-safe routing hint in
-      // `validate.ts` ("when in doubt, call mermaid"), not evidence that a
-      // header is invalid, so it cannot carry this on its own.
+      // mermaid rejects a bad direction on the header line itself, wherever
+      // that line falls — comments, blank lines and frontmatter shift its
+      // reported line and `locateHeader` in lockstep (pinned in the tests).
+      // Any other blamed line means the lexer tripped further down and the
+      // header is a bystander.
+      //
+      // Belt and braces: cutting the direction at `;` below already declines
+      // every such case we can construct, because a header whose direction
+      // token is not a real direction is one mermaid rejects *at the header*.
+      // This guard is kept because that is a claim about mermaid's behaviour
+      // rather than about our own code — `FLOWCHART_DIRECTIONS` is a fail-safe
+      // routing hint in `validate.ts` ("when in doubt, call mermaid"), not
+      // evidence that a header is invalid, and inverting it into an assertion
+      // of invalidity is what made this rule libel `graph TD;` in the first
+      // place.
       if (input.line !== header.line) return undefined;
 
       const word = header.text.split(/\s+/)[1];
       if (word === undefined) return undefined;
-      // `graph TD;` is the README spelling and perfectly valid; the trailing
-      // `;` is a statement separator, not part of the direction token.
-      const direction = word.replace(/;+$/, '');
+      // `;` ends the statement, so the direction is whatever precedes the
+      // first one — not the whole whitespace-delimited token. `graph TD;` is
+      // the README spelling, and `graph TD;A-->B` puts an entire statement on
+      // the header line; both are valid, and both name the direction `TD`.
+      const direction = word.split(';')[0];
       if (direction.length === 0 || FLOWCHART_DIRECTIONS.has(direction))
         return undefined;
 
