@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { DIRECTION_RE, isFlowchartOrGraph } from '../helpers.js';
+import { DIRECTION_RE, isFlowchartOrGraph, isGantt } from '../helpers.js';
 import { stripHeaderColon } from '../helpers.js';
 import type { Rule, RuleFinding } from '../types.js';
 
@@ -125,14 +125,14 @@ const URI_SCHEME_RE = /^[a-zA-Z][a-zA-Z0-9+.-]*:/;
  */
 export const clickTargetNotFound: Rule = {
   id: 'click-target-not-found',
-  appliesTo: (block) =>
-    block.type === 'flowchart' ||
-    block.type === 'graph' ||
-    block.type === 'gantt',
+  appliesTo: (block) => isFlowchartOrGraph(block) || isGantt(block),
   evaluate: ({ block, lines }) => {
-    if (!existsSync(block.path)) return [];
-
     const findings: RuleFinding[] = [];
+    // Resolved lazily: most diagrams have no checkable click target, and
+    // every line in a block shares the same containing directory, so this
+    // is at most one stat and one `dirname` call per block, not per line.
+    let containingDir: string | null = null;
+
     for (let i = 0; i < lines.length; i++) {
       const raw = lines[i];
       if (raw.trimStart().startsWith('%%')) continue;
@@ -147,9 +147,17 @@ export const clickTargetNotFound: Rule = {
       const filePart = target.split('#')[0];
       if (filePart === '') continue; // pure same-page anchor
 
+      if (containingDir === null) {
+        // `<stdin>` (CLI stdin mode) and other virtual paths have no real
+        // containing directory to resolve a relative target against, so
+        // every target would otherwise read as broken.
+        if (!existsSync(block.path)) return [];
+        containingDir = dirname(block.path);
+      }
+
       // Tier 1 doesn't distinguish file from directory: a same-named
       // directory counts as "exists" here, same as a file would.
-      const resolved = resolve(dirname(block.path), filePart);
+      const resolved = resolve(containingDir, filePart);
       if (existsSync(resolved)) continue;
 
       findings.push({

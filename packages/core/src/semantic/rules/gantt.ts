@@ -1,4 +1,4 @@
-import type { Block } from '../../extract.js';
+import { isGantt } from '../helpers.js';
 import type { Rule, RuleFinding } from '../types.js';
 
 /**
@@ -84,10 +84,6 @@ function parseGanttTasks(lines: string[]): GanttTask[] {
     tasks.push({ id: meta.id, deps: meta.deps, line: i + 1 });
   }
   return tasks;
-}
-
-function isGantt(block: Block): boolean {
-  return block.type === 'gantt';
 }
 
 export const ganttDuplicateTaskId: Rule = {
