@@ -229,6 +229,12 @@ export type ReadmeDiagramKeyword =
 export interface RuleMetadata {
   /** Default severity for the rule. */
   defaultSeverity: RuleSeverity;
+  /**
+   * One-line rationale, shown by `mermaid-lint explain <rule-id>` and by
+   * docs/semantic-rules.md's Rule Reference "Flags" column — kept in sync
+   * with that column by rule-docs.test.ts.
+   */
+  description: string;
   /** Exact Scope label expected in docs/semantic-rules.md. */
   docsScope: RuleDocsScope;
   /** README Diagram types keywords whose Related rules cell should list it. */
@@ -601,21 +607,29 @@ export interface RuleMetadata {
 export const RULE_METADATA = {
   'duplicate-ids': {
     defaultSeverity: 'error',
+    description:
+      'Same node id declared twice with conflicting labels; Mermaid silently drops one',
     docsScope: 'flowchart / graph',
     readmeDiagramKeywords: ['flowchart', 'graph'],
   },
   'prefer-flowchart': {
     defaultSeverity: 'warn',
+    description:
+      'The legacy `graph` keyword; `flowchart` is current and enables per-subgraph `direction`',
     docsScope: 'graph',
     readmeDiagramKeywords: ['flowchart', 'graph'],
   },
   'require-direction': {
     defaultSeverity: 'warn',
+    description:
+      '`flowchart`/`graph` with no direction; silently defaults to `TD`',
     docsScope: 'flowchart / graph',
     readmeDiagramKeywords: ['flowchart', 'graph'],
   },
   'no-experimental': {
     defaultSeverity: 'warn',
+    description:
+      '`*-beta` diagram types; unstable syntax that may break on a Mermaid upgrade',
     docsScope: 'all',
     readmeDiagramKeywords: [
       'xychart-beta',
@@ -633,461 +647,641 @@ export const RULE_METADATA = {
   },
   'xychart-missing-x-axis': {
     defaultSeverity: 'warn',
+    description:
+      'An `xychart-beta` with one or more series but no `x-axis`; the horizontal scale or labels are implicit',
     docsScope: 'xychart-beta',
     readmeDiagramKeywords: ['xychart-beta'],
   },
   'xychart-missing-y-axis': {
     defaultSeverity: 'warn',
+    description:
+      'An `xychart-beta` with one or more series but no `y-axis`; the vertical scale or units are implicit',
     docsScope: 'xychart-beta',
     readmeDiagramKeywords: ['xychart-beta'],
   },
   'xychart-no-series': {
     defaultSeverity: 'warn',
+    description:
+      'An `xychart-beta` with no `line [...]` or `bar [...]` series; parses but renders empty',
     docsScope: 'xychart-beta',
     readmeDiagramKeywords: ['xychart-beta'],
   },
   'xychart-series-length-mismatch': {
     defaultSeverity: 'warn',
+    description:
+      'An `xychart-beta` whose series lengths do not match each other or a categorical `x-axis` label count',
     docsScope: 'xychart-beta',
     readmeDiagramKeywords: ['xychart-beta'],
   },
   'radar-no-curves': {
     defaultSeverity: 'warn',
+    description:
+      'A `radar-beta` with no `curve` rows; parses but renders an empty grid',
     docsScope: 'radar-beta',
     readmeDiagramKeywords: ['radar-beta'],
   },
   'radar-curve-length-mismatch': {
     defaultSeverity: 'warn',
+    description:
+      'A `radar-beta` positional `curve` whose value count does not match the declared axis count; renders a misaligned polygon',
     docsScope: 'radar-beta',
     readmeDiagramKeywords: ['radar-beta'],
   },
   'radar-duplicate-axis': {
     defaultSeverity: 'warn',
+    description: 'A `radar-beta` with two axes rendering the same label',
     docsScope: 'radar-beta',
     readmeDiagramKeywords: ['radar-beta'],
   },
   'treemap-zero-value': {
     defaultSeverity: 'warn',
+    description:
+      'A `treemap-beta` leaf with a value of `0`; renders as an invisible (zero-area) rectangle',
     docsScope: 'treemap-beta',
     readmeDiagramKeywords: ['treemap-beta'],
   },
   'treemap-no-leaves': {
     defaultSeverity: 'warn',
+    description:
+      'A `treemap-beta` with no row carrying a value; every rectangle is sized from leaf values, so it renders empty',
     docsScope: 'treemap-beta',
     readmeDiagramKeywords: ['treemap-beta'],
   },
   'treemap-duplicate-sibling': {
     defaultSeverity: 'warn',
+    description:
+      'Two `treemap-beta` rows with the same label under one parent; renders two identically labeled boxes',
     docsScope: 'treemap-beta',
     readmeDiagramKeywords: ['treemap-beta'],
   },
   'treemap-branch-with-value': {
     defaultSeverity: 'warn',
+    description:
+      'A `treemap-beta` row carrying a value with rows indented under it; Mermaid treats it as a leaf and silently re-parents those rows',
     docsScope: 'treemap-beta',
     readmeDiagramKeywords: ['treemap-beta'],
   },
   'sankey-non-positive-value': {
     defaultSeverity: 'warn',
+    description:
+      'A `sankey-beta` link with a value of `0` or below; the flow has no positive weight',
     docsScope: 'sankey-beta',
     readmeDiagramKeywords: ['sankey-beta'],
   },
   'sankey-duplicate-link': {
     defaultSeverity: 'warn',
+    description:
+      'The same `source,target` pair repeated, even with a different value; links stack and the duplicate is usually accidental',
     docsScope: 'sankey-beta',
     readmeDiagramKeywords: ['sankey-beta'],
   },
   'sankey-self-loop': {
     defaultSeverity: 'warn',
+    description:
+      'A `sankey-beta` link whose source and target are the same; usually a copy-paste mistake',
     docsScope: 'sankey-beta',
     readmeDiagramKeywords: ['sankey-beta'],
   },
   'block-no-blocks': {
     defaultSeverity: 'warn',
+    description:
+      'A `block-beta` diagram with no block declarations; parses but renders empty',
     docsScope: 'block-beta',
     readmeDiagramKeywords: ['block-beta'],
   },
   'packet-no-fields': {
     defaultSeverity: 'warn',
+    description:
+      'A `packet-beta` diagram with no bit-range field rows; parses but renders empty',
     docsScope: 'packet-beta',
     readmeDiagramKeywords: ['packet-beta'],
   },
   'packet-empty-labels': {
     defaultSeverity: 'warn',
+    description:
+      'A `packet-beta` field with an empty label; renders a blank cell',
     docsScope: 'packet-beta',
     readmeDiagramKeywords: ['packet-beta'],
   },
   'architecture-no-elements': {
     defaultSeverity: 'warn',
+    description:
+      'An `architecture-beta` diagram with no services, groups, or junctions; parses but renders empty',
     docsScope: 'architecture-beta',
     readmeDiagramKeywords: ['architecture-beta'],
   },
   'architecture-no-edges': {
     defaultSeverity: 'warn',
+    description:
+      'An `architecture-beta` diagram with declared elements but no edges; usually incomplete',
     docsScope: 'architecture-beta',
     readmeDiagramKeywords: ['architecture-beta'],
   },
   'architecture-duplicate-edge': {
     defaultSeverity: 'warn',
+    description:
+      'The same architecture connection defined more than once; usually a copy-paste mistake',
     docsScope: 'architecture-beta',
     readmeDiagramKeywords: ['architecture-beta'],
   },
   'no-duplicate-edges': {
     defaultSeverity: 'warn',
+    description:
+      'The same edge defined more than once; renders stacked, usually a copy-paste mistake',
     docsScope: 'flowchart / graph',
     readmeDiagramKeywords: ['flowchart', 'graph'],
   },
   'no-self-loop': {
     defaultSeverity: 'warn',
+    description:
+      'A node with an edge to itself (`A --> A`); almost always unintentional',
     docsScope: 'flowchart / graph',
     readmeDiagramKeywords: ['flowchart', 'graph'],
   },
   'no-empty-labels': {
     defaultSeverity: 'warn',
+    description: 'A node with an empty label (`A[ ]`); renders a blank shape',
     docsScope: 'flowchart / graph',
     readmeDiagramKeywords: ['flowchart', 'graph'],
   },
   'no-orphan-nodes': {
     defaultSeverity: 'off',
+    description:
+      'A node declared but never connected by an edge. Off by default because it can false-positive on subgraph-only members',
     docsScope: 'flowchart / graph',
     readmeDiagramKeywords: ['flowchart', 'graph'],
   },
   'no-duplicate-node-declarations': {
     defaultSeverity: 'warn',
+    description:
+      'The same node id declared more than once with the same label; usually copy-paste noise',
     docsScope: 'flowchart / graph',
     readmeDiagramKeywords: ['flowchart', 'graph'],
   },
   'no-activate-without-deactivate': {
     defaultSeverity: 'warn',
+    description:
+      'An `activate`/`+` with no matching `deactivate`/`-` or vice versa; leaves a dangling activation bar',
     docsScope: 'sequenceDiagram',
     readmeDiagramKeywords: ['sequenceDiagram'],
   },
   'prefer-explicit-participants': {
     defaultSeverity: 'off',
+    description:
+      'A participant used in a message before being declared; Mermaid auto-creates it',
     docsScope: 'sequenceDiagram',
     readmeDiagramKeywords: ['sequenceDiagram'],
   },
   'sequence-duplicate-participant': {
     defaultSeverity: 'warn',
+    description:
+      'The same participant or actor id declared more than once; ordering and labels become ambiguous',
     docsScope: 'sequenceDiagram',
     readmeDiagramKeywords: ['sequenceDiagram'],
   },
   'class-duplicate-class': {
     defaultSeverity: 'warn',
+    description:
+      'The same class declared more than once; Mermaid merges declarations, usually a copy-paste mistake',
     docsScope: 'classDiagram',
     readmeDiagramKeywords: ['classDiagram'],
   },
   'no-duplicate-methods': {
     defaultSeverity: 'warn',
+    description:
+      'The same method signature declared twice on one class; renders both',
     docsScope: 'classDiagram',
     readmeDiagramKeywords: ['classDiagram'],
   },
   'pie-duplicate-label': {
     defaultSeverity: 'warn',
+    description:
+      'The same pie slice label defined more than once; usually a copy-paste mistake',
     docsScope: 'pie',
     readmeDiagramKeywords: ['pie'],
   },
   'pie-zero-value': {
     defaultSeverity: 'warn',
+    description:
+      'A pie slice with a value of `0`; renders as an invisible slice',
     docsScope: 'pie',
     readmeDiagramKeywords: ['pie'],
   },
   'pie-no-data': {
     defaultSeverity: 'warn',
+    description: 'A pie chart with no data slices; renders empty',
     docsScope: 'pie',
     readmeDiagramKeywords: ['pie'],
   },
   'state-duplicate-state': {
     defaultSeverity: 'warn',
+    description:
+      'The same state id declared more than once; labels and composite bodies become ambiguous',
     docsScope: 'stateDiagram',
     readmeDiagramKeywords: ['stateDiagram-v2'],
   },
   'state-duplicate-transition': {
     defaultSeverity: 'warn',
+    description:
+      'The same `src --> tgt : label` transition defined more than once; renders stacked, usually a copy-paste mistake',
     docsScope: 'stateDiagram',
     readmeDiagramKeywords: ['stateDiagram-v2'],
   },
   'state-empty-composite': {
     defaultSeverity: 'warn',
+    description:
+      'A composite `state X { }` with an empty body; renders as an empty box',
     docsScope: 'stateDiagram',
     readmeDiagramKeywords: ['stateDiagram-v2'],
   },
   'state-self-transition': {
     defaultSeverity: 'off',
+    description:
+      'A state with a transition to itself (`A --> A`). Off by default because self-transitions are valid and common in state machines',
     docsScope: 'stateDiagram',
     readmeDiagramKeywords: ['stateDiagram-v2'],
   },
   'er-duplicate-attribute': {
     defaultSeverity: 'warn',
+    description:
+      'The same attribute name declared twice inside one entity block',
     docsScope: 'erDiagram',
     readmeDiagramKeywords: ['erDiagram'],
   },
   'er-duplicate-entity': {
     defaultSeverity: 'warn',
+    description:
+      'An entity whose attribute block is defined more than once; Mermaid merges them, usually a copy-paste mistake',
     docsScope: 'erDiagram',
     readmeDiagramKeywords: ['erDiagram'],
   },
   'er-standalone-entity': {
     defaultSeverity: 'off',
+    description:
+      'An entity with a defined block but no relationship; renders as an isolated box',
     docsScope: 'erDiagram',
     readmeDiagramKeywords: ['erDiagram'],
   },
   'gantt-duplicate-task-id': {
     defaultSeverity: 'warn',
+    description:
+      'Two tasks declared with the same explicit id; makes `after`/`until` references ambiguous',
     docsScope: 'gantt',
     readmeDiagramKeywords: ['gantt'],
   },
   'gantt-undefined-dependency': {
     defaultSeverity: 'warn',
+    description:
+      'A task whose `after`/`until` references an id no task defines; Mermaid places it at the chart start',
     docsScope: 'gantt',
     readmeDiagramKeywords: ['gantt'],
   },
   'gantt-empty-section': {
     defaultSeverity: 'warn',
+    description:
+      'A `section` with no tasks; renders as an empty section header',
     docsScope: 'gantt',
     readmeDiagramKeywords: ['gantt'],
   },
   'requirement-duplicate-name': {
     defaultSeverity: 'warn',
+    description:
+      'The same requirement or element name defined more than once; relationship and styling targets become ambiguous',
     docsScope: 'requirementDiagram',
     readmeDiagramKeywords: ['requirementDiagram'],
   },
   'requirement-duplicate-id': {
     defaultSeverity: 'warn',
+    description:
+      'The same requirement `id:` value used more than once; requirement IDs should uniquely identify a single requirement',
     docsScope: 'requirementDiagram',
     readmeDiagramKeywords: ['requirementDiagram'],
   },
   'requirement-undefined-reference': {
     defaultSeverity: 'warn',
+    description:
+      'A relationship endpoint whose requirement or element name is never defined in the diagram',
     docsScope: 'requirementDiagram',
     readmeDiagramKeywords: ['requirementDiagram'],
   },
   'journey-empty-section': {
     defaultSeverity: 'warn',
+    description:
+      'A `section` with no tasks; renders as an empty section header',
     docsScope: 'journey',
     readmeDiagramKeywords: ['journey'],
   },
   'journey-score-out-of-range': {
     defaultSeverity: 'warn',
+    description:
+      "A task happiness score outside Mermaid's documented 1-5 scale",
     docsScope: 'journey',
     readmeDiagramKeywords: ['journey'],
   },
   'journey-task-without-actor': {
     defaultSeverity: 'warn',
+    description:
+      'A journey task with no actor; renders without an owner lane and is usually incomplete',
     docsScope: 'journey',
     readmeDiagramKeywords: ['journey'],
   },
   'journey-no-tasks': {
     defaultSeverity: 'warn',
+    description:
+      'A `journey` with no tasks; parses but renders an empty diagram',
     docsScope: 'journey',
     readmeDiagramKeywords: ['journey'],
   },
   'mindmap-duplicate-sibling': {
     defaultSeverity: 'warn',
+    description:
+      'Two child nodes under the same parent with identical text; renders two identical branches, usually a copy-paste mistake',
     docsScope: 'mindmap',
     readmeDiagramKeywords: ['mindmap'],
   },
   'mindmap-no-nodes': {
     defaultSeverity: 'warn',
+    description:
+      'A `mindmap` with only the keyword and no nodes; parses but renders an empty diagram',
     docsScope: 'mindmap',
     readmeDiagramKeywords: ['mindmap'],
   },
   'mindmap-deep-nesting': {
     defaultSeverity: 'off',
+    description:
+      'A node nested beyond five levels deep. Off by default because deep nesting is a matter of taste',
     docsScope: 'mindmap',
     readmeDiagramKeywords: ['mindmap'],
   },
   'timeline-empty-section': {
     defaultSeverity: 'warn',
+    description:
+      'A `section` with no time-period entries; renders as an empty section header',
     docsScope: 'timeline',
     readmeDiagramKeywords: ['timeline'],
   },
   'timeline-empty-event': {
     defaultSeverity: 'warn',
+    description:
+      'A time period with a blank event field; renders an empty event bubble',
     docsScope: 'timeline',
     readmeDiagramKeywords: ['timeline'],
   },
   'timeline-no-entries': {
     defaultSeverity: 'warn',
+    description:
+      'A `timeline` with no sections and no time periods; parses but renders an empty diagram',
     docsScope: 'timeline',
     readmeDiagramKeywords: ['timeline'],
   },
   'gitgraph-duplicate-commit-id': {
     defaultSeverity: 'warn',
+    description:
+      'The same explicit `id:` on more than one commit; makes `merge`/`cherry-pick` references ambiguous',
     docsScope: 'gitGraph',
     readmeDiagramKeywords: ['gitGraph'],
   },
   'gitgraph-duplicate-tag': {
     defaultSeverity: 'warn',
+    description:
+      'The same `tag:` used more than once; two commits render with the same tag',
     docsScope: 'gitGraph',
     readmeDiagramKeywords: ['gitGraph'],
   },
   'gitgraph-no-commits': {
     defaultSeverity: 'warn',
+    description:
+      'A `gitGraph` with no commits; parses but renders an empty diagram',
     docsScope: 'gitGraph',
     readmeDiagramKeywords: ['gitGraph'],
   },
   'quadrant-duplicate-point': {
     defaultSeverity: 'warn',
+    description:
+      'Two data points with the same label; renders overlapping markers, usually a copy-paste mistake',
     docsScope: 'quadrantChart',
     readmeDiagramKeywords: ['quadrantChart'],
   },
   'quadrant-no-points': {
     defaultSeverity: 'warn',
+    description:
+      'A quadrantChart with axis or quadrant labels but no data points; parses but renders an empty plot',
     docsScope: 'quadrantChart',
     readmeDiagramKeywords: ['quadrantChart'],
   },
   'quadrant-missing-x-axis': {
     defaultSeverity: 'warn',
+    description:
+      'A quadrantChart with data points but no `x-axis` label; default axis text hides chart intent',
     docsScope: 'quadrantChart',
     readmeDiagramKeywords: ['quadrantChart'],
   },
   'quadrant-missing-y-axis': {
     defaultSeverity: 'warn',
+    description:
+      'A quadrantChart with data points but no `y-axis` label; default axis text hides chart intent',
     docsScope: 'quadrantChart',
     readmeDiagramKeywords: ['quadrantChart'],
   },
   'quadrant-duplicate-quadrant': {
     defaultSeverity: 'warn',
+    description:
+      'The same quadrant region (`quadrant-1`-`quadrant-4`) labeled more than once; Mermaid keeps only the last',
     docsScope: 'quadrantChart',
     readmeDiagramKeywords: ['quadrantChart'],
   },
   'c4-duplicate-id': {
     defaultSeverity: 'warn',
+    description:
+      'A C4 element or boundary id declared more than once; duplicate ids make relationships and styles ambiguous',
     docsScope: 'C4Context',
     readmeDiagramKeywords: ['C4Context'],
   },
   'c4-undefined-relationship-endpoint': {
     defaultSeverity: 'warn',
+    description: 'A C4 relationship whose source or target id is not declared',
     docsScope: 'C4Context',
     readmeDiagramKeywords: ['C4Context'],
   },
   'c4-undefined-element-style': {
     defaultSeverity: 'warn',
+    description:
+      'An `UpdateElementStyle` override that references an undeclared C4 element or boundary id',
     docsScope: 'C4Context',
     readmeDiagramKeywords: ['C4Context'],
   },
   'c4-undefined-relationship-style-endpoint': {
     defaultSeverity: 'warn',
+    description:
+      'An `UpdateRelStyle` override whose source or target id is not declared',
     docsScope: 'C4Context',
     readmeDiagramKeywords: ['C4Context'],
   },
   'wardley-undefined-component': {
     defaultSeverity: 'warn',
+    description:
+      'A `wardley-beta` link endpoint or `evolve` target naming a component that was never declared; Mermaid drops it silently',
     docsScope: 'wardley-beta',
     readmeDiagramKeywords: ['wardley-beta'],
   },
   'wardley-orphan-component': {
     defaultSeverity: 'off',
+    description:
+      'A `wardley-beta` component that no link, `evolve`, or pipeline references; renders as an isolated dot',
     docsScope: 'wardley-beta',
     readmeDiagramKeywords: ['wardley-beta'],
   },
   'wardley-no-components': {
     defaultSeverity: 'warn',
+    description:
+      'A `wardley-beta` with no `component` or `anchor` rows; parses but renders an empty map',
     docsScope: 'wardley-beta',
     readmeDiagramKeywords: ['wardley-beta'],
   },
   'wardley-mixed-coordinate-scale': {
     defaultSeverity: 'warn',
+    description:
+      'A `wardley-beta` mixing 0-1 decimal and 0-100 percentage coordinates; Mermaid reads each value independently, so one of them is misplaced',
     docsScope: 'wardley-beta',
     readmeDiagramKeywords: ['wardley-beta'],
   },
   'wardley-duplicate-component': {
     defaultSeverity: 'warn',
+    description:
+      'A `wardley-beta` component or anchor name declared more than once; Mermaid merges them into one node and the last coordinates win',
     docsScope: 'wardley-beta',
     readmeDiagramKeywords: ['wardley-beta'],
   },
   'eventmodeling-undefined-frame': {
     defaultSeverity: 'error',
+    description:
+      'An `eventmodeling` `->>` naming a frame id that no frame declares; Mermaid drops the relation silently and the arrow never renders',
     docsScope: 'eventmodeling',
     readmeDiagramKeywords: ['eventmodeling'],
   },
   'eventmodeling-duplicate-frame-id': {
     defaultSeverity: 'warn',
+    description:
+      'Two `eventmodeling` `tf`/`rf` frames sharing an id; Mermaid renders both and draws a duplicate arrow per matching frame',
     docsScope: 'eventmodeling',
     readmeDiagramKeywords: ['eventmodeling'],
   },
   'eventmodeling-invalid-flow': {
     defaultSeverity: 'warn',
+    description:
+      "An `eventmodeling` frame sourced from a type Mermaid's own validator forbids; the validator ships but never runs, so nothing else reports it",
     docsScope: 'eventmodeling',
     readmeDiagramKeywords: ['eventmodeling'],
   },
   'kanban-duplicate-column': {
     defaultSeverity: 'warn',
+    description:
+      'A `kanban` column whose id is already taken; against another column Mermaid also hands every card under either one to both, so cards render many times over and in the wrong column',
     docsScope: 'kanban',
     readmeDiagramKeywords: ['kanban'],
   },
   'kanban-duplicate-task-id': {
     defaultSeverity: 'warn',
+    description:
+      'A `kanban` card whose id is already taken by another card or a column; both render, but the document ends up with two elements carrying one DOM id',
     docsScope: 'kanban',
     readmeDiagramKeywords: ['kanban'],
   },
   'kanban-empty-column': {
     defaultSeverity: 'warn',
+    description:
+      'A `kanban` column with no cards; renders as a header over empty space',
     docsScope: 'kanban',
     readmeDiagramKeywords: ['kanban'],
   },
   'kanban-no-columns': {
     defaultSeverity: 'warn',
+    description:
+      'A `kanban` with no columns at all; parses but renders an empty diagram',
     docsScope: 'kanban',
     readmeDiagramKeywords: ['kanban'],
   },
   'venn-duplicate-set': {
     defaultSeverity: 'warn',
+    description:
+      'A `venn-beta` set declared twice; Mermaid adds a second circle coincident with the first rather than replacing it, and both draw the last label, so an earlier one never renders',
     docsScope: 'venn-beta',
     readmeDiagramKeywords: ['venn-beta'],
   },
   'venn-non-positive-size': {
     defaultSeverity: 'warn',
+    description:
+      'A `venn-beta` set or union with an explicit size of zero or less; a zero-sized set erases itself and every intersection over it, and a negative one distorts the layout, or throws out of it entirely for a `union`',
     docsScope: 'venn-beta',
     readmeDiagramKeywords: ['venn-beta'],
   },
   'venn-single-set': {
     defaultSeverity: 'warn',
+    description:
+      'A `venn-beta` diagram declaring one distinct set; it renders as a single circle, with nothing to intersect',
     docsScope: 'venn-beta',
     readmeDiagramKeywords: ['venn-beta'],
   },
   'venn-self-union': {
     defaultSeverity: 'warn',
+    description:
+      'A `venn-beta` `union` naming the same set twice; the list is never deduplicated, so the set is intersected with itself and draws a spurious extra region',
     docsScope: 'venn-beta',
     readmeDiagramKeywords: ['venn-beta'],
   },
   'venn-no-sets': {
     defaultSeverity: 'error',
+    description:
+      'A `venn-beta` diagram declaring no `set`; unlike the other no-data rules it does not render an empty frame — the renderer throws',
     docsScope: 'venn-beta',
     readmeDiagramKeywords: ['venn-beta'],
   },
   'venn-duplicate-union': {
     defaultSeverity: 'warn',
+    description:
+      'A `venn-beta` intersection declared twice; each list is sorted but never deduplicated, so `union B, A` collides with `union A, B` and a second region is drawn over the first',
     docsScope: 'venn-beta',
     readmeDiagramKeywords: ['venn-beta'],
   },
   'treeview-no-nodes': {
     defaultSeverity: 'warn',
+    description:
+      'A `treeView-beta` with no nodes; unlike the other indented types an empty body parses clean, and renders as an empty tree',
     docsScope: 'treeView-beta',
     readmeDiagramKeywords: ['treeView-beta'],
   },
   'treeview-duplicate-sibling': {
     defaultSeverity: 'warn',
+    description:
+      'Two `treeView-beta` nodes with the same label under one parent; compared after the trailing `/` and any annotations come off, so `a/` repeats `a`. Both render, so the tree draws a distinction it does not have',
     docsScope: 'treeView-beta',
     readmeDiagramKeywords: ['treeView-beta'],
   },
   'ishikawa-no-causes': {
     defaultSeverity: 'warn',
+    description:
+      'An `ishikawa-beta` problem with no categories under it; renders as the problem head above a zero-length spine',
     docsScope: 'ishikawa-beta',
     readmeDiagramKeywords: ['ishikawa-beta'],
   },
   'ishikawa-empty-category': {
     defaultSeverity: 'warn',
+    description:
+      'An `ishikawa-beta` category with no causes; its bone draws at a fifth of full length with nothing attached',
     docsScope: 'ishikawa-beta',
     readmeDiagramKeywords: ['ishikawa-beta'],
   },
   'ishikawa-deep-nesting': {
     defaultSeverity: 'off',
+    description:
+      'An `ishikawa-beta` node nested beyond five levels deep. Off by default because deep nesting is a matter of taste',
     docsScope: 'ishikawa-beta',
     readmeDiagramKeywords: ['ishikawa-beta'],
   },
   'ishikawa-duplicate-sibling': {
     defaultSeverity: 'warn',
+    description:
+      'Two `ishikawa-beta` nodes with identical text under one parent; the same cause renders twice',
     docsScope: 'ishikawa-beta',
     readmeDiagramKeywords: ['ishikawa-beta'],
   },
@@ -1096,6 +1290,8 @@ export const RULE_METADATA = {
   // README diagram keywords.
   'frontmatter-must-be-first': {
     defaultSeverity: 'error',
+    description:
+      'A `%%` comment or blank line before the YAML frontmatter; Mermaid parses it but the diagram fails to render',
     docsScope: 'all',
     readmeDiagramKeywords: [],
   },
@@ -1104,16 +1300,22 @@ export const RULE_METADATA = {
   // keywords — the README Diagram types table stays untouched.
   'suppression-unknown-rule': {
     defaultSeverity: 'warn',
+    description:
+      'A suppression directive naming a rule id that does not exist; the directive silently suppresses nothing',
     docsScope: 'all',
     readmeDiagramKeywords: [],
   },
   'suppression-unused': {
     defaultSeverity: 'warn',
+    description:
+      'A well-formed suppression directive that suppressed no finding; usually a stale directive left behind after a fix',
     docsScope: 'all',
     readmeDiagramKeywords: [],
   },
   'suppression-malformed': {
     defaultSeverity: 'warn',
+    description:
+      'A suppression directive with no reason, no rule ids, an `enable` closing nothing, or `mermaid` named at line scope',
     docsScope: 'all',
     readmeDiagramKeywords: [],
   },
@@ -1167,4 +1369,21 @@ export function resolveRules(
     return allOff;
   }
   return { ...RULE_DEFAULTS, ...(opts.rules ?? {}) };
+}
+
+/**
+ * Look up the default severity, scope, and rationale for a semantic rule —
+ * the data behind `mermaid-lint explain <rule-id>`.
+ *
+ * @param ruleId - A semantic rule id.
+ * @returns The rule's default severity, docs scope, and one-line description.
+ * @public
+ */
+export function explainRule(ruleId: RuleId): {
+  defaultSeverity: RuleSeverity;
+  docsScope: RuleDocsScope;
+  description: string;
+} {
+  const { defaultSeverity, docsScope, description } = RULE_METADATA[ruleId];
+  return { defaultSeverity, docsScope, description };
 }
