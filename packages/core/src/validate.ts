@@ -23,16 +23,34 @@ export interface ValidationError {
    * Human-readable error message.
    *
    * For a parser failure this is the *translated* text from `explainParseError`
-   * — it names the defect and cites no line at all, because the position is
-   * already carried structurally in {@link ValidationError.line}. So nothing in
-   * here needs body→file mapping; a caller printing it beside a file position
-   * may use it verbatim. {@link ValidationError.raw} is what carries mermaid's
-   * own citations, and is what any such mapping should act on.
+   * — it names the defect and cites no line, because the position is already
+   * carried structurally in {@link ValidationError.line}. So nothing in here
+   * needs body→file mapping; a caller printing it beside a file position may
+   * use it verbatim. {@link ValidationError.raw} is what carries mermaid's own
+   * citations, and is what any such mapping should act on.
+   *
+   * One exception, and it is mermaid's rather than ours: for failures a diagram
+   * *module* raises after parsing succeeds, the translation layer passes
+   * mermaid's own prose through byte for byte, because that prose is written
+   * for humans already and every transformation available would make it worse.
+   * A module is free to cite a line inside that sentence, and treeView-beta
+   * does — `Line 2: Unexpected indentation...`. Such a citation is neither
+   * mapped nor guaranteed to agree with {@link ValidationError.line}: it does
+   * not match `citationRe`, so nothing here ever touches it. See #190. For that
+   * family {@link ValidationError.raw} is byte-identical to this field, so a
+   * caller rendering both will print the same sentence twice.
    */
   message: string;
   /**
-   * mermaid's original message, verbatim except that every line number it cites
-   * has been mapped into body coordinates, matching {@link ValidationError.line}.
+   * mermaid's original message, verbatim except that every line number matching
+   * `citationRe` has been mapped into body coordinates, matching
+   * {@link ValidationError.line}.
+   *
+   * "Matching `citationRe`" is the whole of the guarantee: a module-raised
+   * error can word a citation in a shape that pattern does not recognize, and
+   * that number stays exactly as mermaid wrote it — see the note on
+   * {@link ValidationError.message}, which is byte-identical to this field for
+   * that family.
    *
    * Present only for parser failures — structural defects never reach a parser.
    * `blockToDiagnostics` maps these citations on to file coordinates when it
