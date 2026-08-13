@@ -70,6 +70,31 @@ describe('mermaid-lint CLI', () => {
     expect(r.stdout).toContain('Usage:');
   });
 
+  describe('explain', () => {
+    it('prints severity, scope, and description for a known rule id', () => {
+      const r = run(['explain', 'duplicate-ids'], '.');
+      expect(r.status).toBe(0);
+      expect(r.stdout).toContain('duplicate-ids');
+      expect(r.stdout).toContain('error');
+      expect(r.stdout).toContain('flowchart / graph');
+      expect(r.stdout).toContain(
+        'Same node id declared twice with conflicting labels; Mermaid silently drops one',
+      );
+    });
+
+    it('exits 2 for an unknown rule id', () => {
+      const r = run(['explain', 'not-a-real-rule'], '.');
+      expect(r.status).toBe(2);
+      expect(r.stderr).toContain('unknown rule id');
+    });
+
+    it('exits 2 when no rule id is given', () => {
+      const r = run(['explain'], '.');
+      expect(r.status).toBe(2);
+      expect(r.stderr).toContain('Usage: mermaid-lint explain');
+    });
+  });
+
   it('--quiet suppresses per-file progress', () => {
     const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
     writeFileSync(
