@@ -7,6 +7,7 @@ import {
   LINK_START_RE,
   blankQuoted,
   scanShapes,
+  shapeLabelSpan,
   withCloserCorrected,
   withCloserInserted,
 } from './shapes.js';
@@ -153,11 +154,15 @@ const TRAILING_END_RE = /end(\s*)$/;
 const SPACE_IN_ID_RE = /^(\s*)(\w+)\s+(\w+)(\s+-{1,2}>)/;
 
 /**
- * A `[...]` label holding an unquoted `(`. The text before the paren excludes
+ * A bracket pair holding an unquoted `(`. The text before the paren excludes
  * `(` so the two runs can never match the same characters — adjacent unbounded
  * quantifiers over overlapping classes are what `js/polynomial-redos` flags.
+ *
+ * This locates a *candidate* only. Which shape the pair belongs to, and hence
+ * where the label to quote actually starts and ends, is {@link shapeLabelSpan}'s
+ * question — see the rule.
  */
-const UNQUOTED_PAREN_LABEL_RE = /\[([^"'[\]()]*\([^"'[\]]*)\]/;
+const UNQUOTED_PAREN_LABEL_RE = /\[[^"'[\]()]*\([^"'[\]]*\]/;
 
 /**
  * Block keywords mermaid closes with `end`, partitioned by diagram type.
@@ -428,13 +433,29 @@ export const EXPLAIN_RULES: readonly ExplainRule[] = [
     id: 'flowchart-unquoted-paren',
     matches: (input) => expectsShapeCloser(input) && input.parsed.got === 'PS',
     confirm(sourceLine) {
-      const label = UNQUOTED_PAREN_LABEL_RE.exec(sourceLine);
-      if (label === null) return undefined;
-      const before = sourceLine.slice(0, label.index);
-      const after = sourceLine.slice(label.index + label[0].length);
+      const match = UNQUOTED_PAREN_LABEL_RE.exec(sourceLine);
+      if (match === null) return undefined;
+      // The bracket pair alone does not say which shape it belongs to, and this
+      // rule quotes a label rather than a stretch of delimiters. Anchoring on
+      // any `[` and any `]` read `A[[foo(] --> B` — half a subroutine opening —
+      // as a rectangle and answered with `A[["foo("] --> B`, which mermaid
+      // rejects. Declining there costs only Tier 2's generic wording.
+      const label = shapeLabelSpan(
+        sourceLine,
+        match.index,
+        match.index + match[0].length - 1,
+      );
+      if (label === undefined) return undefined;
+      const text = sourceLine.slice(label.start, label.end);
+      // The `(` the pattern found can turn out to belong to the shape rather
+      // than to the label: `A[(foo bar)]` is a cylinder, and its parens are its
+      // own. Quoting there would parse and still name a defect that is not one.
+      if (!text.includes('(')) return undefined;
+      const before = sourceLine.slice(0, label.start);
+      const after = sourceLine.slice(label.end);
       return {
         message: '`(` inside a label needs quoting',
-        suggestion: `${before}["${label[1]}"]${after}`,
+        suggestion: `${before}"${text}"${after}`,
       };
     },
   },

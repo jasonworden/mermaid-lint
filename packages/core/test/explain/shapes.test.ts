@@ -3,6 +3,7 @@ import {
   LINK_START_RE,
   blankQuoted,
   scanShapes,
+  shapeLabelSpan,
   withCloserCorrected,
   withCloserInserted,
 } from '../../src/explain/shapes.js';
@@ -207,6 +208,98 @@ describe('withCloserInserted', () => {
   it('leaves a slash alone when it does not open the shape', () => {
     expect(insert('  A["/x" --> B')).toBe('  A["/x"] --> B');
     expect(insert('  A[foo/ --> B')).toBe('  A[foo/] --> B');
+  });
+
+  // The `[` really was never closed, so the *message* is true — but the label
+  // needs quoting too, and mermaid rejects `A[init(config)]`. Closing the shape
+  // would only uncover the second defect.
+  it('declines when the label still holds a bare delimiter', () => {
+    expect(insert('  A[init(config) --> B[done]')).toBeUndefined();
+    expect(insert('  A[call foo(bar)')).toBeUndefined();
+    expect(insert('  A[a (b) c --> B')).toBeUndefined();
+    expect(insert('  A[a {b} c --> B')).toBeUndefined();
+  });
+
+  // mermaid quotes a label entirely or not at all, and blanking hides the
+  // difference: `A[a"b(c)"d]` comes out delimiter-free and is still rejected.
+  it('declines when a quote is not the whole label', () => {
+    expect(insert('  A[a"b(c)"d --> B')).toBeUndefined();
+    expect(insert('  A[x "y" z --> B')).toBeUndefined();
+    expect(insert('  A[ "foo" --> B')).toBeUndefined();
+  });
+
+  // Balance is not the bar here either: the inserted character has to complete
+  // the shape's own closing token. On `A[(x)` the `)` the author wrote is the
+  // head of the cylinder's `)]`, so one `]` finishes it.
+  it('completes a compound closing token the author half wrote', () => {
+    expect(insert('  A[(x) --> B')).toBe('  A[(x)] --> B');
+    expect(insert('  A[(Database)')).toBe('  A[(Database)]');
+    expect(insert('  A((x) --> B')).toBe('  A((x)) --> B');
+  });
+
+  // …and declines when it cannot: a subroutine closes with `]]`, a stadium with
+  // `])`, and one bracket spells neither.
+  it('declines when one closer cannot spell the shape', () => {
+    expect(insert('  A[[foo --> B')).toBeUndefined();
+    expect(insert('  A([foo --> B')).toBeUndefined();
+    expect(insert('  A[([foo --> B')).toBeUndefined();
+  });
+});
+
+describe('shapeLabelSpan', () => {
+  /**
+   * The same bracket pair `flowchart-unquoted-paren` locks onto, so these
+   * assertions are about the caller's real contract rather than a hand-picked
+   * index pair.
+   */
+  const PAREN_PAIR_RE = /\[[^"'[\]()]*\([^"'[\]]*\]/;
+
+  function label(line: string) {
+    const match = PAREN_PAIR_RE.exec(line);
+    if (match === null) return undefined;
+    const span = shapeLabelSpan(
+      line,
+      match.index,
+      match.index + match[0].length - 1,
+    );
+    return span && line.slice(span.start, span.end);
+  }
+
+  it('returns the label of a plain rectangle', () => {
+    expect(label('  A[call foo(bar)] --> B')).toBe('call foo(bar)');
+    expect(label('  A[foo(] --> B')).toBe('foo(');
+  });
+
+  // The pair the pattern found is the tail of a compound opening plus a bare
+  // closer, which is a shape mermaid does not have.
+  it('declines on half of a compound opening', () => {
+    expect(label('  A[[foo(] --> B')).toBeUndefined();
+    expect(label('  A([foo(] --> B')).toBeUndefined();
+    expect(label('  A[(foo(] --> B')).toBeUndefined();
+  });
+
+  // …but a compound shape that is whole has a label, and it is the text between
+  // the two tokens rather than between the two brackets the pattern matched.
+  it('returns the label of a whole compound shape', () => {
+    expect(label('  A([init(config)]) --> B')).toBe('init(config)');
+    expect(label('  A[[init(config)]] --> B')).toBe('init(config)');
+    expect(label('  A[(init(config))] --> B')).toBe('init(config)');
+  });
+
+  // The slash belongs to the token, not to the label, and this module does not
+  // spell the asymmetric shapes.
+  it('declines on an asymmetric shape', () => {
+    expect(label('  A[/foo(bar)/] --> B')).toBeUndefined();
+    expect(label('  A[\\foo(bar)\\] --> B')).toBeUndefined();
+  });
+
+  // A further closer means the line closes more than this one shape.
+  it('declines when a closer follows the shape', () => {
+    expect(label('  A[foo(bar)]] --> B')).toBeUndefined();
+  });
+
+  it('declines when the pair is inside a quoted label', () => {
+    expect(label('  A["x[y(z)]" --> B')).toBeUndefined();
   });
 });
 

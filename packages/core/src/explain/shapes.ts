@@ -30,6 +30,8 @@
  *
  * Deliberately written `-{1,2}>` rather than with a literal two-dash arrow: a
  * CodeQL rule fails CI on the literal form.
+ *
+ * @internal
  */
 export const LINK_START_RE =
   /(?:-{1,2}|={1,2})(?:>|[ox])|-\.-{0,2}>|-{3,}|={3,}|-\.-/;
@@ -51,6 +53,8 @@ const QUOTED_SEGMENT_RE = /("[^"]*")/;
  *
  * An unterminated quote leaves the line untouched, which is what makes the
  * shape rules decline on it rather than blame a bracket.
+ *
+ * @internal
  */
 export function blankQuoted(line: string): string {
   return line
@@ -148,6 +152,7 @@ function shapeOpeningAt(
   return blanked.slice(start, end);
 }
 
+/** The one unbalanced node-shape delimiter a line was blamed for. @internal */
 export interface ShapeDefect {
   kind: 'unclosed' | 'mismatched';
   opener: string;
@@ -182,6 +187,8 @@ export interface ShapeDefect {
  * A surplus closer with nothing open is not a defect: on `A[Start]] --> B` the
  * pair really does agree and the extra `]` is the surplus, so both shape rules
  * stand down rather than name delimiters that match.
+ *
+ * @internal
  */
 export function scanShapes(line: string): ShapeDefect | undefined {
   const blanked = blankQuoted(line);
@@ -256,6 +263,38 @@ function ifBalanced(candidate: string): string | undefined {
  */
 const SLASH_SIDE = /[/\\]/;
 
+const BARE_DELIMITER_RE = /[[\](){}]/;
+const WHOLLY_QUOTED_RE = /^"[^"]*"\s*$/;
+
+/**
+ * Whether `[start, end)` of `line` is a label mermaid takes as it stands.
+ *
+ * Both rewrites below repair delimiters *around* a label, which is only worth
+ * offering if the label itself is one mermaid would have accepted — otherwise
+ * the repair merely uncovers a second defect and the suggestion does not parse.
+ * Two ways it would not, each of which shipped a non-parsing suggestion:
+ *
+ * - **A bare delimiter.** `A[foo (bar) baz]` is not a label mermaid takes with
+ *   the parens unquoted, and neither is `A[init(config)]`. Quoted delimiters are
+ *   blanked before this runs, so a properly quoted label passes.
+ * - **A quote that is not the whole label.** mermaid quotes a label entirely or
+ *   not at all: `A["a --> b"]` is fine, while `A[a"b(c)"d]`, `A[x "y" z]` and
+ *   even `A[ "foo"]` — the quote has to open the label, though trailing space
+ *   after it is allowed — are all rejected. Blanking hides that difference:
+ *   every one of them comes out delimiter-free, so the quote half of the
+ *   question is asked of the raw text.
+ */
+function isPlainLabel(
+  line: string,
+  blanked: string,
+  start: number,
+  end: number,
+): boolean {
+  if (BARE_DELIMITER_RE.test(blanked.slice(start, end))) return false;
+  const raw = line.slice(start, end);
+  return !raw.includes('"') || WHOLLY_QUOTED_RE.test(raw);
+}
+
 /**
  * Whether inserting the plain closer would finish the shape `defect.opener`
  * opens, given the label ends at `labelEnd`.
@@ -301,9 +340,22 @@ function closesAsymmetricShape(
  * `C[]` is no better than `C[`), or the shape is an asymmetric one this cannot
  * finish — see `SLASH_SIDE`.
  *
+ * Balance is not enough on its own, exactly as it is not for
+ * `withCloserCorrected`: it is generic nesting, and a mermaid shape is a token.
+ * So the same two further questions are asked here. **The token that comes out
+ * has to be the shape's own closing token** — on `A[(x)` the `)` the author
+ * already wrote is the head of the cylinder's `)]`, and the inserted `]`
+ * completes it, while on `A[[foo` one `]` spells nothing. **And the label has to
+ * be one mermaid takes** (`isPlainLabel`): `A[init(config) --> B[done]` really
+ * was opened and never closed, so the message is true, but
+ * `A[init(config)] --> B[done]` is not a line mermaid accepts, and shipping a
+ * suggestion that does not parse is the one thing this layer forbids.
+ *
  * The link is located in the *blanked* line. Searching the raw line let an
  * arrow inside a quoted label choose the cut point, splitting the label and
  * producing a suggestion mermaid rejects.
+ *
+ * @internal
  */
 export function withCloserInserted(
   line: string,
@@ -312,6 +364,7 @@ export function withCloserInserted(
   if (defect.kind !== 'unclosed') return undefined;
   const closer = CLOSER_FOR.get(defect.opener);
   if (closer === undefined) return undefined;
+  if (!SHAPE_OPENINGS.has(defect.openerRun)) return undefined;
 
   const blanked = blankQuoted(line);
   const after = blanked.slice(defect.openerIndex + 1);
@@ -322,10 +375,76 @@ export function withCloserInserted(
   if (!closesAsymmetricShape(blanked, defect, head.length - 1))
     return undefined;
 
+  // Where the closing token would then start, and where the label therefore
+  // ends. The opener run is taken from the text for the same reason
+  // `shapeOpeningAt` takes it from there: a compound opening can be half closed
+  // already, as `A[(x)`'s `(` is.
+  const closing = closingFor(defect.openerRun);
+  const closeStart = head.length + 1 - closing.length;
+  const [, openEnd] = runAround(blanked, defect.openerIndex, isOpener);
+  if (closeStart <= openEnd) return undefined;
+  if (`${blanked.slice(closeStart, head.length)}${closer}` !== closing)
+    return undefined;
+  if (!isPlainLabel(line, blanked, openEnd, closeStart)) return undefined;
+
   const tail = line.slice(cut);
   return ifBalanced(
     tail.length === 0 ? `${head}${closer}` : `${head}${closer} ${tail}`,
   );
+}
+
+/**
+ * The label between a bracket pair, when those two brackets really are one
+ * whole mermaid shape — else `undefined`.
+ *
+ * A pair found by pattern-matching says nothing on its own about which shape it
+ * belongs to, because a shape is a *token*: on `A[[foo(]` the `[`…`]` a
+ * `\[…\]` pattern locks onto is the tail of a subroutine opening plus a bare
+ * `]`, and quoting "the label" between them yields `A[["foo("]`, which mermaid
+ * rejects. So the opener run has to be a shape mermaid has, and the closing
+ * token has to be that shape's own.
+ *
+ * The closer is located by *spelling*, not by taking the run around it, because
+ * this is the one caller whose label is expected to hold bare delimiters:
+ * on `A[call foo(bar)]` the closer run is `)]`, and reading that as the token
+ * would reject the plainest rectangle there is. Nor is the caller's `]` the
+ * head of the token — a cylinder closes with `)]`, where the `]` comes last —
+ * so the token is tried at each offset that still covers it.
+ *
+ * Excluded on top of that: a further closer straight after the token, which
+ * means the line closes more than this one shape (`A[foo(bar)]]`), and the
+ * asymmetric shapes, whose `[/…/]` and `[\…\]` spelling puts a slash where this
+ * would otherwise quote it into the label.
+ *
+ * Everything is read from the blanked line, so a delimiter inside a quoted
+ * label can neither pad a token nor split one, and both bounds fall inside the
+ * caller's own pair — a span this returns is never wider than what was matched.
+ *
+ * @internal
+ */
+export function shapeLabelSpan(
+  line: string,
+  openerIndex: number,
+  closerIndex: number,
+): { start: number; end: number } | undefined {
+  const blanked = blankQuoted(line);
+  const [openStart, openEnd] = runAround(blanked, openerIndex, isOpener);
+  const opening = blanked.slice(openStart, openEnd);
+  if (!SHAPE_OPENINGS.has(opening)) return undefined;
+  if (SLASH_SIDE.test(blanked[openEnd] ?? '')) return undefined;
+
+  const closing = closingFor(opening);
+  for (
+    let start = Math.max(closerIndex - closing.length + 1, openEnd + 1);
+    start <= closerIndex;
+    start++
+  ) {
+    if (blanked.slice(start, start + closing.length) !== closing) continue;
+    if (isCloser(blanked[start + closing.length] ?? '')) return undefined;
+    if (SLASH_SIDE.test(blanked[start - 1] ?? '')) return undefined;
+    return { start: openEnd, end: start };
+  }
+  return undefined;
 }
 
 /**
@@ -356,6 +475,8 @@ export function withCloserInserted(
  * defect elsewhere on it is still a second defect, and `A[foo} bar --> B`
  * corrects to `A[foo] bar --> B`, where the stray `bar` was never this rule's to
  * see — but every way of getting the *brackets* wrong is ruled out.
+ *
+ * @internal
  */
 export function withCloserCorrected(
   line: string,
@@ -386,9 +507,8 @@ export function withCloserCorrected(
   // Delimiters left in the label mean the two tokens just matched are not the
   // whole shape after all: on `A[foo (bar) baz) --> B` the `[` and the `)`
   // mirror as a rectangle, but `A[foo (bar) baz]` is a label mermaid will not
-  // take with the parens unquoted. Quoted brackets are blanked, so a properly
-  // quoted label passes.
-  if (/[[\](){}]/.test(blanked.slice(openEnd, closeStart))) return undefined;
+  // take with the parens unquoted. See `isPlainLabel` for the quote half.
+  if (!isPlainLabel(line, blanked, openEnd, closeStart)) return undefined;
 
   return ifBalanced(candidate);
 }

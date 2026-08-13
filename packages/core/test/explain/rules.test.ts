@@ -598,7 +598,18 @@ describe('suggestions round-trip through mermaid', () => {
     // the `]` is genuinely the only missing character.
     'flowchart-unclosed-shape (asymmetric shape)':
       'flowchart LR\n  A[/foo/ --> B',
+    // A compound shape needs quoting like any other, and the label to quote is
+    // the text between its two *tokens* — not between the `[` and `]` the
+    // pattern happens to lock onto.
+    'flowchart-unclosed-shape (compound closer half written)':
+      'flowchart LR\n  A[(Database) --> B',
     'flowchart-unquoted-paren': 'flowchart LR\n  A[call foo(bar)] --> B',
+    'flowchart-unquoted-paren (stadium)':
+      'flowchart LR\n  A([init(config)]) --> B',
+    'flowchart-unquoted-paren (subroutine)':
+      'flowchart LR\n  A[[init(config)]] --> B',
+    'flowchart-unquoted-paren (cylinder)':
+      'flowchart LR\n  A[(init(config))] --> B',
     'flowchart-reserved-end': 'flowchart LR\n  A --> end',
   };
 
@@ -633,6 +644,29 @@ describe('suggestions round-trip through mermaid', () => {
     expect(got?.id).toBe('flowchart-unclosed-shape');
     expect(got?.suggestion).toBeUndefined();
   });
+
+  // The `[` really was never closed, so the message stands — but the label
+  // needs quoting too, and `A[init(config)] --> B[done]` is not a line mermaid
+  // takes. Closing the shape would only uncover the second defect.
+  it.each([
+    'flowchart LR\n  A[init(config) --> B[done]',
+    'flowchart LR\n  A[a (b) c --> B',
+    'flowchart LR\n  A[a {b} c --> B',
+    // mermaid quotes a label entirely or not at all, and blanking hides the
+    // difference: `A[a"b(c)"d]` comes out delimiter-free and is still rejected.
+    'flowchart LR\n  A[a"b(c)"d --> B',
+    'flowchart LR\n  A[x "y" z --> B',
+  ])(
+    'offers no suggestion when the label itself needs quoting %j',
+    async (body) => {
+      const before = await validateWithMermaidJS(body);
+      expect(before.ok, 'fixture should not parse').toBe(false);
+      const error = before.ok ? undefined : before.error;
+      const got = explain(error?.raw ?? '', body, error?.line);
+      expect(got?.id).toBe('flowchart-unclosed-shape');
+      expect(got?.suggestion).toBeUndefined();
+    },
+  );
 
   // Same for an asymmetric shape (`[/…/]`, `[\…\]`) with no closing slash: the
   // bare `]` this rule inserts spells no shape at all, and mermaid rejected the
@@ -797,6 +831,38 @@ describe('regressions', () => {
     );
     expect(got?.id).not.toBe('block-missing-end');
   });
+
+  // `[[` opens a subroutine, `([` a stadium, `[(` a cylinder, `[/` and `[\` the
+  // asymmetric shapes. Anchored on any `[` and any `]`, the paren rule read half
+  // of one of those tokens as a rectangle: it named a defect that is not the
+  // one there *and* offered `A[["foo("] --> B`, which mermaid rejects.
+  it.each([
+    'flowchart LR\n  A[[foo(] --> B',
+    'flowchart LR\n  A([foo(] --> B',
+    'flowchart LR\n  A[(foo(] --> B',
+    // The asymmetric shapes spell their opener with a slash, which is part of
+    // the token: `A["/foo(bar)/"] --> B` parses and is a different node.
+    'flowchart LR\n  A[/foo(bar)/] --> B',
+    'flowchart LR\n  A[\\foo(bar)\\] --> B',
+  ])(
+    'does not read half a compound shape opening as a label %j',
+    async (body) => {
+      const result = await validateWithMermaidJS(body);
+      expect(result.ok, `fixture should not parse: ${body}`).toBe(false);
+      const error = result.ok ? undefined : result.error;
+      // The signature really does reach the rule, so only `confirm` stands
+      // between the author and a wrong message.
+      expectSignatureFires(
+        'flowchart-unquoted-paren',
+        error?.raw ?? '',
+        body,
+        error?.line,
+      );
+      expect(explain(error?.raw ?? '', body, error?.line)?.id).not.toBe(
+        'flowchart-unquoted-paren',
+      );
+    },
+  );
 
   it.each(['break', 'par_over'])(
     'reports an unclosed `%s` block',
