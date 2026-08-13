@@ -424,19 +424,33 @@ function printTypeDistribution(types: Record<string, number>): void {
   }
 }
 
-function printExplainUsage(): void {
-  process.stderr.write(`Usage: mermaid-lint explain <rule-id>
+function printExplainUsage(out: NodeJS.WritableStream = process.stderr): void {
+  out.write(`Usage: mermaid-lint explain <rule-id>
 
   rule-id            A semantic rule id, e.g. duplicate-ids, no-self-loop.
-                      See docs/semantic-rules.md for the full rule list.
+                     See docs/semantic-rules.md for the full rule list.
 `);
 }
 
-function runExplain(ruleArg: string | undefined): number {
-  if (!ruleArg) {
-    printExplainUsage();
+function formatRuleDescription(desc: string): string {
+  return desc.replace(/`([^`]+)`/g, (_match, code) => chalk.cyan(code));
+}
+
+function runExplain(args: string[]): number {
+  if (args.length === 1 && (args[0] === '--help' || args[0] === '-h')) {
+    printExplainUsage(process.stdout);
+    return 0;
+  }
+  if (args.length === 0) {
+    printExplainUsage(process.stderr);
     return 2;
   }
+  if (args.length > 1) {
+    process.stderr.write(`error: unexpected argument "${args[1]}"\n`);
+    printExplainUsage(process.stderr);
+    return 2;
+  }
+  const ruleArg = args[0];
   if (!isRuleId(ruleArg)) {
     process.stderr.write(
       `error: unknown rule id "${ruleArg}"\nSee docs/semantic-rules.md or README.md for the full rule list.\n`,
@@ -445,14 +459,14 @@ function runExplain(ruleArg: string | undefined): number {
   }
   const { defaultSeverity, docsScope, description } = explainRule(ruleArg);
   process.stdout.write(
-    `${chalk.bold(ruleArg)} (${defaultSeverity}, ${docsScope})\n\n${description}.\n\nConfigure: rules: { "${ruleArg}": "off" | "warn" | "error" }\n`,
+    `${chalk.bold(ruleArg)} (${defaultSeverity}, ${docsScope})\n\n${formatRuleDescription(description)}.\n\nConfigure: rules: { "${ruleArg}": "off" | "warn" | "error" }\n`,
   );
   return 0;
 }
 
 async function main(argv: string[]): Promise<number> {
   if (argv[0] === 'explain') {
-    return runExplain(argv[1]);
+    return runExplain(argv.slice(1));
   }
   const args = parseArgs(argv);
   if (args.help) {

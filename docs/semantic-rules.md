@@ -19,6 +19,10 @@ default to `error`, because none leaves a judgment call to the reader:
 
 ## Rule Reference
 
+Descriptions below match `mermaid-lint explain <rule-id>`. `RULE_METADATA` in
+`packages/core/src/rules.ts` supplies them. The
+`packages/core/test/rule-docs.test.ts` test verifies synchronization.
+
 | Rule | Default | Flags | Scope |
 |---|---|---|---|
 | `duplicate-ids` | `error` | Same node id declared twice with conflicting labels; Mermaid silently drops one | flowchart / graph |

@@ -28,7 +28,7 @@ npx mermaid-lint --strict               # treat semantic warnings as errors
 npx mermaid-lint --no-semantic          # skip semantic checks
 npx mermaid-lint --fix                  # autofix mechanical issues
 npx mermaid-lint --fix "docs/**/*.md"   # autofix only matching files
-npx mermaid-lint explain <rule-id>      # print a rule's default severity, scope, and rationale
+npx mermaid-lint explain no-self-loop   # print a rule's default severity, scope, and rationale
 ```
 
 ## Discovery

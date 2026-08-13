@@ -82,6 +82,40 @@ describe('mermaid-lint CLI', () => {
       );
     });
 
+    it('renders inline code spans without literal markdown backticks', () => {
+      const r = run(['explain', 'no-self-loop'], '.');
+      expect(r.status).toBe(0);
+      expect(r.stdout).toContain('A --> A');
+      expect(r.stdout).not.toContain('`A --> A`');
+    });
+
+    for (const helpFlag of ['--help', '-h']) {
+      it(`prints explain usage on stdout and exits 0 for ${helpFlag}`, () => {
+        const r = run(['explain', helpFlag], '.');
+        expect(r.status).toBe(0);
+        expect(r.stdout).toContain('Usage: mermaid-lint explain <rule-id>');
+        expect(r.stderr).toBe('');
+      });
+    }
+
+    it('exits 2 when trailing extra arguments are passed', () => {
+      const r = run(['explain', 'no-self-loop', 'extra-junk'], '.');
+      expect(r.status).toBe(2);
+      expect(r.stderr).toContain('error: unexpected argument "extra-junk"');
+      expect(r.stderr).toContain('Usage: mermaid-lint explain <rule-id>');
+      expect(r.stdout).toBe('');
+    });
+
+    for (const helpFlag of ['--help', '-h']) {
+      it(`rejects ${helpFlag} when it follows a rule id`, () => {
+        const r = run(['explain', 'no-self-loop', helpFlag], '.');
+        expect(r.status).toBe(2);
+        expect(r.stderr).toContain(`error: unexpected argument "${helpFlag}"`);
+        expect(r.stderr).toContain('Usage: mermaid-lint explain <rule-id>');
+        expect(r.stdout).toBe('');
+      });
+    }
+
     it('exits 2 for an unknown rule id', () => {
       const r = run(['explain', 'not-a-real-rule'], '.');
       expect(r.status).toBe(2);
