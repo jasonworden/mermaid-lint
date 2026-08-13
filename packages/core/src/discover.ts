@@ -113,7 +113,7 @@ function discoverAll(root: string, allowed: Set<string>): string[] {
     .filter((e) => e.isFile() && hasExt(e.name, allowed))
     .map((e) => join(e.parentPath ?? e.path, e.name))
     .filter((p) => {
-      const parts = p.split('/');
+      const parts = p.split(/[/\\]/);
       return !parts.includes('node_modules') && !parts.includes('.git');
     });
 }

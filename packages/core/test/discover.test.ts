@@ -36,6 +36,16 @@ describe('discoverFiles', () => {
     expect(result.some((p) => p.includes('node_modules'))).toBe(false);
   });
 
+  it('skips .git directory with all:true', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
+    writeFileSync(join(tmp, 'real.md'), '# real');
+    const gitDir = join(tmp, '.git');
+    mkdirSync(gitDir);
+    writeFileSync(join(gitDir, 'HEAD.md'), '# git file');
+    const result = discoverFiles({ root: tmp, all: true });
+    expect(result.some((p) => p.includes('.git'))).toBe(false);
+  });
+
   it('returns empty array when git ls-files fails (not a git repo)', () => {
     const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
     const result = discoverFiles({ root: tmp });
