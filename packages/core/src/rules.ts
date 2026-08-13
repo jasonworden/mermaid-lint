@@ -606,6 +606,19 @@ export interface RuleMetadata {
  * non-advisory rules: a diagram whose frontmatter is preceded by anything does
  * not render at all, so there is no judgment call to defer to the user.
  *
+ * `click-target-not-found` defaults to `off`, joining `no-orphan-nodes`,
+ * `prefer-explicit-participants`, `er-standalone-entity`, and
+ * `wardley-orphan-component` as opt-in due to false-positive risk: mermaid
+ * resolves a click href relative to the *rendered page URL*, not the source
+ * file on disk, so "no file next to the diagram source" is a heuristic, not
+ * the real semantics. An extensionless route (`click A "./architecture"`, the
+ * normal shape of a Docusaurus/MkDocs page link), a query string
+ * (`click A "./x.md?plain=1"`, a valid GitHub blob-view link even though
+ * `x.md` exists), or a URL-encoded space (`click A "./my%20file.md"` where
+ * `my file.md` exists) all read as broken to this heuristic while being
+ * perfectly valid links — opt in where the docs site is known to mirror the
+ * source tree file-for-file.
+ *
  * @internal
  */
 export const RULE_METADATA = {
@@ -1324,7 +1337,7 @@ export const RULE_METADATA = {
     readmeDiagramKeywords: [],
   },
   'click-target-not-found': {
-    defaultSeverity: 'warn',
+    defaultSeverity: 'off',
     description:
       'A `click` statement whose target is a local relative file path that does not exist relative to the containing file',
     docsScope: 'flowchart / graph / gantt',

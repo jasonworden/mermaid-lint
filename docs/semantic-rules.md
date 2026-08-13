@@ -121,7 +121,7 @@ default to `error`, because none leaves a judgment call to the reader:
 | `suppression-unknown-rule` | `warn` | A suppression directive naming a rule id that does not exist; the directive silently suppresses nothing | all |
 | `suppression-unused` | `warn` | A well-formed suppression directive that suppressed no finding; usually a stale directive left behind after a fix | all |
 | `suppression-malformed` | `warn` | A suppression directive with no reason, no rule ids, an `enable` closing nothing, or `mermaid` named at line scope | all |
-| `click-target-not-found` | `warn` | A `click` statement whose target is a local relative file path that does not exist relative to the containing file | flowchart / graph / gantt |
+| `click-target-not-found` | `off` | A `click` statement whose target is a local relative file path that does not exist relative to the containing file | flowchart / graph / gantt |
 
 ## Example Output
 

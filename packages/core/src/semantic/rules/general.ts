@@ -111,10 +111,13 @@ const URI_SCHEME_RE = /^[a-zA-Z][a-zA-Z0-9+.-]*:/;
  * of #185: local file targets only — no anchor-fragment validation (#186)
  * and no remote-URL checks (network in a linter means CI flakiness).
  *
- * `appliesTo` is restricted to `flowchart`/`graph`/`gantt` — the two diagram
- * types where this repo has confirmed `click` is part of the grammar
- * (`edges.ts`'s `SKIP_KEYWORDS` and the gantt task-line regex both carve it
- * out specifically for these).
+ * `appliesTo` is deliberately narrowed to `flowchart`/`graph`/`gantt` — the
+ * two diagram families this repo's own code already had to special-case for
+ * `click` (`edges.ts`'s `SKIP_KEYWORDS` and the gantt task-line regex both
+ * carve it out specifically for these). This is a Tier-1 scope choice, not a
+ * claim that `click` is unsupported elsewhere: mermaid also accepts
+ * `click X href "..."` in `classDiagram` and `stateDiagram-v2`. Covering
+ * those is a known follow-up, not part of this rule.
  *
  * Only runs when `block.path` exists on disk: `<stdin>` (CLI stdin mode) and
  * other virtual paths have no real containing directory to resolve a
@@ -144,6 +147,8 @@ export const clickTargetNotFound: Rule = {
       const filePart = target.split('#')[0];
       if (filePart === '') continue; // pure same-page anchor
 
+      // Tier 1 doesn't distinguish file from directory: a same-named
+      // directory counts as "exists" here, same as a file would.
       const resolved = resolve(dirname(block.path), filePart);
       if (existsSync(resolved)) continue;
 
