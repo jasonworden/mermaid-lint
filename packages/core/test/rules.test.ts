@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   ALL_RULE_IDS,
   RULE_DEFAULTS,
+  explainRule,
+  isRuleId,
   isRuleSeverity,
   resolveRules,
 } from '../src/rules.js';
@@ -16,6 +18,33 @@ describe('isRuleSeverity', () => {
   it('rejects anything else', () => {
     for (const v of ['warning', 'ERROR', '', 0, null, undefined, {}]) {
       expect(isRuleSeverity(v)).toBe(false);
+    }
+  });
+});
+
+describe('isRuleId', () => {
+  it('accepts every known rule id', () => {
+    for (const id of ALL_RULE_IDS) {
+      expect(isRuleId(id)).toBe(true);
+    }
+  });
+
+  it('rejects unknown rule ids', () => {
+    for (const v of ['not-a-real-rule', '', 0, null, undefined, {}]) {
+      expect(isRuleId(v)).toBe(false);
+    }
+  });
+
+  it('is case-sensitive', () => {
+    expect(isRuleId('Duplicate-Ids')).toBe(false);
+    expect(isRuleId('duplicate-ids')).toBe(true);
+  });
+
+  it('narrows so explainRule can be called without a cast', () => {
+    const candidate: unknown = 'duplicate-ids';
+    expect(isRuleId(candidate)).toBe(true);
+    if (isRuleId(candidate)) {
+      expect(explainRule(candidate).defaultSeverity).toBe('error');
     }
   });
 });

@@ -53,6 +53,7 @@ npm install @mermaid-lint/core
 | `RULE_DEFAULTS` | `ResolvedRules` | The default severity for every rule. |
 | `ALL_RULE_IDS` | `RuleId[]` | Every known rule id. |
 | `isRuleSeverity` | `(value) => value is RuleSeverity` | Type guard for `'off' \| 'warn' \| 'error'`. |
+| `isRuleId` | `(value) => value is RuleId` | Type guard for a known rule id; narrow untrusted input before calling `explainRule`. |
 | `explainRule` | `(ruleId: RuleId) => { defaultSeverity, docsScope, description }` | Look up a semantic rule's default severity, docs scope, and one-line description — the data behind `mermaid-lint explain <rule-id>`. |
 | `RuleId` | `type` | Union of rule ids (`'duplicate-ids' \| 'no-self-loop' \| …`). |
 | `RuleSeverity` | `type` | `'off' \| 'warn' \| 'error'`. |

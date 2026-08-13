@@ -1376,6 +1376,22 @@ export function isRuleSeverity(value: unknown): value is RuleSeverity {
 }
 
 /**
+ * Type guard for a {@link RuleId} string, for validating rule ids from
+ * untrusted input (CLI args, config files) before calling {@link explainRule}
+ * or indexing rule-keyed data.
+ *
+ * @param value - The value to test.
+ * @returns `true` if `value` is a known rule id.
+ * @public
+ */
+export function isRuleId(value: unknown): value is RuleId {
+  return (
+    typeof value === 'string' &&
+    (ALL_RULE_IDS as readonly string[]).includes(value)
+  );
+}
+
+/**
  * Resolve user configuration into a concrete severity for every rule.
  *
  * - `semantic: false` is a hard override that disables every rule (it backs the
