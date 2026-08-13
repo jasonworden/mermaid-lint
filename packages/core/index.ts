@@ -12,12 +12,14 @@ export { checkSemantics } from './src/semantic/index.js';
 export {
   ALL_RULE_IDS,
   RULE_DEFAULTS,
+  explainRule,
   isRuleSeverity,
   resolveRules,
 } from './src/rules.js';
 export type {
   EmittedSeverity,
   ResolvedRules,
+  RuleDocsScope,
   RuleId,
   RuleSeverity,
   RulesConfig,

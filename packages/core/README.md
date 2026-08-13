@@ -53,10 +53,12 @@ npm install @mermaid-lint/core
 | `RULE_DEFAULTS` | `ResolvedRules` | The default severity for every rule. |
 | `ALL_RULE_IDS` | `RuleId[]` | Every known rule id. |
 | `isRuleSeverity` | `(value) => value is RuleSeverity` | Type guard for `'off' \| 'warn' \| 'error'`. |
+| `explainRule` | `(ruleId: RuleId) => { defaultSeverity, docsScope, description }` | Look up a semantic rule's default severity, docs scope, and one-line description — the data behind `mermaid-lint explain <rule-id>`. |
 | `RuleId` | `type` | Union of rule ids (`'duplicate-ids' \| 'no-self-loop' \| …`). |
 | `RuleSeverity` | `type` | `'off' \| 'warn' \| 'error'`. |
 | `RulesConfig` | `type` | `Partial<Record<RuleId, RuleSeverity>>` — user overrides. |
 | `ResolvedRules` | `type` | `Record<RuleId, RuleSeverity>` — a severity for every rule. |
+| `RuleDocsScope` | `type` | A rule's documentation scope — the diagram type(s) it applies to, or `'all'` — matching the Scope column in docs/semantic-rules.md's Rule Reference table. |
 | `EmittedSeverity` | `type` | `'warn' \| 'error'` — the severities a finding can carry. |
 
 ### Diagnostics adapter

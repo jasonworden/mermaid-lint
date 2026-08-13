@@ -105,6 +105,9 @@ describe('semantic rule documentation coverage', () => {
         `\`${metadata.defaultSeverity}\``,
       );
       expect(row.Scope, `${ruleId} docs scope`).toBe(metadata.docsScope);
+      expect(row.Flags, `${ruleId} docs description`).toBe(
+        metadata.description,
+      );
     }
   });
 

@@ -3,11 +3,14 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import {
   ALL_FENCE_MARKERS,
+  ALL_RULE_IDS,
   type FenceMarker,
   type ResolvedRules,
+  type RuleId,
   SYNTAX_RULE_ID,
   blockToDiagnostics,
   discoverFiles,
+  explainRule,
   extractMermaidBlocks,
   fixText,
   isFenceMarker,
@@ -169,9 +172,11 @@ function expandGlobs(paths: string[]): string[] {
 
 function printHelp(): void {
   process.stdout.write(`Usage: mermaid-lint [--all] [--quiet] [--strict] [--no-semantic] [--no-gitignore] [--include <glob>] [--exclude <glob>] [--ext <list>] [--format text|json] [paths...] [-]
+       mermaid-lint explain <rule-id>
 
   paths              Files or glob patterns to validate. Overrides default discovery.
   -                  Read from stdin (pipe: cat file.mmd | mermaid-lint -).
+  explain <rule-id>  Print a rule's default severity, scope, and rationale.
   (no args)          Default: git-tracked *.md / *.mdx / *.markdown / *.mmd files.
   --all              Scan every supported file on disk; skips node_modules/.
   --no-gitignore     Scan filesystem instead of git-tracked files; finds gitignored docs.
@@ -420,7 +425,38 @@ function printTypeDistribution(types: Record<string, number>): void {
   }
 }
 
+function printExplainUsage(): void {
+  process.stderr.write(`Usage: mermaid-lint explain <rule-id>
+
+  rule-id            A semantic rule id, e.g. duplicate-ids, no-self-loop.
+                      See docs/semantic-rules.md for the full rule list.
+`);
+}
+
+function runExplain(ruleArg: string | undefined): number {
+  if (!ruleArg) {
+    printExplainUsage();
+    return 2;
+  }
+  if (!(ALL_RULE_IDS as readonly string[]).includes(ruleArg)) {
+    process.stderr.write(
+      `error: unknown rule id "${ruleArg}"\nSee docs/semantic-rules.md or README.md for the full rule list.\n`,
+    );
+    return 2;
+  }
+  const { defaultSeverity, docsScope, description } = explainRule(
+    ruleArg as RuleId,
+  );
+  process.stdout.write(
+    `${chalk.bold(ruleArg)} (${defaultSeverity}, ${docsScope})\n\n${description}.\n\nConfigure: rules: { "${ruleArg}": "off" | "warn" | "error" }\n`,
+  );
+  return 0;
+}
+
 async function main(argv: string[]): Promise<number> {
+  if (argv[0] === 'explain') {
+    return runExplain(argv[1]);
+  }
   const args = parseArgs(argv);
   if (args.help) {
     printHelp();

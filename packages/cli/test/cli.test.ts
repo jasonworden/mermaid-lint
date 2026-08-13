@@ -70,6 +70,31 @@ describe('mermaid-lint CLI', () => {
     expect(r.stdout).toContain('Usage:');
   });
 
+  describe('explain', () => {
+    it('prints severity, scope, and description for a known rule id', () => {
+      const r = run(['explain', 'duplicate-ids'], '.');
+      expect(r.status).toBe(0);
+      expect(r.stdout).toContain('duplicate-ids');
+      expect(r.stdout).toContain('error');
+      expect(r.stdout).toContain('flowchart / graph');
+      expect(r.stdout).toContain(
+        'Same node id declared twice with conflicting labels; Mermaid silently drops one',
+      );
+    });
+
+    it('exits 2 for an unknown rule id', () => {
+      const r = run(['explain', 'not-a-real-rule'], '.');
+      expect(r.status).toBe(2);
+      expect(r.stderr).toContain('unknown rule id');
+    });
+
+    it('exits 2 when no rule id is given', () => {
+      const r = run(['explain'], '.');
+      expect(r.status).toBe(2);
+      expect(r.stderr).toContain('Usage: mermaid-lint explain');
+    });
+  });
+
   it('--quiet suppresses per-file progress', () => {
     const tmp = mkdtempSync(join(tmpdir(), 'mermaid-lint-'));
     writeFileSync(
@@ -105,7 +130,7 @@ describe('mermaid-lint CLI', () => {
     const r = run(['--format', 'json', join(tmp, 'ok.md')], tmp);
     expect(r.status).toBe(0);
     const json = JSON.parse(r.stdout);
-    expect(json.version).toBe('0.51.0');
+    expect(json.version).toBe('0.52.0');
     expect(json.files).toHaveLength(1);
     expect(json.files[0].diagrams[0].ok).toBe(true);
     expect(json.files[0].diagrams[0].type).toBe('flowchart');
@@ -298,7 +323,7 @@ describe('mermaid-lint CLI', () => {
     // An error-severity finding fails the run even though the diagram parses.
     expect(r.status).toBe(1);
     const json = JSON.parse(r.stdout);
-    expect(json.version).toBe('0.51.0');
+    expect(json.version).toBe('0.52.0');
     expect(json.files[0].diagrams[0].ok).toBe(true);
     expect(json.files[0].diagrams[0].warnings).toHaveLength(1);
     expect(json.files[0].diagrams[0].warnings[0].rule).toBe('duplicate-ids');
