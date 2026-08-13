@@ -1,0 +1,186 @@
+import { describe, expect, it } from 'vitest';
+import {
+  LINK_START_RE,
+  blankQuoted,
+  scanShapes,
+  withCloserCorrected,
+  withCloserInserted,
+} from '../../src/explain/shapes.js';
+
+describe('blankQuoted', () => {
+  it('replaces a quoted segment with spaces of the same width', () => {
+    const line = '  A["hi"] --> B';
+    const blanked = blankQuoted(line);
+    expect(blanked).toBe('  A[    ] --> B');
+    expect(blanked.length).toBe(line.length);
+  });
+
+  it('leaves indices aligned so a scan can report positions in the original', () => {
+    const line = '  A["x]y" --> B';
+    expect(blankQuoted(line).indexOf('[')).toBe(line.indexOf('['));
+  });
+
+  // `A[don't]` is a valid node. Treating `'` as a delimiter made a pair of
+  // apostrophes swallow the arrow between them.
+  it('does not treat apostrophes as quotes', () => {
+    const line = "  A[don't] --> B[won't]";
+    expect(blankQuoted(line)).toBe(line);
+  });
+
+  it('leaves an unterminated quote alone', () => {
+    const line = '  A["Start] --> B';
+    expect(blankQuoted(line)).toBe(line);
+  });
+});
+
+describe('scanShapes', () => {
+  it('returns undefined when every delimiter pairs up', () => {
+    expect(scanShapes('  A[call foo(bar)] --> B')).toBeUndefined();
+    expect(scanShapes('  A{is (x)?} --> B')).toBeUndefined();
+  });
+
+  it('ignores a surplus closer with nothing open', () => {
+    expect(scanShapes('  A[Start]] --> B')).toBeUndefined();
+  });
+
+  it('reports an unclosed opener with its index', () => {
+    const defect = scanShapes('  A[Start --> B');
+    expect(defect?.kind).toBe('unclosed');
+    expect(defect?.opener).toBe('[');
+    expect(defect?.openerIndex).toBe(3);
+    expect(defect?.unclosedCount).toBe(1);
+  });
+
+  it('reports a mismatched pair with both delimiters', () => {
+    const defect = scanShapes('  A[Start) --> B');
+    expect(defect?.kind).toBe('mismatched');
+    expect(defect?.opener).toBe('[');
+    expect(defect?.closer).toBe(')');
+    expect(defect?.closerIndex).toBe(9);
+  });
+
+  it('counts every survivor, not just the innermost', () => {
+    const defect = scanShapes('  A[call foo(bar --> B');
+    expect(defect?.kind).toBe('unclosed');
+    expect(defect?.opener).toBe('(');
+    expect(defect?.unclosedCount).toBe(2);
+  });
+
+  it('finds a later unclosed opener after an earlier balanced pair', () => {
+    const defect = scanShapes('  A[Start] --> B[End');
+    expect(defect?.kind).toBe('unclosed');
+    expect(defect?.openerIndex).toBe(16);
+    expect(defect?.unclosedCount).toBe(1);
+  });
+
+  it('does not pair a quoted closer with a real opener', () => {
+    const defect = scanShapes('  A["x]y" --> B');
+    expect(defect?.kind).toBe('unclosed');
+    expect(defect?.opener).toBe('[');
+  });
+
+  // Without ignoring quoted text this reads as `(` closed by `]`.
+  it('does not invent a mismatch from a quoted paren', () => {
+    const defect = scanShapes('  A["x(y"] --> B[');
+    expect(defect?.kind).toBe('unclosed');
+    expect(defect?.opener).toBe('[');
+    expect(defect?.unclosedCount).toBe(1);
+  });
+
+  it('treats brackets as balanced when only a quote is unterminated', () => {
+    expect(scanShapes('  A["Start] --> B')).toBeUndefined();
+  });
+});
+
+describe('withCloserInserted', () => {
+  function insert(line: string) {
+    const defect = scanShapes(line);
+    return defect === undefined ? undefined : withCloserInserted(line, defect);
+  }
+
+  it('closes the label before the link, not at end of line', () => {
+    expect(insert('  A[Start --> B')).toBe('  A[Start] --> B');
+  });
+
+  it('appends when no link follows the opener', () => {
+    expect(insert('  A[Start')).toBe('  A[Start]');
+  });
+
+  // Appending would make one node labelled "Start --- B" — it parses, but it
+  // is not what the author wrote.
+  it('closes before a headless link too', () => {
+    expect(insert('  A[Start --- B')).toBe('  A[Start] --- B');
+    expect(insert('  A[Start === B')).toBe('  A[Start] === B');
+    expect(insert('  A[Start -- x --- B')).toBe('  A[Start] -- x --- B');
+  });
+
+  // The arrow inside the label must not choose the cut point.
+  it('ignores a link inside a quoted label', () => {
+    expect(insert('  A["a -->  b" --> B')).toBe('  A["a -->  b"] --> B');
+  });
+
+  it('declines when there is no label text to close around', () => {
+    expect(insert('  C[')).toBeUndefined();
+  });
+
+  // One `]` would still leave `[` open, so there is no single-insertion repair.
+  it('declines when more than one opener is unmatched', () => {
+    expect(insert('  A[call foo(bar --> B')).toBeUndefined();
+  });
+
+  it('declines on a mismatched defect', () => {
+    const line = '  A[Start) --> B';
+    const defect = scanShapes(line);
+    expect(defect).toBeDefined();
+    expect(defect && withCloserInserted(line, defect)).toBeUndefined();
+  });
+});
+
+describe('withCloserCorrected', () => {
+  function correct(line: string) {
+    const defect = scanShapes(line);
+    return defect === undefined ? undefined : withCloserCorrected(line, defect);
+  }
+
+  it('swaps the disagreeing closer for the opener’s own', () => {
+    expect(correct('  A[Start) --> B')).toBe('  A[Start] --> B');
+    expect(correct('  A(Start] --> B')).toBe('  A(Start) --> B');
+    expect(correct('  A{Start] --> B')).toBe('  A{Start} --> B');
+  });
+
+  it('declines on an unclosed defect', () => {
+    const line = '  A[Start --> B';
+    const defect = scanShapes(line);
+    expect(defect).toBeDefined();
+    expect(defect && withCloserCorrected(line, defect)).toBeUndefined();
+  });
+});
+
+describe('LINK_START_RE', () => {
+  it.each([
+    '-->',
+    '->',
+    '==>',
+    '-.->',
+    '-.-->',
+    '--x',
+    '--o',
+    '==x',
+    // Headless links are links too; missing them mislocated the label end.
+    '--',
+    '---',
+    '===',
+    '-.-',
+  ])('matches %s', (link) => {
+    expect(LINK_START_RE.test(`A ${link} B`)).toBe(true);
+  });
+
+  it('matches at the start of the link, not partway through', () => {
+    expect(LINK_START_RE.exec('A --> B')?.index).toBe(2);
+    expect(LINK_START_RE.exec('A -.-> B')?.index).toBe(2);
+  });
+
+  it.each(['-', '=', 'A B'])('does not match %s', (text) => {
+    expect(LINK_START_RE.test(`A ${text} B`)).toBe(false);
+  });
+});

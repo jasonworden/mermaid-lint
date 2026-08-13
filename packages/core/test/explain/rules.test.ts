@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { parseRawError } from '../../src/explain/parse-raw.js';
 import { EXPLAIN_RULES } from '../../src/explain/rules.js';
+import { locateHeader } from '../../src/header.js';
 import { detectDiagramType } from '../../src/type-detect.js';
+import { validateWithMermaidJS } from '../../src/validate.js';
 
 function toInput(raw: string, body: string, line?: number) {
   return {
@@ -539,4 +541,179 @@ describe('the table itself', () => {
       expect(explain(raw, body, line)?.message, id).not.toMatch(/\bline\s*\d/i);
     }
   });
+});
+
+/**
+ * End-to-end: hand the body to the real mermaid, feed its actual error through
+ * the table, then hand mermaid the suggested correction and require it to
+ * parse.
+ *
+ * This is the test that makes the suggestions trustworthy. Everything above
+ * runs against raw strings captured by hand, which pins the table's *shape*
+ * but cannot notice a suggestion that is syntactically plausible and still
+ * wrong — that is exactly how a rewrite that cut a quoted label in half
+ * (`A["a] -->  b" --> B`) passed a full green suite. Each body's only defect is
+ * the one its rule repairs, so "mermaid accepts the result" is a fair bar.
+ */
+describe('suggestions round-trip through mermaid', () => {
+  const BODIES: Record<string, string> = {
+    'unknown-diagram-type': 'flowchat LR\n  A --> B',
+    'flowchart-bad-direction': 'flowchart lr\n  A --> B',
+    'flowchart-bad-direction (semicolon header)': 'flowchart lr;\n  A --> B',
+    'sequence-note-missing-colon':
+      'sequenceDiagram\n  A->>B: x\n  Note over A hello',
+    'sequence-missing-colon': 'sequenceDiagram\n  Alice->>Bob hello there',
+    'flowchart-single-dash-arrow': 'flowchart LR\n  A -> B',
+    'flowchart-space-in-id': 'flowchart LR\n  My Node --> B',
+    'flowchart-mismatched-shape': 'flowchart LR\n  A[Start) --> B',
+    'flowchart-mismatched-shape (round opener)':
+      'flowchart LR\n  A(Start] --> B',
+    'flowchart-unclosed-shape': 'flowchart LR\n  A[Start --> B',
+    'flowchart-unclosed-shape (arrow inside the label)':
+      'flowchart LR\n  A["a -->  b" --> B',
+    // `---` and `===` are open links with no arrowhead. (`--` alone is not a
+    // link at all — mermaid requires edge text with it — so it is no fixture.)
+    'flowchart-unclosed-shape (headless link)': 'flowchart LR\n  A[Start --- B',
+    'flowchart-unclosed-shape (thick open link)':
+      'flowchart LR\n  A[Start === B',
+    'flowchart-unquoted-paren': 'flowchart LR\n  A[call foo(bar)] --> B',
+    'flowchart-reserved-end': 'flowchart LR\n  A --> end',
+  };
+
+  for (const [name, body] of Object.entries(BODIES)) {
+    it(`repairs ${name}`, async () => {
+      const before = await validateWithMermaidJS(body);
+      expect(before.ok, 'fixture should not already parse').toBe(false);
+      const error = before.ok ? undefined : before.error;
+
+      const got = explain(error?.message ?? '', body, error?.line);
+      expect(got?.suggestion, `no suggestion for ${name}`).toBeDefined();
+
+      const lines = body.split('\n');
+      // Rules keyed on the header carry no line of their own.
+      const target = error?.line ?? locateHeader(lines).line;
+      lines[target - 1] = got?.suggestion ?? '';
+      const after = await validateWithMermaidJS(lines.join('\n'));
+      expect(
+        after.ok,
+        `mermaid rejected: ${JSON.stringify(lines.join('\n'))}`,
+      ).toBe(true);
+    });
+  }
+
+  // The counterpart: when a rule cannot name a repair it must stay silent
+  // rather than emit something that parses and misleads.
+  it('offers no suggestion when one insertion cannot repair the line', async () => {
+    const body = 'flowchart LR\n  A[call foo(bar --> B';
+    const before = await validateWithMermaidJS(body);
+    const error = before.ok ? undefined : before.error;
+    const got = explain(error?.message ?? '', body, error?.line);
+    expect(got?.id).toBe('flowchart-unclosed-shape');
+    expect(got?.suggestion).toBeUndefined();
+  });
+});
+
+/**
+ * Cases that made a rule state something false about a real diagram. Each runs
+ * end-to-end so the signature is mermaid's own, not a hand-copied string.
+ */
+describe('regressions', () => {
+  async function explainReal(body: string) {
+    const result = await validateWithMermaidJS(body);
+    expect(result.ok, `fixture should not parse: ${body}`).toBe(false);
+    const error = result.ok ? undefined : result.error;
+    return explain(error?.message ?? '', body, error?.line);
+  }
+
+  // `graph TD;` is the README spelling. Splitting the header on whitespace
+  // alone left `TD;`, which is in no direction set, so the rule called a valid
+  // header invalid while the real defect was the stray `)` three lines down.
+  it('does not call a semicolon-terminated header a bad direction', async () => {
+    const got = await explainReal(
+      'graph TD;\n  subgraph one\n  A --> B\n  end)',
+    );
+    expect(got?.id).not.toBe('flowchart-bad-direction');
+  });
+
+  it('does not blame the header when the lexer tripped further down', async () => {
+    const got = await explainReal('flowchart LR\n  A[Start] --> B)');
+    expect(got?.id).not.toBe('flowchart-bad-direction');
+  });
+
+  // Isolates the header-line requirement from the semicolon strip: here the
+  // `;` is mid-token, so stripping a trailing one cannot rescue `TD;A-->B`.
+  // `graph TD;A-->B` on its own is valid mermaid.
+  it('does not blame a header holding an inline statement', async () => {
+    const got = await explainReal('graph TD;A-->B\n  C[Start] --> D)');
+    expect(got?.id).not.toBe('flowchart-bad-direction');
+  });
+
+  // `loop`, `rect` and friends are sequence keywords and legal flowchart node
+  // ids. mermaid always lists `end` as legal at flowchart statement position,
+  // so the signature fires on any flowchart; only the diagram-type partition
+  // and the no-link check keep the rule from inventing a block.
+  it.each(['loop', 'rect', 'alt', 'opt', 'par', 'critical'])(
+    'does not invent a block from the flowchart node id `%s`',
+    async (keyword) => {
+      const got = await explainReal(
+        `flowchart LR\n  ${keyword} --> B\n  ?!@#$`,
+      );
+      expect(got?.id).not.toBe('block-missing-end');
+    },
+  );
+
+  // Isolates the diagram-type partition from the no-link check: nothing on the
+  // `loop` line resembles a link, so only knowing that flowcharts have no
+  // `loop` block keeps this from inventing one.
+  it.each(['loop', 'rect'])(
+    'does not invent a block from the bare flowchart node id `%s`',
+    async (keyword) => {
+      const got = await explainReal(`flowchart LR\n  ${keyword}\n  ?!@#$`);
+      expect(got?.id).not.toBe('block-missing-end');
+    },
+  );
+
+  it('still reports a genuinely unclosed sequence block', async () => {
+    const got = await explainReal(
+      'sequenceDiagram\n  Alice->>Bob: hi\n  loop x',
+    );
+    expect(got?.id).toBe('block-missing-end');
+    expect(got?.message).toBe('`loop` block was never closed with `end`');
+  });
+
+  // Isolates the no-link check from the type partition: `rect` is a legal
+  // sequence participant name, so inside a sequence diagram only "an opener
+  // line carries no link" stops `rect->>B: hi` from being read as a second,
+  // inner block and stealing the message from the real one.
+  it('names the real block, not a participant sharing a keyword', async () => {
+    const got = await explainReal(
+      'sequenceDiagram\n  loop x\n    rect->>B: hi',
+    );
+    expect(got?.id).toBe('block-missing-end');
+    expect(got?.message).toBe('`loop` block was never closed with `end`');
+  });
+
+  // The price of that check, paid deliberately: a loop whose *label* contains
+  // an arrow reads as a statement, so a real unclosed block goes unexplained.
+  // Declining loses an explanation; guessing would produce a wrong one, and
+  // Tier 2 still declutters mermaid's own wording here.
+  it('declines a block whose label contains an arrow', async () => {
+    const got = await explainReal(
+      'sequenceDiagram\n  loop --> retry\n    A->>B: x',
+    );
+    expect(got?.id).not.toBe('block-missing-end');
+  });
+
+  it.each(['break', 'par_over'])(
+    'reports an unclosed `%s` block',
+    async (keyword) => {
+      const got = await explainReal(
+        `sequenceDiagram\n  Alice->>Bob: hi\n  ${keyword} x`,
+      );
+      expect(got?.id).toBe('block-missing-end');
+      expect(got?.message).toBe(
+        `\`${keyword}\` block was never closed with \`end\``,
+      );
+    },
+  );
 });

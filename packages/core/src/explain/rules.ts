@@ -3,6 +3,13 @@ import { SEQ_MISSING_COLON_RE } from '../fix.js';
 import { locateFrontmatter, locateHeader } from '../header.js';
 import { KNOWN_DIAGRAM_TYPES, nearestDiagramType } from './diagram-types.js';
 import type { ParsedParserError } from './parse-raw.js';
+import {
+  LINK_START_RE,
+  blankQuoted,
+  scanShapes,
+  withCloserCorrected,
+  withCloserInserted,
+} from './shapes.js';
 
 /**
  * Everything a rule may look at: mermaid's normalized signature, its original
@@ -53,133 +60,19 @@ export interface ExplainRule {
 // Shared helpers
 // ---------------------------------------------------------------------------
 
-/** Complete quoted segments, split out so brackets inside them don't count. */
-const QUOTED_SEGMENT_RE = /(["'][^"']*["'])/;
-
-/**
- * The line with every *complete* quoted segment replaced by spaces, so
- * delimiter scans see label text as inert while every index still lines up
- * with the original. An unterminated quote leaves the line untouched, which is
- * what makes the shape rules decline on it rather than blame a bracket.
- */
-function blankQuoted(line: string): string {
-  return line
-    .split(QUOTED_SEGMENT_RE)
-    .map((part, i) => (i % 2 === 1 ? ' '.repeat(part.length) : part))
-    .join('');
-}
-
-/** The body's header line verbatim, indentation kept, or `undefined`. */
-function headerLine(body: string): string | undefined {
+/** The body's header: its 1-indexed line, trimmed text, and verbatim source. */
+function headerOf(
+  body: string,
+): { line: number; text: string; raw: string } | undefined {
   const lines = body.split('\n');
   const { line, text } = locateHeader(lines);
-  return text.length === 0 ? undefined : lines[line - 1];
-}
-
-function headerWords(body: string): string[] | undefined {
-  const header = headerLine(body);
-  return header === undefined ? undefined : header.trim().split(/\s+/);
+  return text.length === 0 ? undefined : { line, text, raw: lines[line - 1] };
 }
 
 /** Replace the nth whitespace-delimited word of `line`, keeping its spacing. */
 function replaceWord(line: string, index: number, replacement: string): string {
   const pattern = index === 0 ? /^(\s*)(\S+)/ : /^(\s*\S+\s+)(\S+)/;
   return line.replace(pattern, (_match, head: string) => head + replacement);
-}
-
-/**
- * Flowchart link openers, used to find where a node's label has to end.
- * Deliberately spelled `-{1,2}>` rather than with a literal two-dash arrow: a
- * CodeQL rule fails CI on the literal form.
- */
-const LINK_START_RE = /(?:-{1,2}|={1,2})(?:>|[ox])|-\.-{0,2}>/;
-
-// ---------------------------------------------------------------------------
-// Node-shape delimiters
-// ---------------------------------------------------------------------------
-
-const CLOSER_FOR = new Map([
-  ['[', ']'],
-  ['(', ')'],
-  ['{', '}'],
-]);
-const CLOSERS = new Set(CLOSER_FOR.values());
-
-interface ShapeDefect {
-  kind: 'unclosed' | 'mismatched';
-  opener: string;
-  openerIndex: number;
-  /** Present only for `'mismatched'`. */
-  closer: string;
-  closerIndex: number;
-}
-
-/**
- * The first unbalanced node-shape delimiter on a line, or `undefined` when
- * every opener pairs with its own closer.
- *
- * Shape *multiplicity* is deliberately ignored — `[[`, `[(` and `[` all count
- * as one `[`, and mermaid's expected-token list already told us a closer was
- * wanted. A surplus closer with nothing open is not treated as a defect: on
- * `A[Start]] --> B` the pair really does agree and the extra `]` is the
- * surplus, so both shape rules stand down rather than name delimiters that
- * match.
- */
-function scanShapes(line: string): ShapeDefect | undefined {
-  const blanked = blankQuoted(line);
-  const stack: { char: string; index: number }[] = [];
-
-  for (let i = 0; i < blanked.length; i++) {
-    const char = blanked[i];
-    if (CLOSER_FOR.has(char)) {
-      stack.push({ char, index: i });
-      continue;
-    }
-    if (!CLOSERS.has(char)) continue;
-    const open = stack.pop();
-    if (open === undefined) continue;
-    if (CLOSER_FOR.get(open.char) !== char)
-      return {
-        kind: 'mismatched',
-        opener: open.char,
-        openerIndex: open.index,
-        closer: char,
-        closerIndex: i,
-      };
-  }
-
-  const unclosed = stack.pop();
-  if (unclosed === undefined) return undefined;
-  return {
-    kind: 'unclosed',
-    opener: unclosed.char,
-    openerIndex: unclosed.index,
-    closer: '',
-    closerIndex: -1,
-  };
-}
-
-/**
- * The line with the missing closer inserted — before the first link if one
- * follows the opener, so `A[Start --> B` becomes `A[Start] --> B` rather than
- * a single node labelled "Start --> B". Returns `undefined` when there is no
- * label text to close around, since `C[]` is no more valid than `C[`.
- */
-function withCloserInserted(
-  line: string,
-  defect: ShapeDefect,
-): string | undefined {
-  const closer = CLOSER_FOR.get(defect.opener);
-  if (closer === undefined) return undefined;
-
-  const after = line.slice(defect.openerIndex + 1);
-  const link = LINK_START_RE.exec(after);
-  const cut = link === null ? line.length : defect.openerIndex + 1 + link.index;
-  const head = line.slice(0, cut).trimEnd();
-  if (head.length <= defect.openerIndex + 1) return undefined;
-
-  const tail = line.slice(cut);
-  return tail.length === 0 ? `${head}${closer}` : `${head}${closer} ${tail}`;
 }
 
 /** Every token mermaid names when it wanted a node-shape closer. */
@@ -214,15 +107,27 @@ function isFlowchart(input: ExplainInput): boolean {
 
 /**
  * A one-dash arrow that is not part of a longer link (`==>`, `-.->`, `->>`, or
- * the two-dash form). Spelled and replaced exactly as `normalizeFlowchartArrows`
- * in `fix.ts` does, so the suggestion is what `--fix` would write.
+ * the two-dash form), plus the quote split and replacement that go with it.
  *
- * The `/g` copy is a separate literal rather than a shared one: `test` on a
- * global regex advances `lastIndex`, so one object used for both the gate and
- * the rewrite would skip matches on every other call.
+ * All three mirror `normalizeFlowchartArrows` in `fix.ts` character for
+ * character, so this rule's suggestion is exactly what `--fix` will write. That
+ * includes the `["']` split, which differs from {@link blankQuoted}'s
+ * `"`-only rule: `fix.ts` treats an apostrophe as a quote, so it declines to
+ * rewrite `A[don't] -> B[won't]`. Narrowing it here alone would make this rule
+ * promise a `fixable` correction `--fix` then refuses to perform, which is the
+ * one thing sharing `SEQ_MISSING_COLON_RE` exists to prevent. The fix belongs
+ * in `fix.ts`, for both at once.
+ *
+ * The `/g` copy is derived rather than shared: `test` on a global regex
+ * advances `lastIndex`, so one object used for both the gate and the rewrite
+ * would skip every other match.
  */
 const SINGLE_DASH_ARROW_RE = /(?<![=\-.])-{1}>(?![>-])/;
-const SINGLE_DASH_ARROW_GLOBAL_RE = /(?<![=\-.])-{1}>(?![>-])/g;
+const SINGLE_DASH_ARROW_GLOBAL_RE = new RegExp(
+  SINGLE_DASH_ARROW_RE.source,
+  'g',
+);
+const FIX_QUOTED_SEGMENT_RE = /(["'][^"']*["'])/;
 const TWO_DASH_ARROW = '-->';
 
 const NOTE_PREFIX_RE = /^\s*Note\s+(over|left of|right of)\s+/i;
@@ -230,9 +135,14 @@ const NOTE_OVER_RE =
   /^(\s*Note\s+over\s+)([^\s,]+(?:\s*,\s*[^\s,]+)*)\s+(\S.*)$/i;
 const NOTE_SIDE_RE = /^(\s*Note\s+(?:left|right) of\s+)(\S+)\s+(\S.*)$/i;
 
-/** An arrow whose target is a bare `end` and nothing else. */
-const ARROW_TO_BARE_END_RE =
-  /(?:(?:-{1,2}|={1,2})(?:>|[ox])|-\.-{0,2}>)\s*end\s*$/;
+/**
+ * An arrow whose target is a bare `end` and nothing else. Built from
+ * {@link LINK_START_RE} rather than re-spelled, so there is one definition of
+ * what a link looks like and no second place to re-remember the `-{1,2}>` form.
+ */
+const ARROW_TO_BARE_END_RE = new RegExp(
+  `(?:${LINK_START_RE.source})\\s*end\\s*$`,
+);
 const TRAILING_END_RE = /end(\s*)$/;
 
 /**
@@ -249,26 +159,44 @@ const SPACE_IN_ID_RE = /^(\s*)(\w+)\s+(\w+)(\s+-{1,2}>)/;
  */
 const UNQUOTED_PAREN_LABEL_RE = /\[([^"'[\]()]*\([^"'[\]]*)\]/;
 
-/** Block keywords mermaid closes with `end`, across flowchart and sequence. */
-const BLOCK_OPEN_RE = /^(loop|alt|opt|par|critical|rect|subgraph)\b/;
+/**
+ * Block keywords mermaid closes with `end`, partitioned by diagram type.
+ *
+ * The partition is the whole point. `loop`, `alt`, `opt`, `par`, `critical`,
+ * `rect` and `break` are sequence-diagram keywords and every one of them is a
+ * legal flowchart *node id* — `flowchart LR / loop --> retry` opens no block at
+ * all. One combined set invented a block from that node and told the author it
+ * was never closed.
+ */
+const BLOCK_OPEN_RE_FOR = new Map([
+  ['flowchart', /^(subgraph)\b/],
+  ['graph', /^(subgraph)\b/],
+  ['sequenceDiagram', /^(loop|alt|opt|par_over|par|critical|rect|break)\b/],
+]);
 const BLOCK_END_RE = /^end\b/;
 
 /**
- * The innermost block keyword left open at the end of the body, or
- * `undefined`. Keywords are only counted at the start of a line, so `subgraph`
- * inside a node label never opens a block; frontmatter and `%%` comments are
- * skipped for the same reason.
+ * The innermost block keyword left open at the end of the body, or `undefined`
+ * — including when the diagram type has no `end`-closed blocks we model, since
+ * inventing one is worse than declining.
+ *
+ * A keyword only opens a block at the start of a line *and* with no link on
+ * that line: `subgraph` inside a node label is label text, and `loop --> retry`
+ * is a node statement. Frontmatter and `%%` comments are skipped entirely.
  */
-function unclosedBlock(body: string): string | undefined {
+function unclosedBlock(body: string, type: string): string | undefined {
+  const openRe = BLOCK_OPEN_RE_FOR.get(type);
+  if (openRe === undefined) return undefined;
+
   const lines = body.split('\n');
   const frontmatter = locateFrontmatter(lines);
   const stack: string[] = [];
 
   for (let i = frontmatter ? frontmatter.end + 1 : 0; i < lines.length; i++) {
-    const line = lines[i].trimStart();
+    const line = blankQuoted(lines[i]).trimStart();
     if (line.startsWith('%%')) continue;
-    const open = BLOCK_OPEN_RE.exec(line);
-    if (open) {
+    const open = openRe.exec(line);
+    if (open && !LINK_START_RE.test(line)) {
       stack.push(open[1]);
       continue;
     }
@@ -317,9 +245,9 @@ export const EXPLAIN_RULES: readonly ExplainRule[] = [
     id: 'unknown-diagram-type',
     matches: (input) => input.parsed.family === 'no-diagram-type',
     confirm(_sourceLine, input) {
-      const header = headerLine(input.body);
-      const word = headerWords(input.body)?.[0];
-      if (header === undefined || word === undefined) return undefined;
+      const header = headerOf(input.body);
+      if (header === undefined) return undefined;
+      const word = header.text.split(/\s+/)[0];
       // mermaid says the same thing when a real type is not registered in the
       // running config. Calling a correctly spelled keyword unknown would lie.
       if (KNOWN_DIAGRAM_TYPES.includes(word)) return undefined;
@@ -329,7 +257,7 @@ export const EXPLAIN_RULES: readonly ExplainRule[] = [
         return { message: `unknown diagram type \`${word}\`` };
       return {
         message: `unknown diagram type \`${word}\`; did you mean \`${nearest}\`?`,
-        suggestion: replaceWord(header, 0, nearest),
+        suggestion: replaceWord(header.raw, 0, nearest),
       };
     },
   },
@@ -339,17 +267,34 @@ export const EXPLAIN_RULES: readonly ExplainRule[] = [
     matches: (input) =>
       input.parsed.family === 'jison-lexical' && isFlowchart(input),
     confirm(_sourceLine, input) {
-      const header = headerLine(input.body);
-      const direction = headerWords(input.body)?.[1];
-      if (header === undefined || direction === undefined) return undefined;
-      if (FLOWCHART_DIRECTIONS.has(direction)) return undefined;
+      const header = headerOf(input.body);
+      if (header === undefined) return undefined;
+      // mermaid rejects a bad direction on the header line itself. Any other
+      // blamed line means the lexer tripped further down and the header is a
+      // bystander — `FLOWCHART_DIRECTIONS` is a fail-safe routing hint in
+      // `validate.ts` ("when in doubt, call mermaid"), not evidence that a
+      // header is invalid, so it cannot carry this on its own.
+      if (input.line !== header.line) return undefined;
+
+      const word = header.text.split(/\s+/)[1];
+      if (word === undefined) return undefined;
+      // `graph TD;` is the README spelling and perfectly valid; the trailing
+      // `;` is a statement separator, not part of the direction token.
+      const direction = word.replace(/;+$/, '');
+      if (direction.length === 0 || FLOWCHART_DIRECTIONS.has(direction))
+        return undefined;
 
       const message = `\`${direction}\` is not a valid flowchart direction`;
       const nearest = nearestDirection(direction);
       if (nearest === undefined) return { message };
       return {
         message: `${message}; did you mean \`${nearest}\`?`,
-        suggestion: replaceWord(header, 1, nearest),
+        // Keep whatever punctuation followed the direction word.
+        suggestion: replaceWord(
+          header.raw,
+          1,
+          nearest + word.slice(direction.length),
+        ),
       };
     },
   },
@@ -398,14 +343,22 @@ export const EXPLAIN_RULES: readonly ExplainRule[] = [
     id: 'flowchart-single-dash-arrow',
     matches: (input) => expectsLink(input) && input.parsed.got === 'MINUS',
     confirm(sourceLine) {
-      if (!SINGLE_DASH_ARROW_RE.test(blankQuoted(sourceLine))) return undefined;
+      // One split feeds both the gate and the rewrite, so this rule can never
+      // claim an arrow it would then decline to rewrite — or vice versa.
+      const parts = sourceLine.split(FIX_QUOTED_SEGMENT_RE);
+      const isQuoted = (i: number) => i % 2 === 1;
+      if (
+        !parts.some(
+          (part, i) => !isQuoted(i) && SINGLE_DASH_ARROW_RE.test(part),
+        )
+      )
+        return undefined;
       return {
         message:
           '`->` is not a flowchart arrow — flowchart arrows need two dashes',
-        suggestion: sourceLine
-          .split(QUOTED_SEGMENT_RE)
+        suggestion: parts
           .map((part, i) =>
-            i % 2 === 1
+            isQuoted(i)
               ? part
               : part.replace(SINGLE_DASH_ARROW_GLOBAL_RE, TWO_DASH_ARROW),
           )
@@ -439,14 +392,9 @@ export const EXPLAIN_RULES: readonly ExplainRule[] = [
     confirm(sourceLine) {
       const defect = scanShapes(sourceLine);
       if (defect?.kind !== 'mismatched') return undefined;
-      const closer = CLOSER_FOR.get(defect.opener);
-      if (closer === undefined) return undefined;
       return {
         message: `node label opened with \`${defect.opener}\` is closed with \`${defect.closer}\``,
-        suggestion:
-          sourceLine.slice(0, defect.closerIndex) +
-          closer +
-          sourceLine.slice(defect.closerIndex + 1),
+        suggestion: withCloserCorrected(sourceLine, defect),
       };
     },
   },
@@ -495,7 +443,7 @@ export const EXPLAIN_RULES: readonly ExplainRule[] = [
     id: 'block-missing-end',
     matches: (input) => input.parsed.expected.includes('end'),
     confirm(_sourceLine, input) {
-      const keyword = unclosedBlock(input.body);
+      const keyword = unclosedBlock(input.body, input.type);
       if (keyword === undefined) return undefined;
       return {
         message: `\`${keyword}\` block was never closed with \`end\``,
