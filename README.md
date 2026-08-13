@@ -24,7 +24,7 @@ npx mermaid-lint            # validate every Mermaid block in your git-tracked M
 No install, no config. mermaid-lint discovers your `.md` / `.mdx` / `.markdown` / `.mmd` files, validates every ` ```mermaid ` block, and reports the precise line and column of any error:
 
 ```text
-docs/architecture.md:42:5: error: Expecting 'SPACE', got 'TXT' (sequenceDiagram)
+docs/architecture.md:42:5: error: sequence message is missing a colon (sequenceDiagram)
 ```
 
 The exit code is non-zero on failure, so it drops straight into CI or a pre-commit hook. From here:
