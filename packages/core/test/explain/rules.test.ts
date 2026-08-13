@@ -560,6 +560,9 @@ describe('suggestions round-trip through mermaid', () => {
     'unknown-diagram-type': 'flowchat LR\n  A --> B',
     'flowchart-bad-direction': 'flowchart lr\n  A --> B',
     'flowchart-bad-direction (semicolon header)': 'flowchart lr;\n  A --> B',
+    // Mid-token `;`: the direction is cut at it, and the rest of the statement
+    // has to survive into the suggestion untouched.
+    'flowchart-bad-direction (inline statement)': 'graph lr;A-->B',
     'sequence-note-missing-colon':
       'sequenceDiagram\n  A->>B: x\n  Note over A hello',
     'sequence-missing-colon': 'sequenceDiagram\n  Alice->>Bob hello there',
@@ -620,9 +623,15 @@ describe('suggestions round-trip through mermaid', () => {
     expect(got?.suggestion).toBeUndefined();
   });
 
-  // Same for a mistyped closer on a nested shape: `A([foo}` is a stadium, and
-  // swapping `}` for `]` would still leave `(` open.
-  it.each(['flowchart LR\n  A([foo} --> B', 'flowchart LR\n  A[(foo} --> B'])(
+  // Same for a mistyped closer that leaves another shape open — whether that
+  // shape encloses the mismatch (`A([foo}`, a stadium) or follows it
+  // (`A[foo} --> B[bar`, where the scan had not yet reached the second `[`).
+  it.each([
+    'flowchart LR\n  A([foo} --> B',
+    'flowchart LR\n  A[(foo} --> B',
+    'flowchart LR\n  A[foo} --> B[bar',
+    'flowchart LR\n  A[foo} --> B(bar',
+  ])(
     'offers no suggestion when one substitution cannot repair %j',
     async (body) => {
       const before = await validateWithMermaidJS(body);

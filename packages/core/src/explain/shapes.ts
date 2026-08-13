@@ -74,11 +74,6 @@ export interface ShapeDefect {
   closer: string;
   /** Index of that closer; `-1` for `'unclosed'`. */
   closerIndex: number;
-  /**
-   * How many openers were still unmatched when the scan stopped. More than one
-   * means a single inserted closer cannot repair the line.
-   */
-  unclosedCount: number;
 }
 
 /**
@@ -112,7 +107,6 @@ export function scanShapes(line: string): ShapeDefect | undefined {
         openerIndex: open.index,
         closer: char,
         closerIndex: i,
-        unclosedCount: stack.length,
       };
   }
 
@@ -124,8 +118,23 @@ export function scanShapes(line: string): ShapeDefect | undefined {
     openerIndex: unclosed.index,
     closer: '',
     closerIndex: -1,
-    unclosedCount: stack.length,
   };
+}
+
+/**
+ * A rewrite is only worth offering if it leaves the line balanced.
+ *
+ * Both rewrites below repair exactly one delimiter, so the honest test of
+ * whether that was enough is to re-scan the result rather than to count what
+ * the original scan happened to have on its stack. Counting is what went
+ * wrong twice: `scanShapes` stops at the first defect, so on the mismatch
+ * branch its stack depth cannot see an opener further right — `A[foo} --> B[bar`
+ * measured zero survivors and produced `A[foo] --> B[bar`, which mermaid
+ * rejects. Checking the postcondition needs no per-branch threshold and cannot
+ * miss a delimiter the scan never reached.
+ */
+function ifBalanced(candidate: string): string | undefined {
+  return scanShapes(candidate) === undefined ? candidate : undefined;
 }
 
 /**
@@ -146,7 +155,7 @@ export function withCloserInserted(
   line: string,
   defect: ShapeDefect,
 ): string | undefined {
-  if (defect.kind !== 'unclosed' || defect.unclosedCount > 1) return undefined;
+  if (defect.kind !== 'unclosed') return undefined;
   const closer = CLOSER_FOR.get(defect.opener);
   if (closer === undefined) return undefined;
 
@@ -157,28 +166,27 @@ export function withCloserInserted(
   if (head.length <= defect.openerIndex + 1) return undefined;
 
   const tail = line.slice(cut);
-  return tail.length === 0 ? `${head}${closer}` : `${head}${closer} ${tail}`;
+  return ifBalanced(
+    tail.length === 0 ? `${head}${closer}` : `${head}${closer} ${tail}`,
+  );
 }
 
 /**
  * The line with a disagreeing closer replaced by the opener's own.
  *
- * Declines when any *other* opener is still unmatched, for the same reason
- * {@link withCloserInserted} does: on `A([foo} --> B` — a stadium `([` whose
- * closer was mistyped — swapping `}` for `]` yields `A([foo] --> B`, which
- * still leaves `(` open and which mermaid rejects. The guard is `> 0` rather
- * than `> 1` because a mismatched pair has already been popped, so
- * `unclosedCount` here counts only the openers this rewrite does not touch.
+ * Declines when the swap would leave the line unbalanced anyway — on
+ * `A([foo} --> B`, a stadium `([` whose closer was mistyped, turning `}` into
+ * `]` gives `A([foo] --> B`, which still leaves `(` open and which mermaid
+ * rejects. Same for an opener further right, as in `A[foo} --> B[bar`.
  */
 export function withCloserCorrected(
   line: string,
   defect: ShapeDefect,
 ): string | undefined {
-  if (defect.kind !== 'mismatched' || defect.unclosedCount > 0)
-    return undefined;
+  if (defect.kind !== 'mismatched') return undefined;
   const closer = CLOSER_FOR.get(defect.opener);
   if (closer === undefined) return undefined;
   const before = line.slice(0, defect.closerIndex);
   const after = line.slice(defect.closerIndex + 1);
-  return `${before}${closer}${after}`;
+  return ifBalanced(`${before}${closer}${after}`);
 }

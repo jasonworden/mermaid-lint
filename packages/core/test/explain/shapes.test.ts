@@ -48,7 +48,6 @@ describe('scanShapes', () => {
     expect(defect?.kind).toBe('unclosed');
     expect(defect?.opener).toBe('[');
     expect(defect?.openerIndex).toBe(3);
-    expect(defect?.unclosedCount).toBe(1);
   });
 
   it('reports a mismatched pair with both delimiters', () => {
@@ -59,18 +58,17 @@ describe('scanShapes', () => {
     expect(defect?.closerIndex).toBe(9);
   });
 
-  it('counts every survivor, not just the innermost', () => {
+  it('reports the innermost opener when several are unclosed', () => {
     const defect = scanShapes('  A[call foo(bar --> B');
     expect(defect?.kind).toBe('unclosed');
     expect(defect?.opener).toBe('(');
-    expect(defect?.unclosedCount).toBe(2);
+    expect(defect?.openerIndex).toBe(12);
   });
 
   it('finds a later unclosed opener after an earlier balanced pair', () => {
     const defect = scanShapes('  A[Start] --> B[End');
     expect(defect?.kind).toBe('unclosed');
     expect(defect?.openerIndex).toBe(16);
-    expect(defect?.unclosedCount).toBe(1);
   });
 
   it('does not pair a quoted closer with a real opener', () => {
@@ -84,7 +82,6 @@ describe('scanShapes', () => {
     const defect = scanShapes('  A["x(y"] --> B[');
     expect(defect?.kind).toBe('unclosed');
     expect(defect?.opener).toBe('[');
-    expect(defect?.unclosedCount).toBe(1);
   });
 
   it('treats brackets as balanced when only a quote is unterminated', () => {
@@ -172,9 +169,22 @@ describe('withCloserCorrected', () => {
 
   // `A([foo}` is a stadium whose closer was mistyped. Swapping `}` for `]`
   // leaves `(` open, so there is no single-substitution repair.
-  it('declines when another opener is still unmatched', () => {
+  it('declines when an enclosing opener is still unmatched', () => {
     expect(correct('  A([foo} --> B')).toBeUndefined();
     expect(correct('  A[(foo} --> B')).toBeUndefined();
+  });
+
+  // The opener that survives can also sit to the *right* of the mismatch, where
+  // the scan had not yet reached it — which is why this is checked by re-scanning
+  // the corrected line rather than by counting the scan's stack.
+  it('declines when a later opener is still unmatched', () => {
+    expect(correct('  A[foo} --> B[bar')).toBeUndefined();
+    expect(correct('  A[foo} --> B(bar')).toBeUndefined();
+    expect(correct('  A(foo} --> B[bar')).toBeUndefined();
+  });
+
+  it('still corrects when the rest of the line is balanced', () => {
+    expect(correct('  A[foo} --> B[bar]')).toBe('  A[foo] --> B[bar]');
   });
 });
 
