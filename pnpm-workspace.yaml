@@ -8,7 +8,7 @@ verifyDepsBeforeRun: error
 # a bump happens in one place. Keeps transitively-vulnerable phantoms (e.g. an
 # unanchored vitest peer pulling an old vite) from creeping back into the lock.
 catalog:
-  vitest: ^4.1.9
+  vitest: ^5.0.0
   vite: ^6.4.3
   typescript: 6.0.3
   '@types/node': ^22.0.0
